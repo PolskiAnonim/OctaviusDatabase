@@ -1,6 +1,19 @@
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.kotlinSerialization)
+    `maven-publish`
+}
+
+publishing {
+    repositories {
+        mavenLocal()
+    }
+}
+
+afterEvaluate {
+    publishing.publications.withType<MavenPublication>().configureEach {
+        artifactId = "database-$artifactId"
+    }
 }
 
 kotlin {

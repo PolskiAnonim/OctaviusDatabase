@@ -1,6 +1,23 @@
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.kotlinSerialization)
+    `maven-publish`
+}
+
+java {
+    withSourcesJar()
+}
+
+publishing {
+    repositories {
+        mavenLocal()
+    }
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            artifactId = "database-core"
+        }
+    }
 }
 
 dependencies {

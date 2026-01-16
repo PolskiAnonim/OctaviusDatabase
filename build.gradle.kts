@@ -6,6 +6,12 @@ plugins {
     alias(libs.plugins.kotlinJvm) apply false
     alias(libs.plugins.kotlinSerialization) apply false
     alias(libs.plugins.dokka)
+    `maven-publish`
+}
+
+allprojects {
+    group = "org.octavius"
+    version = "1.0.0"
 }
 
 dokka {
