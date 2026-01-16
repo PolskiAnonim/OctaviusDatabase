@@ -1,10 +1,10 @@
 plugins {
-    kotlin("jvm")
+    alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.kotlinSerialization)
 }
 
 dependencies {
-    api(projects.database.api)
+    api(projects.api)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.datetime)
     implementation(libs.kotlinx.coroutines.core)
@@ -13,21 +13,18 @@ dependencies {
     implementation(libs.kotlin.logging)
 
     // Database-specific dependencies
-    implementation(dbLibs.postgres)
-    implementation(dbLibs.hikari)
-    implementation(dbLibs.spring.jdbc)
-    implementation(dbLibs.classgraph)
+    implementation(libs.postgres)
+    implementation(libs.hikari)
+    implementation(libs.spring.jdbc)
+    implementation(libs.classgraph)
+    implementation(libs.flyway.postgres)
 
-    implementation(dbLibs.flyway.postgres)
-
-
-    // Test dependencies - precyzyjnie tylko to co potrzebne
+    // Test dependencies
     testImplementation(platform(libs.junit.bom))
-    testImplementation(libs.junit.jupiter.api)  // @Test, @BeforeAll etc.
-    testRuntimeOnly(libs.junit.jupiter.engine)  // silnik do uruchamiania testów
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.junit.jupiter.params)
-
     testImplementation(libs.mockk)
     testImplementation(libs.assertj.core)
 }

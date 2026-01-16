@@ -1,0 +1,41 @@
+import org.jetbrains.dokka.gradle.DokkaExtension
+import org.jetbrains.dokka.gradle.engine.parameters.VisibilityModifier
+
+plugins {
+    alias(libs.plugins.kotlinMultiplatform) apply false
+    alias(libs.plugins.kotlinJvm) apply false
+    alias(libs.plugins.kotlinSerialization) apply false
+    alias(libs.plugins.dokka)
+}
+
+dokka {
+    moduleName.set("Octavius Database")
+
+    dokkaPublications.html {
+        outputDirectory.set(layout.buildDirectory.dir("dokka/html"))
+    }
+}
+
+dependencies {
+    dokka(project(":api"))
+    dokka(project(":core"))
+}
+
+subprojects {
+    apply(plugin = "org.jetbrains.dokka")
+
+    extensions.configure<DokkaExtension> {
+        moduleName.set(name)
+
+        dokkaSourceSets.configureEach {
+            documentedVisibilities.set(
+                setOf(
+                    VisibilityModifier.Public,
+                    VisibilityModifier.Protected,
+                    VisibilityModifier.Internal
+                )
+            )
+            skipEmptyPackages.set(true)
+        }
+    }
+}
