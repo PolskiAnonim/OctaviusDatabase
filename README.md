@@ -4,8 +4,8 @@
 
 **An un-opinionated, SQL-first data access layer for Kotlin & PostgreSQL**
 
-[![KDoc API](https://img.shields.io/badge/KDoc-database--api-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusFramework/database/api)
-[![KDoc Core](https://img.shields.io/badge/KDoc-database--core-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusFramework/database/core)
+[![KDoc API](https://img.shields.io/badge/KDoc-api-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/api)
+[![KDoc Core](https://img.shields.io/badge/KDoc-core-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/core)
 
 *It's not an ORM. It's an* ***Anti-ORM.***
 
@@ -204,5 +204,5 @@ val dataAccess = OctaviusDatabase.fromDataSource(existingDataSource, ...)
 
 | Module | Platform | Description |
 |--------|----------|-------------|
-| `database/api` | Multiplatform | Public API, interfaces, annotations — no JVM dependencies |
-| `database/core` | JVM | Implementation using Spring JDBC & HikariCP |
+| `api` | Multiplatform | Public API, interfaces, annotations — no JVM dependencies |
+| `core` | JVM | Implementation using Spring JDBC & HikariCP |
