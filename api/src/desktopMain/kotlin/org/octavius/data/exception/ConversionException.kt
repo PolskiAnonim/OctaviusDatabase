@@ -1,0 +1,78 @@
+package org.octavius.data.exception
+
+enum class ConversionExceptionMessage {
+    VALUE_CONVERSION_FAILED,    // General standard type conversion error
+    ENUM_CONVERSION_FAILED,     // Database value doesn't match any enum
+    UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY,
+    INVALID_DYNAMIC_DTO_FORMAT, // dynamic_dto parsing error
+    INCOMPATIBLE_COLLECTION_ELEMENT_TYPE,
+    INCOMPATIBLE_TYPE,
+
+    // Mapping errors
+    OBJECT_MAPPING_FAILED,      // General error during data class instantiation
+    MISSING_REQUIRED_PROPERTY,  // Missing key for required field in data class
+    JSON_DESERIALIZATION_FAILED, // JSON deserialization error in dynamic_dto
+    JSON_SERIALIZATION_FAILED   // Object to JSON serialization error for dynamic_dto
+}
+
+private fun generateDeveloperMessage(
+    messageEnum: ConversionExceptionMessage,
+    value: Any?,
+    targetType: String?,
+    propertyName: String?
+): String {
+    return when (messageEnum) {
+        ConversionExceptionMessage.VALUE_CONVERSION_FAILED -> "Cannot convert value '$value' to type '$targetType'."
+        ConversionExceptionMessage.ENUM_CONVERSION_FAILED -> "Cannot convert enum value '$value' to type '$targetType'."
+        ConversionExceptionMessage.INVALID_DYNAMIC_DTO_FORMAT -> "Invalid dynamic_dto format: '$value'."
+        ConversionExceptionMessage.INCOMPATIBLE_COLLECTION_ELEMENT_TYPE ->
+            "An element within a collection has an incorrect type. Expected elements compatible with '$targetType', but found an element of type '${value?.let { it::class.simpleName }}'."
+
+        ConversionExceptionMessage.INCOMPATIBLE_TYPE -> "Element has an incompatible type. Expected elements compatible with '$targetType', but found an element of type '${value?.let { it::class.simpleName }}'."
+        ConversionExceptionMessage.OBJECT_MAPPING_FAILED -> "Failed to map data to object of class '$targetType'."
+        ConversionExceptionMessage.MISSING_REQUIRED_PROPERTY -> "Missing required field '$propertyName' (key: '$value') when mapping to class '$targetType'."
+        ConversionExceptionMessage.JSON_DESERIALIZATION_FAILED -> "Failed to deserialize JSON for dynamic type '$targetType'."
+        ConversionExceptionMessage.UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY ->
+            "Native JDBC arrays (Array<*>) do not support complex types (e.g., data class, List, Map). " +
+                    "Detected type: '${targetType}'. Use List<DataClass> so the library can generate ARRAY[ROW(...)] syntax."
+
+        ConversionExceptionMessage.JSON_SERIALIZATION_FAILED -> "Failed to serialize object of class '$targetType' to JSON format. " +
+                "Ensure that the class and all its nested types have the @Serializable annotation."
+    }
+}
+
+/**
+ * Errors related to conversion, parsing, or mapping data between Postgres and Kotlin.
+ */
+class ConversionException(
+    val messageEnum: ConversionExceptionMessage,
+    // Context fields - can be null depending on error type
+    val value: Any? = null,
+    val targetType: String? = null,
+    val rowData: Map<String, Any?>? = null,
+    val propertyName: String? = null,
+    cause: Throwable? = null
+) : DatabaseException(
+    messageEnum.name,
+    cause
+) {
+    override fun toString(): String {
+
+        var s = """
+
+        -------------------------------
+        |     CONVERSION FAILED     
+        | message: ${generateDeveloperMessage(this.messageEnum, value, targetType, propertyName)}
+        | value: $value
+        | targetType: $targetType
+        | rowData: $rowData
+        | propertyName: $propertyName
+        """.trimIndent()
+        if (cause != null) {
+            s += "\n| Caused by: ${cause!!::class.simpleName}: ${cause!!.message}"
+        }
+        return s + """
+        ---------------------------------
+        """.trimIndent()
+    }
+}

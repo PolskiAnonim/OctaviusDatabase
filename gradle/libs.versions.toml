@@ -1,0 +1,13 @@
+[versions]
+classgraph = "4.8.184"
+postgres = "42.7.8"
+hikari = "7.0.2"
+spring-jdbc = "7.0.2"
+flyway = "11.20.0"
+
+[libraries]
+classgraph = { group = "io.github.classgraph", name = "classgraph", version.ref = "classgraph" }
+postgres = { group = "org.postgresql", name = "postgresql", version.ref = "postgres" }
+hikari = { group = "com.zaxxer", name = "HikariCP", version.ref = "hikari" }
+spring-jdbc = { group = "org.springframework", name = "spring-jdbc", version.ref = "spring-jdbc" }
+flyway-postgres = { group = "org.flywaydb", name = "flyway-database-postgresql", version.ref = "flyway" }
