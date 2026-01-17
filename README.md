@@ -7,7 +7,7 @@
 [![KDoc API](https://img.shields.io/badge/KDoc-api-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/api)
 [![KDoc Core](https://img.shields.io/badge/KDoc-core-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/core)
 
-*It's not an ORM. It's an* ***Anti-ORM.***
+*It's not an ORM. It's a ROM (Relational-Object Mapper) — an Anti-ORM.
 
 </div>
 
@@ -131,7 +131,33 @@ dataAccess.executeTransactionPlan(plan)
 
 ## Type Mapping
 
-Automatic conversion between PostgreSQL and Kotlin types:
+Automatic conversion between PostgreSQL and Kotlin types.
+
+### Standard Types
+
+| PostgreSQL                | Kotlin          | Notes                        |
+|---------------------------|-----------------|------------------------------|
+| `int2`, `smallserial`     | `Short`         |                              |
+| `int4`, `serial`          | `Int`           |                              |
+| `int8`, `bigserial`       | `Long`          |                              |
+| `float4`                  | `Float`         |                              |
+| `float8`                  | `Double`        |                              |
+| `numeric`                 | `BigDecimal`    |                              |
+| `text`, `varchar`, `char` | `String`        |                              |
+| `bool`                    | `Boolean`       |                              |
+| `uuid`                    | `UUID`          | `java.util.UUID`             |
+| `bytea`                   | `ByteArray`     |                              |
+| `json`, `jsonb`           | `JsonElement`   | `kotlinx.serialization.json` |
+| `date`                    | `LocalDate`     | `kotlinx.datetime`           |
+| `time`                    | `LocalTime`     | `kotlinx.datetime`           |
+| `timetz`                  | `OffsetTime`    | `org.octavius.data`          |
+| `timestamp`               | `LocalDateTime` | `kotlinx.datetime`           |
+| `timestamptz`             | `Instant`       | `kotlin.time`                |
+| `interval`                | `Duration`      | `kotlin.time`                |
+
+Arrays of all standard types are supported and map to `List<T>`.
+
+### Custom Types
 
 ```kotlin
 // PostgreSQL COMPOSITE TYPE → Kotlin data class
@@ -202,7 +228,7 @@ val dataAccess = OctaviusDatabase.fromDataSource(existingDataSource, ...)
 
 ## Architecture
 
-| Module | Platform | Description |
-|--------|----------|-------------|
-| `api` | Multiplatform | Public API, interfaces, annotations — no JVM dependencies |
-| `core` | JVM | Implementation using Spring JDBC & HikariCP |
+| Module | Platform      | Description                                                  |
+|--------|---------------|--------------------------------------------------------------|
+| `api`  | Multiplatform | Public API, interfaces; annotations with no JVM dependencies |
+| `core` | JVM           | Implementation using Spring JDBC & HikariCP                  |
