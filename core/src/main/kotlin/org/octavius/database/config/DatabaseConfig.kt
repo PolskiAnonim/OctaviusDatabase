@@ -17,6 +17,8 @@ import java.util.*
  * @property dynamicDtoStrategy Strategy for serializing classes as DynamicDto.
  * @property flywayBaselineVersion If not null, indicates which version Flyway should treat the existing schema as.
  * @property disableFlyway Disable automatic Flyway migrations.
+ * @property disableCoreTypeInitialization Disable automatic creation of framework types (e.g., `dynamic_dto`).
+ *           Use when the application lacks DDL privileges and schema is managed externally.
  */
 data class DatabaseConfig(
     val dbUrl: String,
@@ -28,6 +30,7 @@ data class DatabaseConfig(
     val dynamicDtoStrategy: DynamicDtoSerializationStrategy = DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS,
     val flywayBaselineVersion: String? = null,
     val disableFlyway: Boolean = false,
+    val disableCoreTypeInitialization: Boolean = false,
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -75,6 +78,7 @@ data class DatabaseConfig(
 
             val flywayBaselineVersion: String? = props.getProperty("db.flywayBaselineVersion")
             val disableFlyway: Boolean = props.getProperty("db.disableFlyway").toBoolean()
+            val disableCoreTypeInitialization: Boolean = props.getProperty("db.disableCoreTypeInitialization").toBoolean()
 
             logger.info { "Database configuration loaded successfully" }
             logger.debug { "Database URL: '$url'" }
@@ -84,6 +88,7 @@ data class DatabaseConfig(
             logger.debug { "DynamicDTO strategy: $dynamicDtoStrategy" }
             logger.debug { "Flyway baseline version: $flywayBaselineVersion" }
             logger.debug { "Disable flyway migrations: $disableFlyway" }
+            logger.debug { "Disable core type initialization: $disableCoreTypeInitialization" }
 
             return DatabaseConfig(
                 dbUrl = url,
@@ -94,7 +99,8 @@ data class DatabaseConfig(
                 packagesToScan = packages,
                 dynamicDtoStrategy,
                 flywayBaselineVersion,
-                disableFlyway
+                disableFlyway,
+                disableCoreTypeInitialization
             )
         }
     }

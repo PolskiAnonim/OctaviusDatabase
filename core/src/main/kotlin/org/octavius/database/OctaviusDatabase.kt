@@ -62,7 +62,8 @@ object OctaviusDatabase {
             dbSchemas = config.dbSchemas,
             dynamicDtoStrategy = config.dynamicDtoStrategy,
             flywayBaselineVersion = config.flywayBaselineVersion,
-            disableFlyway = config.disableFlyway
+            disableFlyway = config.disableFlyway,
+            disableCoreTypeInitialization = config.disableCoreTypeInitialization
         )
     }
 
@@ -72,14 +73,19 @@ object OctaviusDatabase {
         dbSchemas: List<String>,
         dynamicDtoStrategy: DynamicDtoSerializationStrategy = DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS,
         flywayBaselineVersion: String? = null,
-        disableFlyway: Boolean = false
+        disableFlyway: Boolean = false,
+        disableCoreTypeInitialization: Boolean = false
     ): DataAccess {
         logger.info { "Initializing OctaviusDatabase..." }
         val jdbcTemplate = JdbcTemplate(dataSource)
         val transactionManager = JdbcTransactionManager(dataSource)
 
         // Initialize Framework Internals (Idempotent)
-        CoreTypeInitializer.ensureRequiredTypes(jdbcTemplate)
+        if (!disableCoreTypeInitialization) {
+            CoreTypeInitializer.ensureRequiredTypes(jdbcTemplate)
+        } else {
+            logger.info { "Core type initialization disabled - assuming dynamic_dto type exists in the database" }
+        }
 
         // Run User Migrations (Flyway)
         if (!disableFlyway) runMigrations(dataSource, dbSchemas, flywayBaselineVersion)
