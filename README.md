@@ -27,7 +27,7 @@
 - **Automatic Type Mapping** — PostgreSQL `COMPOSITE`, `ENUM`, `ARRAY` ↔ Kotlin types
 - **Transaction Plans** — Multi-step atomic operations with step dependencies
 - **Dynamic Filters** — Safe, composable `WHERE` clauses with `QueryFragment`
-- **Polymorphic Storage** — Store different types in one column with `dynamic_dto`
+- **Dynamic Type System** — Polymorphic storage & ad-hoc object mapping with `dynamic_dto`
 
 ## Quick Start
 
@@ -57,9 +57,10 @@ val users = dataAccess.select("id", "name", "email")
 
 // INSERT with RETURNING
 val newId = dataAccess.insertInto("users")
-    .values(mapOf("name" to "John", "email" to "john@example.com"))
+    .value("name")
+    .value("email")
     .returning("id")
-    .toField<Int>()
+    .toField<Int>(mapOf("name" to "John", "email" to "john@example.com"))
 
 // UPDATE with expressions
 dataAccess.update("products")
@@ -105,23 +106,25 @@ val plan = TransactionPlan()
 // Step 1: Create order, get handle to future ID
 val orderIdHandle = plan.add(
     dataAccess.insertInto("orders")
-        .values(mapOf("user_id" to userId, "total" to total))
+        .values(listOf("user_id", "total"))
         .returning("id")
         .asStep()
-        .toField<Int>()
+        .toField<Int>(mapOf("user_id" to userId, "total" to total))
 )
 
 // Step 2: Create order items using the handle
 for (item in cartItems) {
+    val orderItem: Map<String, Any?> = mapOf(
+        "order_id" to orderIdHandle.field(),  // Reference future value
+        "product_id" to item.productId,
+        "quantity" to item.quantity
+    )
+    
     plan.add(
         dataAccess.insertInto("order_items")
-            .values(mapOf(
-                "order_id" to orderIdHandle.field(),  // Reference future value
-                "product_id" to item.productId,
-                "quantity" to item.quantity
-            ))
+            .values(orderItem)
             .asStep()
-            .execute()
+            .execute(orderItem)
     )
 }
 
@@ -176,32 +179,85 @@ val orders = dataAccess.select("id", "status", "shipping_address")
     .toListOf<Order>()  // Types converted automatically
 ```
 
-## Polymorphic Storage
+## Dynamic Type System
 
-Store different object types in a single column with `dynamic_dto`:
+Octavius uses `dynamic_dto` — a PostgreSQL composite type combining a type discriminator with JSONB payload — to bridge static SQL and Kotlin's type system.
+
+```sql
+-- Created automatically by Flyway migration
+CREATE TYPE dynamic_dto AS (
+    type_name    TEXT,
+    data_payload JSONB
+);
+
+-- Helper function for constructing values
+CREATE FUNCTION dynamic_dto(p_type_name TEXT, p_data JSONB)
+RETURNS dynamic_dto AS $$
+BEGIN
+    RETURN ROW(p_type_name, p_data)::dynamic_dto;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### 1. Polymorphic Storage
+
+Store different types in a single column or array. The framework deserializes each element to its correct Kotlin class based on `type_name`.
 
 ```kotlin
-@DynamicallyMappable(typeName = "feature_flag")
+@DynamicallyMappable(typeName = "text_note")
 @Serializable
-enum class FeatureFlag {
-    @SerialName("dark_mode") DarkMode,
-    @SerialName("beta_features") BetaFeatures
-}
+data class TextNote(val content: String)
 
-// Database: CREATE TABLE user_settings (id INT, flags dynamic_dto[]);
+@DynamicallyMappable(typeName = "image_note")
+@Serializable
+data class ImageNote(val url: String, val caption: String?)
 
-// Write — automatically serialized
-dataAccess.update("user_settings")
-    .setValue("flags")
-    .where("id = :id")
-    .execute("id" to 1, "flags" to listOf(FeatureFlag.DarkMode, FeatureFlag.BetaFeatures))
+// Database: CREATE TABLE notebooks (id INT, notes dynamic_dto[]);
 
-// Read — automatically deserialized
-val flags = dataAccess.select("flags")
-    .from("user_settings")
+val notes: List<Any> = listOf(
+    TextNote("Hello world"),
+    ImageNote("https://example.com/img.png", "A photo")
+)
+
+dataAccess.insertInto("notebooks")
+    .values(listOf("notes"))
+    .execute("notes" to notes)
+
+// Read back — each element deserialized to its correct type
+val notebook = dataAccess.select("notes")
+    .from("notebooks")
     .where("id = 1")
-    .toField<List<FeatureFlag>>()
+    .toField<List<Any>>()  // Returns [TextNote(...), ImageNote(...)]
 ```
+
+### 2. Ad-hoc Object Mapping
+
+Construct Kotlin objects directly in SQL using `jsonb_build_object` — no need to define PostgreSQL COMPOSITE types. Perfect for JOINs and projections where you want nested results without schema changes.
+
+```kotlin
+@DynamicallyMappable(typeName = "user_profile")
+@Serializable
+data class UserProfile(val role: String, val permissions: List<String>)
+
+data class UserWithProfile(val id: Int, val name: String, val profile: UserProfile)
+
+val users = dataAccess.rawQuery("""
+    SELECT
+        u.id,
+        u.name,
+        dynamic_dto(
+            'user_profile',
+            jsonb_build_object(
+                'role', p.role,
+                'permissions', p.permissions
+            )
+        ) AS profile
+    FROM users u
+    JOIN profiles p ON p.user_id = u.id
+""").toListOf<UserWithProfile>()
+```
+
+> **Why use this?** Usually, to get a user with their profile in one query, you'd fetch flat columns (`user_id`, `user_name`, `profile_role`...) and manually map them, or create a database VIEW. With ad-hoc mapping, you construct the nested structure directly in SQL. The database does the packaging, Octavius does the unpacking — zero boilerplate.
 
 ## Configuration
 
@@ -225,6 +281,14 @@ val dataAccess = OctaviusDatabase.fromConfig(
 // From existing DataSource
 val dataAccess = OctaviusDatabase.fromDataSource(existingDataSource, ...)
 ```
+
+## Database Migrations
+
+Octavius Database integrates [Flyway](https://flywaydb.org/) for schema migrations. Migration files are loaded from `src/main/resources/db/migration/` and applied automatically on startup.
+
+To disable automatic migrations, set `flywayEnabled = false` in `DatabaseConfig`.
+
+For existing databases, set `flywayBaselineVersion` to skip migrations up to that version — Flyway will treat the current schema as the baseline and only apply newer migrations.
 
 ## Architecture
 
