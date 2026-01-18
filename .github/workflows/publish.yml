@@ -3,6 +3,9 @@ name: Publish Database Library
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
   workflow_dispatch:
 
 jobs:
