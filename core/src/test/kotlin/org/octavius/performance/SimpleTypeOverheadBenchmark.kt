@@ -2,7 +2,6 @@
 package org.octavius.performance
 
 import com.zaxxer.hikari.HikariDataSource
-import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -69,13 +68,12 @@ class SimpleTypeOverheadBenchmark {
 
         jdbcTemplate = JdbcTemplate(hikariDataSource)
 
-        typeRegistry = runBlocking {
+        typeRegistry =
             TypeRegistryLoader(
                 jdbcTemplate,
                 databaseConfig.packagesToScan.filter { it != "org.octavius.domain.test.dynamic" && it != "org.octavius.domain.test.existing" },
                 databaseConfig.dbSchemas
             ).load()
-        }
         typesConverter = PostgresToKotlinConverter(typeRegistry)
         // --- NOWOŚĆ: Inicjalizujemy ekstraktor ---
         valueExtractor = ResultSetValueExtractor(typeRegistry)

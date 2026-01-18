@@ -3,7 +3,6 @@ package org.octavius.database
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.runBlocking
 import org.flywaydb.core.Flyway
 import org.octavius.data.DataAccess
 import org.octavius.database.config.DatabaseConfig
@@ -98,9 +97,7 @@ object OctaviusDatabase {
                 packagesToScan,
                 dbSchemas
             )
-            typeRegistry = runBlocking {
-                loader.load()
-            }
+            typeRegistry = loader.load()
         }
         logger.debug { "Type registry loaded successfully in ${typeRegistryLoadTime.inWholeMilliseconds}ms" }
 

@@ -6,7 +6,7 @@ import io.github.classgraph.ScanResult
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
@@ -43,7 +43,7 @@ internal class TypeRegistryLoader(
         val composites: Map<String, Map<String, String>> // TypeName -> (Col -> Type) [Ordered Map]
     )
 
-    suspend fun load(): TypeRegistry = coroutineScope {
+    fun load(): TypeRegistry = runBlocking {
         logger.info { "Starting TypeRegistry initialization..." }
 
         // 1. Parallel data fetching
@@ -74,7 +74,7 @@ internal class TypeRegistryLoader(
 
         logger.info { "TypeRegistry initialized. Enums: ${finalEnums.size}, Composites: ${finalComposites.size}, Arrays: ${finalArrays.size}" }
 
-        return@coroutineScope TypeRegistry(
+        TypeRegistry(
             categoryMap = categoryMap,
             enums = finalEnums,
             composites = finalComposites,

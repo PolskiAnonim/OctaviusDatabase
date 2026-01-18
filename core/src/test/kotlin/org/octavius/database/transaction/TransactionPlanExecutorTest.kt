@@ -2,7 +2,6 @@ package org.octavius.database.transaction
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
@@ -54,7 +53,7 @@ class TransactionPlanExecutorTest {
         jdbcTemplate.execute(initSql)
 
         // --- Krok 3: Stworzenie pełnej instancji DataAccess ---
-        val typeRegistry = runBlocking { TypeRegistryLoader(jdbcTemplate, listOf(), dbConfig.dbSchemas).load() }
+        val typeRegistry = TypeRegistryLoader(jdbcTemplate, listOf(), dbConfig.dbSchemas).load()
         val kotlinToPg = KotlinToPostgresConverter(typeRegistry)
         val valueExecutor = ResultSetValueExtractor(typeRegistry)
         val mappers = RowMappers(valueExecutor)

@@ -1,7 +1,6 @@
 package org.octavius.performance
 
 import com.zaxxer.hikari.HikariDataSource
-import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
@@ -86,7 +85,7 @@ class ComprehensiveBulkInsertBenchmark {
             listOf("org.octavius.performance"),
             databaseConfig.dbSchemas
         )
-        val typeRegistry = runBlocking { loader.load() }
+        val typeRegistry = loader.load()
         val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
         val extractor = ResultSetValueExtractor(typeRegistry)
         val rowMappers = RowMappers(extractor)

@@ -2,7 +2,6 @@ package org.octavius.database.type.pgtype
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.LocalDateTime
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeAll
@@ -76,13 +75,12 @@ class RealPostgresDataModificationTest {
         println("Complex test DB schema and data initialized successfully.")
 
         // --- Krok 3: Inicjalizacja obu konwerterów ---
-        val typeRegistry = runBlocking {
+        val typeRegistry =
             TypeRegistryLoader(
                 jdbcTemplate,
                 listOf("org.octavius.domain.test.pgtype"),
                 databaseConfig.dbSchemas
             ).load()
-        }
         kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
         val extractor = ResultSetValueExtractor(typeRegistry)
         mappers = RowMappers(extractor)

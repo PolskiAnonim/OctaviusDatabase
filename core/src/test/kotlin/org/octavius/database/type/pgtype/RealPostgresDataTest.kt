@@ -2,7 +2,6 @@ package org.octavius.database.type.pgtype
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -82,9 +81,7 @@ class RealPostgresDataTest {
             listOf("org.octavius.domain.test.pgtype"),
             databaseConfig.dbSchemas
         )
-        typeRegistry = runBlocking {
-            loader.load()
-        }
+        typeRegistry = loader.load()
     }
 
     // Nie potrzebujemy @BeforeEach, bo tylko czytamy dane!

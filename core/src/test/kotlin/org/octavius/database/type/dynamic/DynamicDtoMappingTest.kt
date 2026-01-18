@@ -2,7 +2,6 @@ package org.octavius.database.type.dynamic
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -65,13 +64,13 @@ class DynamicDtoMappingTest {
         println("Dynamic DTO test DB schema initialized successfully.")
 
         // --- Krok 3: Załadowanie TypeRegistry i stworzenie pełnego DAL-a ---
-        typeRegistry = runBlocking {
+        typeRegistry =
             TypeRegistryLoader(
                 jdbcTemplate,
                 listOf("org.octavius.domain.test.dynamic"),
                 databaseConfig.dbSchemas
             ).load()
-        }
+
         val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
         val extractor = ResultSetValueExtractor(typeRegistry)
         val rowMappers = RowMappers(extractor)

@@ -2,7 +2,6 @@ package org.octavius.database.type.soft
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.assertj.core.api.Assertions.assertThat
@@ -88,7 +87,7 @@ class SoftEnumReadIntegrationTest {
             databaseConfig.dbSchemas
         )
 
-        val typeRegistry = runBlocking { loader.load() }
+        val typeRegistry = loader.load()
 
         val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
         val extractor = ResultSetValueExtractor(typeRegistry)
