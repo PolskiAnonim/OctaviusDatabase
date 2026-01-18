@@ -78,7 +78,12 @@ object OctaviusDatabase {
         val jdbcTemplate = JdbcTemplate(dataSource)
         val transactionManager = JdbcTransactionManager(dataSource)
 
+        // Initialize Framework Internals (Idempotent)
+        CoreTypeInitializer.ensureRequiredTypes(jdbcTemplate)
+
+        // Run User Migrations (Flyway)
         if (!disableFlyway) runMigrations(dataSource, dbSchemas, flywayBaselineVersion)
+
         logger.debug { "Loading type registry from database..." }
         val typeRegistry: TypeRegistry
         val typeRegistryLoadTime = measureTime {

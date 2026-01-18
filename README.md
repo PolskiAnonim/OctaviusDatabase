@@ -184,7 +184,7 @@ val orders = dataAccess.select("id", "status", "shipping_address")
 Octavius uses `dynamic_dto` — a PostgreSQL composite type combining a type discriminator with JSONB payload — to bridge static SQL and Kotlin's type system.
 
 ```sql
--- Created automatically by Flyway migration
+-- Created automatically by Octavius
 CREATE TYPE dynamic_dto AS (
     type_name    TEXT,
     data_payload JSONB
