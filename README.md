@@ -7,7 +7,7 @@
 [![KDoc API](https://img.shields.io/badge/KDoc-api-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/api)
 [![KDoc Core](https://img.shields.io/badge/KDoc-core-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/core)
 
-*It's not an ORM. It's a ROM (Relational-Object Mapper) — an Anti-ORM.
+*It's not an ORM. It's a ROM (Relational-Object Mapper) — an Anti-ORM.*
 
 </div>
 
@@ -15,11 +15,11 @@
 
 ## Philosophy
 
-| Principle | Description |
-|-----------|-------------|
-| **Query is King** | Your SQL query dictates the shape of data — not the framework |
-| **Object is a Vessel** | A `data class` is simply a type-safe container for query results |
-| **Explicitness over Magic** | No lazy-loading, no session management, no dirty checking |
+| Principle                   | Description                                                       |
+|-----------------------------|-------------------------------------------------------------------|
+| **Query is King**           | Your SQL query dictates the shape of data — not the framework.    |
+| **Object is a Vessel**      | A `data class` is simply a type-safe container for query results. |
+| **Explicitness over Magic** | No lazy-loading, no session management, no dirty checking.        |
 
 ## Features
 
@@ -181,7 +181,7 @@ val orders = dataAccess.select("id", "status", "shipping_address")
 
 ## Dynamic Type System
 
-Octavius uses `dynamic_dto` — a PostgreSQL composite type combining a type discriminator with JSONB payload — to bridge static SQL and Kotlin's type system.
+Octavius uses `dynamic_dto` — a PostgreSQL composite type combining a type discriminator with JSONB payload — to bridge static SQL and Kotlin's type system. This type is automatically initialized in your database on startup.
 
 ```sql
 -- Created automatically by Octavius
@@ -261,13 +261,36 @@ val users = dataAccess.rawQuery("""
 
 ## Configuration
 
+### Using Properties File
+
+Create a `database.properties` file in `src/main/resources`:
+
+```properties
+db.url=jdbc:postgresql://localhost:5432/mydb
+db.username=postgres
+db.password=secret
+db.schemas=public,myschema
+db.packagesToScan=com.myapp.domain,com.myapp.dto
+
+# Optional settings
+db.setSearchPath=true
+db.dynamicDtoStrategy=AUTOMATIC_WHEN_UNAMBIGUOUS
+db.disableFlyway=false
+db.disableCoreTypeInitialization=false
+```
+
+Load it in your application:
+
 ```kotlin
 // From properties file
 val dataAccess = OctaviusDatabase.fromConfig(
     DatabaseConfig.loadFromFile("database.properties")
 )
+```
 
-// Direct configuration
+### Direct Configuration
+
+```kotlin
 val dataAccess = OctaviusDatabase.fromConfig(
     DatabaseConfig(
         dbUrl = "jdbc:postgresql://localhost:5432/mydb",
@@ -286,13 +309,12 @@ val dataAccess = OctaviusDatabase.fromDataSource(existingDataSource, ...)
 
 Octavius Database integrates [Flyway](https://flywaydb.org/) for schema migrations. Migration files are loaded from `src/main/resources/db/migration/` and applied automatically on startup.
 
-To disable automatic migrations, set `flywayEnabled = false` in `DatabaseConfig`.
-
-For existing databases, set `flywayBaselineVersion` to skip migrations up to that version — Flyway will treat the current schema as the baseline and only apply newer migrations.
+- To disable automatic migrations, set `disableFlyway = true` in `DatabaseConfig`.
+- To integrate with an existing database, set `flywayBaselineVersion` to the current version. Flyway will treat the existing schema as the baseline.
 
 ## Architecture
 
-| Module | Platform      | Description                                                  |
-|--------|---------------|--------------------------------------------------------------|
-| `api`  | Multiplatform | Public API, interfaces; annotations with no JVM dependencies |
-| `core` | JVM           | Implementation using Spring JDBC & HikariCP                  |
+| Module | Platform      | Description                                                   |
+|--------|---------------|---------------------------------------------------------------|
+| `api`  | Multiplatform | Public API, interfaces; annotations with no JVM dependencies. |
+| `core` | JVM           | Implementation using Spring JDBC & HikariCP.                  |
