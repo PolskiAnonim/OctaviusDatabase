@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**An un-opinionated, SQL-first data access layer for Kotlin & PostgreSQL**
+**An explicit, SQL-first data access layer for Kotlin & PostgreSQL**
 
 [![KDoc API](https://img.shields.io/badge/KDoc-api-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/api)
 [![KDoc Core](https://img.shields.io/badge/KDoc-core-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/core)
@@ -311,6 +311,16 @@ Octavius Database integrates [Flyway](https://flywaydb.org/) for schema migratio
 
 - To disable automatic migrations, set `disableFlyway = true` in `DatabaseConfig`.
 - To integrate with an existing database, set `flywayBaselineVersion` to the current version. Flyway will treat the existing schema as the baseline.
+
+## Documentation
+
+For detailed guides and examples, see the [full documentation](docs/README.md):
+
+- [Configuration](docs/configuration.md) - Initialization, Flyway, core types, DynamicDto strategy
+- [Query Builders](docs/query-builders.md) - CTEs, subqueries, ON CONFLICT, async, streaming
+- [Transactions](docs/transactions.md) - Transaction plans, StepHandle, passing data between steps
+- [Error Handling](docs/error-handling.md) - DataResult pattern, exception hierarchy
+- [Type System](docs/type-system.md) - @PgEnum, @PgComposite, @DynamicallyMappable, helper serializers
 
 ## Architecture
 
