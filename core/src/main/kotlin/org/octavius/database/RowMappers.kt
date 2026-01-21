@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.octavius.data.toDataObject
 import org.octavius.data.validateValue
 import org.octavius.database.type.ResultSetValueExtractor
+import org.octavius.database.type.registry.TypeRegistry
 import org.springframework.jdbc.core.RowMapper
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
@@ -11,12 +12,15 @@ import kotlin.reflect.KType
 /**
  * Factory providing various `RowMapper` implementations for `ResultSet` conversion.
  *
- * @param valueExtractor Value extractor from database
+ * Creates [ResultSetValueExtractor] internally from the provided [TypeRegistry].
+ *
+ * @param typeRegistry Type registry for value extraction
  */
 @Suppress("FunctionName")
 internal class RowMappers(
-    private val valueExtractor: ResultSetValueExtractor
+    typeRegistry: TypeRegistry
 ) {
+    private val valueExtractor = ResultSetValueExtractor(typeRegistry)
     companion object {
         private val logger = KotlinLogging.logger {}
     }

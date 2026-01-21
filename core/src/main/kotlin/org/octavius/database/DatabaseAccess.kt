@@ -13,6 +13,7 @@ import org.octavius.data.transaction.TransactionPropagation
 import org.octavius.database.builder.*
 import org.octavius.database.transaction.TransactionPlanExecutor
 import org.octavius.database.type.KotlinToPostgresConverter
+import org.octavius.database.type.registry.TypeRegistry
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.transaction.TransactionDefinition
@@ -21,9 +22,10 @@ import org.springframework.transaction.support.TransactionTemplate
 internal class DatabaseAccess(
     private val jdbcTemplate: JdbcTemplate,
     private val transactionManager: DataSourceTransactionManager,
-    private val rowMappers: RowMappers,
+    typeRegistry: TypeRegistry,
     private val kotlinToPostgresConverter: KotlinToPostgresConverter
 ) : DataAccess {
+    private val rowMappers = RowMappers(typeRegistry)
     val transactionPlanExecutor = TransactionPlanExecutor(transactionManager)
     // --- QueryOperations implementation (for single queries and transaction usage) ---
 

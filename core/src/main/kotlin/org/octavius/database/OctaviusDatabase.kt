@@ -8,7 +8,6 @@ import org.octavius.data.DataAccess
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
 import org.octavius.database.type.KotlinToPostgresConverter
-import org.octavius.database.type.ResultSetValueExtractor
 import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.registry.TypeRegistryLoader
 import org.springframework.jdbc.core.JdbcTemplate
@@ -101,16 +100,14 @@ object OctaviusDatabase {
         }
         logger.debug { "Type registry loaded successfully in ${typeRegistryLoadTime.inWholeMilliseconds}ms" }
 
-        logger.debug { "Initializing converters and mappers" }
+        logger.debug { "Initializing converters" }
         val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry, dynamicDtoStrategy)
-        val resultSetValueExtractor = ResultSetValueExtractor(typeRegistry)
-        val rowMappers = RowMappers(resultSetValueExtractor)
 
         logger.info { "OctaviusDatabase initialization completed" }
         return DatabaseAccess(
             jdbcTemplate,
             transactionManager,
-            rowMappers,
+            typeRegistry,
             kotlinToPostgresConverter
         )
     }

@@ -12,10 +12,8 @@ import org.octavius.data.DataAccess
 import org.octavius.data.annotation.DynamicallyMappable
 import org.octavius.data.getOrThrow
 import org.octavius.database.DatabaseAccess
-import org.octavius.database.RowMappers
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.type.KotlinToPostgresConverter
-import org.octavius.database.type.ResultSetValueExtractor
 import org.octavius.database.type.registry.TypeRegistryLoader
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
@@ -90,10 +88,8 @@ class SoftEnumReadIntegrationTest {
         val typeRegistry = loader.load()
 
         val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
-        val extractor = ResultSetValueExtractor(typeRegistry)
-        val rowMappers = RowMappers(extractor)
 
-        dataAccess = DatabaseAccess(jdbcTemplate, transactionManager, rowMappers, kotlinToPostgresConverter)
+        dataAccess = DatabaseAccess(jdbcTemplate, transactionManager, typeRegistry, kotlinToPostgresConverter)
     }
 
     @Test

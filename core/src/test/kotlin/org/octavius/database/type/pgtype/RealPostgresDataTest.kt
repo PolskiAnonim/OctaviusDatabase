@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.octavius.database.RowMappers
 import org.octavius.database.config.DatabaseConfig
-import org.octavius.database.type.ResultSetValueExtractor
 import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.registry.TypeRegistryLoader
 import org.octavius.domain.test.pgtype.TestPerson
@@ -93,7 +92,7 @@ class RealPostgresDataTest {
         // When: Używamy RowMappers (które używają konwertera) do pobrania danych
         val result: Map<String, Any?> = jdbcTemplate.queryForObject(
             "SELECT * FROM complex_test_data WHERE id = 1",
-            RowMappers(ResultSetValueExtractor(typeRegistry)).ColumnNameMapper()
+            RowMappers(typeRegistry).ColumnNameMapper()
         )
 
 // Then: Sprawdzamy każdy przekonwertowany obiekt

@@ -9,7 +9,6 @@ import org.junit.jupiter.api.TestInstance
 import org.octavius.database.RowMappers
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.type.PostgresToKotlinConverter
-import org.octavius.database.type.ResultSetValueExtractor
 import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.registry.TypeRegistryLoader
 import org.postgresql.jdbc.PgResultSetMetaData
@@ -44,7 +43,6 @@ class SimpleTypeOverheadBenchmark {
     private lateinit var jdbcTemplate: JdbcTemplate
     private lateinit var typesConverter: PostgresToKotlinConverter
     private lateinit var typeRegistry: TypeRegistry
-    private lateinit var valueExtractor: ResultSetValueExtractor // NOWY EKSTRAKTOR
 
     @BeforeAll
     fun setup() {
@@ -75,8 +73,6 @@ class SimpleTypeOverheadBenchmark {
                 databaseConfig.dbSchemas
             ).load()
         typesConverter = PostgresToKotlinConverter(typeRegistry)
-        // --- NOWOŚĆ: Inicjalizujemy ekstraktor ---
-        valueExtractor = ResultSetValueExtractor(typeRegistry)
 
 
         try {
@@ -100,7 +96,7 @@ class SimpleTypeOverheadBenchmark {
         val sql = "SELECT * FROM simple_type_benchmark LIMIT $TOTAL_ROWS_TO_FETCH"
         val rawMapper = RawJdbcRowMapper()
         val oldFrameworkMapper = OldFrameworkRowMapper(typesConverter)
-        val optimizedFrameworkMapper = RowMappers(valueExtractor).ColumnNameMapper() // NOWY MAPPER
+        val optimizedFrameworkMapper = RowMappers(typeRegistry).ColumnNameMapper() // NOWY MAPPER
 
         // --- WARM-UP ---
         println("\n--- ROZGRZEWKA (x$WARMUP_ITERATIONS iteracji, wyniki ignorowane) ---")

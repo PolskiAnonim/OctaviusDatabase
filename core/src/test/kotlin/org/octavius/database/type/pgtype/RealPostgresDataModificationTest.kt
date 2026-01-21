@@ -11,7 +11,6 @@ import org.junit.jupiter.api.TestInstance
 import org.octavius.database.RowMappers
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.type.KotlinToPostgresConverter
-import org.octavius.database.type.ResultSetValueExtractor
 import org.octavius.database.type.registry.TypeRegistryLoader
 import org.octavius.domain.test.pgtype.*
 import org.springframework.jdbc.core.JdbcTemplate
@@ -82,8 +81,7 @@ class RealPostgresDataModificationTest {
                 databaseConfig.dbSchemas
             ).load()
         kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
-        val extractor = ResultSetValueExtractor(typeRegistry)
-        mappers = RowMappers(extractor)
+        mappers = RowMappers(typeRegistry)
     }
 
     @BeforeEach

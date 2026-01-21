@@ -11,10 +11,8 @@ import org.octavius.data.builder.toSingle
 import org.octavius.data.getOrThrow
 import org.octavius.data.toDataObject
 import org.octavius.database.DatabaseAccess
-import org.octavius.database.RowMappers
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.type.KotlinToPostgresConverter
-import org.octavius.database.type.ResultSetValueExtractor
 import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.registry.TypeRegistryLoader
 import org.octavius.domain.test.dynamic.DynamicProfile
@@ -72,10 +70,8 @@ class DynamicDtoMappingTest {
             ).load()
 
         val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
-        val extractor = ResultSetValueExtractor(typeRegistry)
-        val rowMappers = RowMappers(extractor)
         // Używamy pełnej implementacji DataAccess, aby testować jak najbliżej rzeczywistości
-        dataAccess = DatabaseAccess(jdbcTemplate, transactionManager, rowMappers, kotlinToPostgresConverter)
+        dataAccess = DatabaseAccess(jdbcTemplate, transactionManager, typeRegistry, kotlinToPostgresConverter)
     }
 
     @Test
