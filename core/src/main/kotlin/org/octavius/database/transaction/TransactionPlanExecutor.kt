@@ -64,7 +64,7 @@ internal class TransactionPlanExecutor(
         handleToIndexMap: Map<StepHandle<*>, Int>
     ) {
         when (value) {
-            is TransactionValue.FromStep -> {
+            is TransactionValue.FromStep<*> -> {
                 val sourceIndex = handleToIndexMap[value.handle]
                     ?: throw StepDependencyException(StepDependencyExceptionMessage.UNKNOWN_STEP_HANDLE, currentIndex)
 
@@ -76,7 +76,7 @@ internal class TransactionPlanExecutor(
                     )
                 }
             }
-            is TransactionValue.Transformed -> {
+            is TransactionValue.Transformed<*, *> -> {
                 // Validate what's inside.
                 validateTransactionValue(value.source, currentIndex, handleToIndexMap)
             }
@@ -192,27 +192,28 @@ internal class TransactionPlanExecutor(
         indexedResults: Map<Int, Any?>,
         handleToIndexMap: Map<StepHandle<*>, Int>
     ): Any? {
-        if (value !is TransactionValue) {
+        if (value !is TransactionValue<*>) {
             return value // Regular value
         }
 
         return when (value) {
-            is TransactionValue.Value -> value.value // Unwrap
-            is TransactionValue.Transformed -> resolveTransformed(value, indexedResults, handleToIndexMap)
-            is TransactionValue.FromStep -> resolveFromStep(value, indexedResults, handleToIndexMap)
+            is TransactionValue.Value<*> -> value.value
+            is TransactionValue.Transformed<*, *> -> resolveTransformed(value, indexedResults, handleToIndexMap)
+            is TransactionValue.FromStep<*> -> resolveFromStep(value, indexedResults, handleToIndexMap)
         }
     }
 
     // Helper function to find the "culprit" (handle) deep in nested structures
-    private fun extractRootHandle(value: TransactionValue): StepHandle<*>? {
+    private fun extractRootHandle(value: TransactionValue<*>): StepHandle<*>? {
         return when (value) {
-            is TransactionValue.FromStep -> value.handle
-            is TransactionValue.Transformed -> extractRootHandle(value.source)
+            is TransactionValue.FromStep<*> -> value.handle
+            is TransactionValue.Transformed<*, *> -> extractRootHandle(value.source)
             else -> null
         }
     }
+
     private fun resolveTransformed(
-        value: TransactionValue.Transformed,
+        value: TransactionValue.Transformed<*, *>,
         indexedResults: Map<Int, Any?>,
         handleToIndexMap: Map<StepHandle<*>, Int>
     ): Any? {
@@ -221,7 +222,9 @@ internal class TransactionPlanExecutor(
 
         // Apply user-provided function
         return try {
-            value.transform(rawValue)
+            @Suppress("UNCHECKED_CAST")
+            val transformFn = value.transform as (Any?) -> Any?
+            transformFn(rawValue)
         } catch (e: Exception) {
             // We need to determine which step this transformation was related to.
             // Since Transformed wraps another value (e.g., FromStep),
@@ -239,7 +242,7 @@ internal class TransactionPlanExecutor(
     }
 
     private fun resolveFromStep(
-        value: TransactionValue.FromStep,
+        value: TransactionValue.FromStep<*>,
         indexedResults: Map<Int, Any?>,
         handleToIndexMap: Map<StepHandle<*>, Int>
     ): Any? {
@@ -249,14 +252,14 @@ internal class TransactionPlanExecutor(
         val sourceResult = indexedResults[stepIndex] ?: return null // Step result can be null
 
         return when (value) {
-            is TransactionValue.FromStep.Field -> resolveField(value, sourceResult, stepIndex)
-            is TransactionValue.FromStep.Column -> resolveColumn(value, sourceResult, stepIndex)
+            is TransactionValue.FromStep.Field<*> -> resolveField(value, sourceResult, stepIndex)
+            is TransactionValue.FromStep.Column<*> -> resolveColumn(value, sourceResult, stepIndex)
             is TransactionValue.FromStep.Row -> sourceResult.toRowMap(value.rowIndex, stepIndex)
         }
     }
 
     private fun resolveField(
-        value: TransactionValue.FromStep.Field,
+        value: TransactionValue.FromStep.Field<*>,
         sourceResult: Any, // We know it's not null from the previous step
         stepIndex: Int
     ): Any? {
@@ -275,7 +278,7 @@ internal class TransactionPlanExecutor(
     }
 
     private fun resolveColumn(
-        value: TransactionValue.FromStep.Column,
+        value: TransactionValue.FromStep.Column<*>,
         sourceResult: Any, // We know it's not null
         stepIndex: Int
     ): List<Any?> {
