@@ -515,9 +515,11 @@ Process large datasets without loading everything into memory.
 
 ### Usage
 
+Both `forEachRow` and `forEachRowOf` return `DataResult<Unit>` and accept an optional `params` parameter (defaults to `emptyMap()`).
+
 ```kotlin
 dataAccess.transaction {
-    dataAccess.select("*")
+    val result = dataAccess.select("*")
         .from("large_table")
         .where("created_at > :since")
         .asStream(fetchSize = 500)  // Fetch 500 rows at a time
@@ -525,15 +527,23 @@ dataAccess.transaction {
             // Process each row individually
             processRow(row)
         }
+
+    // Handle potential errors
+    result.onFailure { error ->
+        logger.error("Streaming failed: ${error.message}")
+    }
 }
 
-// With data class mapping
+// With data class mapping (params defaults to emptyMap())
 dataAccess.transaction {
     dataAccess.select("*")
         .from("audit_log")
         .asStream(fetchSize = 1000)
-        .forEachRowOf<AuditEntry> { entry ->
+        .forEachRowOf<AuditEntry> { entry ->  // No params needed
             archiveEntry(entry)
+        }
+        .onFailure { error ->
+            logger.error("Archive failed: ${error.message}")
         }
 }
 ```

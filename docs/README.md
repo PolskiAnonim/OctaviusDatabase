@@ -8,6 +8,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 |----------|-------------|
 | [Configuration](configuration.md) | Initialization, DatabaseConfig, Flyway, core types, DynamicDto strategy |
 | [Query Builders](query-builders.md) | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT, async, streaming |
+| [ORM-Like Patterns](orm-patterns.md) | toMap(), toDataObject(), auto-placeholders, CRUD patterns, @MapKey |
 | [Transactions](transactions.md) | Transaction blocks, TransactionPlan, StepHandle, passing data between steps, propagation |
 | [Error Handling](error-handling.md) | DataResult pattern, exception hierarchy, cause chain, best practices |
 | [Type System](type-system.md) | @PgEnum, @PgComposite, @DynamicallyMappable, PgTyped, standard type mappings |
@@ -21,6 +22,14 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [ON CONFLICT (Upsert)](query-builders.md#on-conflict-upsert) - Insert or update on conflict
 - [Async Execution](query-builders.md#async-execution) - Coroutine-based async queries
 - [Streaming](query-builders.md#streaming) - Process large datasets without loading into memory
+
+### ORM-Like Patterns
+- [Key Advantages](orm-patterns.md#key-advantages) - Why this approach works
+- [toMap() / toDataObject()](orm-patterns.md#object-map-conversion) - Object-Map conversion
+- [Auto Placeholders](orm-patterns.md#auto-generated-placeholders) - `values()`, `setValues()` auto-generation
+- [Real-World Example](orm-patterns.md#real-world-example) - Complete configuration manager
+- [CRUD Patterns](orm-patterns.md#crud-patterns) - Repository patterns
+- [@MapKey](orm-patterns.md#mapkey-annotation) - Custom property-to-column mapping
 
 ### Transactions
 - [Transaction Blocks](transactions.md#transaction-blocks) - `dataAccess.transaction { }`

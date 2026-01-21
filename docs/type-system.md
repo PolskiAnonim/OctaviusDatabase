@@ -443,6 +443,8 @@ dataAccess.insertInto("users")
 
 Override the default snake_case ↔ camelCase mapping for individual properties.
 
+> For practical usage examples with `toMap()` and `toDataObject()`, see [ORM-Like Patterns](orm-patterns.md#mapkey-annotation).
+
 ### Usage
 
 ```kotlin
@@ -478,6 +480,8 @@ data class LegacyOrder(
 ## Object Conversion Utilities
 
 Octavius provides utilities for converting between data classes and maps.
+
+> For detailed patterns including CRUD operations, partial updates, and real-world examples, see [ORM-Like Patterns](orm-patterns.md#object-map-conversion).
 
 ### toDataObject()
 

@@ -152,15 +152,15 @@ When you add a step to a plan, you get a `StepHandle<T>` that can reference that
 
 ### Methods
 
+All methods have default parameter values where applicable (`rowIndex` defaults to `0`).
+
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `field()` | `FromStep.Field` | Reference to scalar value (from `toField()`) |
-| `field(rowIndex)` | `FromStep.Field` | Reference to scalar value at specific row |
-| `field(columnName)` | `FromStep.Field` | Reference to value in specific column (from `toList()`/`toSingle()`) |
-| `field(columnName, rowIndex)` | `FromStep.Field` | Reference to specific cell |
+| `field(rowIndex = 0)` | `FromStep.Field` | Reference to scalar value (from `toField()` or `execute()`) |
+| `field(columnName, rowIndex = 0)` | `FromStep.Field` | Reference to value in specific column (from `toList()`/`toSingle()`) |
 | `column()` | `FromStep.Column` | Reference to entire column (from `toColumn()`) |
 | `column(columnName)` | `FromStep.Column` | Reference to specific column (from `toList()`) |
-| `row(rowIndex)` | `FromStep.Row` | Reference to entire row as `Map<String, Any?>` |
+| `row(rowIndex = 0)` | `FromStep.Row` | Reference to entire row as `Map<String, Any?>` |
 
 ### Usage Examples
 

@@ -318,6 +318,7 @@ For detailed guides and examples, see the [full documentation](docs/README.md):
 
 - [Configuration](docs/configuration.md) - Initialization, Flyway, core types, DynamicDto strategy
 - [Query Builders](docs/query-builders.md) - CTEs, subqueries, ON CONFLICT, async, streaming
+- [ORM-Like Patterns](docs/orm-patterns.md) - toMap(), toDataObject(), auto-placeholders, CRUD patterns
 - [Transactions](docs/transactions.md) - Transaction plans, StepHandle, passing data between steps
 - [Error Handling](docs/error-handling.md) - DataResult pattern, exception hierarchy
 - [Type System](docs/type-system.md) - @PgEnum, @PgComposite, @DynamicallyMappable, helper serializers
