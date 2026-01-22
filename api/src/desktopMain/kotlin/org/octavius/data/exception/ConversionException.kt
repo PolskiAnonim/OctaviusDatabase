@@ -1,18 +1,27 @@
 package org.octavius.data.exception
 
 enum class ConversionExceptionMessage {
-    VALUE_CONVERSION_FAILED,    // General standard type conversion error
-    ENUM_CONVERSION_FAILED,     // Database value doesn't match any enum
+    /** General standard type conversion error */
+    VALUE_CONVERSION_FAILED,
+    /** Database value doesn't match any enum */
+    ENUM_CONVERSION_FAILED,
     UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY,
-    INVALID_DYNAMIC_DTO_FORMAT, // dynamic_dto parsing error
+    /** dynamic_dto parsing error */
+    INVALID_DYNAMIC_DTO_FORMAT,
     INCOMPATIBLE_COLLECTION_ELEMENT_TYPE,
     INCOMPATIBLE_TYPE,
 
     // Mapping errors
-    OBJECT_MAPPING_FAILED,      // General error during data class instantiation
-    MISSING_REQUIRED_PROPERTY,  // Missing key for required field in data class
-    JSON_DESERIALIZATION_FAILED, // JSON deserialization error in dynamic_dto
-    JSON_SERIALIZATION_FAILED   // Object to JSON serialization error for dynamic_dto
+    /** General error during data class instantiation */
+    OBJECT_MAPPING_FAILED,
+    /** Missing key for required field in data class */
+    MISSING_REQUIRED_PROPERTY,
+    /** JSON deserialization error in dynamic_dto */
+    JSON_DESERIALIZATION_FAILED,
+    /** Object to JSON serialization error for dynamic_dto */
+    JSON_SERIALIZATION_FAILED,
+    /** When a non-null value was expected but null was received */
+    NON_NULL_ASSERTION_FAILED
 }
 
 private fun generateDeveloperMessage(
@@ -38,6 +47,8 @@ private fun generateDeveloperMessage(
 
         ConversionExceptionMessage.JSON_SERIALIZATION_FAILED -> "Failed to serialize object of class '$targetType' to JSON format. " +
                 "Ensure that the class and all its nested types have the @Serializable annotation."
+        ConversionExceptionMessage.NON_NULL_ASSERTION_FAILED ->
+            "A non-null value was expected, but null was received. This typically happens when using .assertNotNull() on a query result that was null."
     }
 }
 

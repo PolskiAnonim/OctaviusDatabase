@@ -1,5 +1,7 @@
 package org.octavius.data
 
+import org.octavius.data.exception.ConversionException
+import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.DatabaseException
 
 /**
@@ -87,5 +89,30 @@ fun <R, T : R> DataResult<T>.getOrElse(onFailure: (Throwable) -> R): R {
     return when (this) {
         is DataResult.Success -> this.value
         is DataResult.Failure -> onFailure.invoke(this.error)
+    }
+}
+
+/**
+ * Asserts that a successful result's value is not null.
+ *
+ * Transforms a `DataResult<T?>` into a `DataResult<T>`.
+ * - If the result is `Success` and contains a non-null value, it returns a new `Success<T>`.
+ * - If the result is `Success` but the value is `null`, it returns a `Failure` with `ConversionException` with [ConversionExceptionMessage.NON_NULL_ASSERTION_FAILED] message.
+ * - If the result is already a `Failure`, it is passed through unchanged.
+ *
+ * This is a universal tool for handling expected non-null values from any data access method.
+ *
+ * @return A `DataResult<T>` guaranteed not to contain a null value on success.
+ */
+fun <T : Any> DataResult<T?>.assertNotNull(): DataResult<T> {
+    return when (this) {
+        is DataResult.Success -> {
+            if (this.value != null) {
+                DataResult.Success(this.value)
+            } else {
+                DataResult.Failure(ConversionException(ConversionExceptionMessage.NON_NULL_ASSERTION_FAILED))
+            }
+        }
+        is DataResult.Failure -> this
     }
 }
