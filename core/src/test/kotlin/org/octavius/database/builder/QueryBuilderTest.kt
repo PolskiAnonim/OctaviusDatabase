@@ -16,7 +16,7 @@ internal object TestQueryBuilderFactory {
     private val mockMappers = mockk<RowMappers>()
 
     fun select(columns: String) = DatabaseSelectQueryBuilder(mockJdbcTemplate, mockMappers, mockConverter, columns)
-    fun insert(table: String, columns: List<String> = emptyList()) = DatabaseInsertQueryBuilder(mockJdbcTemplate, mockConverter, mockMappers, table, columns)
+    fun insert(table: String) = DatabaseInsertQueryBuilder(mockJdbcTemplate, mockConverter, mockMappers, table)
     fun update(table: String) = DatabaseUpdateQueryBuilder(mockJdbcTemplate, mockConverter, mockMappers, table)
     fun delete(table: String) = DatabaseDeleteQueryBuilder(mockJdbcTemplate, mockConverter, mockMappers, table)
 }
@@ -81,10 +81,10 @@ class QueryBuilderTest {
         @Test
         fun `should build an insert query with fromSelect`() {
             val selectQuery = "SELECT name, email FROM temp_users"
-            val sql = TestQueryBuilderFactory.insert("users", columns = listOf("name", "email"))
+            val sql = TestQueryBuilderFactory.insert("users")
                 .fromSelect(selectQuery)
                 .toSql()
-            assertThat(sql.normalizeSql()).isEqualTo("INSERT INTO users (name, email) $selectQuery")
+            assertThat(sql.normalizeSql()).isEqualTo("INSERT INTO users $selectQuery")
         }
 
         @Test

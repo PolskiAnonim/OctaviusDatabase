@@ -42,8 +42,8 @@ internal class DatabaseAccess(
         return DatabaseUpdateQueryBuilder(jdbcTemplate, kotlinToPostgresConverter, rowMappers, table)
     }
 
-    override fun insertInto(table: String, columns: List<String>): InsertQueryBuilder {
-        return DatabaseInsertQueryBuilder(jdbcTemplate, kotlinToPostgresConverter, rowMappers, table, columns)
+    override fun insertInto(table: String): InsertQueryBuilder {
+        return DatabaseInsertQueryBuilder(jdbcTemplate, kotlinToPostgresConverter, rowMappers, table)
     }
 
     override fun deleteFrom(table: String): DeleteQueryBuilder {

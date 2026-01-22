@@ -11,13 +11,17 @@ internal class DatabaseInsertQueryBuilder(
     jdbcTemplate: JdbcTemplate,
     kotlinToPostgresConverter: KotlinToPostgresConverter,
     rowMappers: RowMappers,
-    table: String,
-    private val columns: List<String>
+    table: String
 ) : AbstractQueryBuilder<InsertQueryBuilder>(jdbcTemplate, kotlinToPostgresConverter, rowMappers, table), InsertQueryBuilder {
     override val canReturnResultsByDefault = false
+    private var explicitColumns: List<String>? = null
     private val valuePlaceholders = mutableMapOf<String, String>()
     private var selectSource: String? = null
     private var onConflictBuilder: DatabaseOnConflictClauseBuilder? = null
+
+    override fun columns(vararg columns: String): InsertQueryBuilder = apply {
+        this.explicitColumns = columns.toList()
+    }
 
     override fun valuesExpressions(expressions: Map<String, String>): InsertQueryBuilder = apply {
         check(selectSource == null) { "Cannot use valuesExpressions() when fromSelect() has already been called." }
@@ -53,7 +57,7 @@ internal class DatabaseInsertQueryBuilder(
 
     override fun fromSelect(query: String): InsertQueryBuilder = apply {
         check(valuePlaceholders.isEmpty()) { "Cannot use fromSelect() when values() has already been called." }
-        check(columns.isNotEmpty()) { "Must specify columns in insertInto() to use fromSelect()." }
+
         this.selectSource = query
     }
 
@@ -78,14 +82,27 @@ internal class DatabaseInsertQueryBuilder(
 
         check(hasValues || hasSelect) { "Cannot build an INSERT statement without values or a SELECT source." }
 
-        val targetColumns = columns.ifEmpty { valuePlaceholders.keys.toList() }
-        val columnsSql = targetColumns.joinToString(", ")
-
         val sql = StringBuilder(buildWithClause())
-        sql.append("INSERT INTO $table ($columnsSql)")
+
+        // Determine columns: explicit > from values > none (for fromSelect)
+        val targetColumns = explicitColumns
+            ?: valuePlaceholders.keys.toList().ifEmpty { null }
+
+        if (targetColumns != null) {
+            val columnsSql = targetColumns.joinToString(", ")
+            sql.append("INSERT INTO $table ($columnsSql)")
+        } else {
+            // No columns specified - valid for fromSelect()
+            sql.append("INSERT INTO $table")
+        }
 
         if (hasValues) {
-            val placeholders = targetColumns.joinToString(", ") { key -> valuePlaceholders.getValue(key) }
+            val columnsForValues = targetColumns
+                ?: error("Cannot build VALUES clause without columns")
+            val placeholders = columnsForValues.joinToString(", ") { key ->
+                valuePlaceholders[key]
+                    ?: error("No value or expression provided for column '$key'")
+            }
             sql.append("\nVALUES ($placeholders)")
         } else {
             sql.append("\n").append(selectSource!!)
@@ -120,12 +137,12 @@ internal class DatabaseInsertQueryBuilder(
             this.jdbcTemplate,
             this.kotlinToPostgresConverter,
             this.rowMappers,
-            this.table!!, // We know table is not null for INSERT
-            this.columns
+            this.table!! // We know table is not null for INSERT
         )
 
         newBuilder.copyBaseStateFrom(this)
 
+        newBuilder.explicitColumns = this.explicitColumns // List is immutable, safe to share reference
         newBuilder.valuePlaceholders.putAll(this.valuePlaceholders) // Copy map contents, not reference!
         newBuilder.selectSource = this.selectSource
         // Also copy onConflictBuilder if it exists! Use its own copy() method.

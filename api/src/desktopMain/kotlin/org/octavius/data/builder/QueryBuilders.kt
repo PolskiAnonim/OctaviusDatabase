@@ -140,6 +140,15 @@ interface InsertQueryBuilder : TerminalReturningMethods, TerminalModificationMet
     fun recursive(): InsertQueryBuilder
 
     /**
+     * Explicitly defines the columns for the INSERT statement.
+     *
+     * This is optional - if not called, columns will be inferred from [values] or omitted entirely for [fromSelect].
+     *
+     * @param columns Column names to insert into.
+     */
+    fun columns(vararg columns: String): InsertQueryBuilder
+
+    /**
      * Defines values to insert as SQL expressions or placeholders.
      * This is a low-level method.
      * @param expressions Map where key is column name and value is SQL string (e.g., ":name", "NOW()").
@@ -176,8 +185,11 @@ interface InsertQueryBuilder : TerminalReturningMethods, TerminalModificationMet
 
     /**
      * Defines a SELECT query as the data source for insertion.
-     * Requires that columns be defined when creating the builder (in `insertInto`).
-     * Excludes the use of any `value(s)` functions.
+     *
+     * If [columns] was called, generates `INSERT INTO table (cols) SELECT ...`.
+     * Otherwise, generates `INSERT INTO table SELECT ...` (columns inferred by database).
+     *
+     * Mutually exclusive with [values]/[value]/[valueExpression]/[valuesExpressions].
      */
     fun fromSelect(query: String): InsertQueryBuilder
 

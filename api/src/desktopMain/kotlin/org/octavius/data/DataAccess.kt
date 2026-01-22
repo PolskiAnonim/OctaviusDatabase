@@ -33,11 +33,9 @@ interface QueryOperations {
      * Starts building an INSERT query.
      *
      * @param table Name of the table into which data is being inserted.
-     * @param columns Optional list of columns. If omitted, values must be provided
-     *                for all columns in the table in the correct order.
      * @return New builder instance for an INSERT query.
      */
-    fun insertInto(table: String, columns: List<String> = emptyList()): InsertQueryBuilder
+    fun insertInto(table: String): InsertQueryBuilder
 
     /**
      * Starts building a DELETE query.
