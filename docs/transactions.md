@@ -15,6 +15,7 @@ Both approaches support configurable propagation behavior.
 - [TransactionValue](#transactionvalue)
 - [Passing Data Between Steps](#passing-data-between-steps)
 - [TransactionPlanResult](#transactionplanresult)
+- [assertNotNull in Transactions](#assertnotnull-in-transactions)
 - [Transaction Propagation](#transaction-propagation)
 - [Error Handling](#error-handling)
 
@@ -419,6 +420,70 @@ mainPlan.addPlan(ordersPlan)
 
 dataAccess.executeTransactionPlan(mainPlan)
 ```
+
+---
+
+## assertNotNull in Transactions
+
+When working with transactions, you often need to ensure that query results are not null before proceeding. The `assertNotNull()` extension transforms `DataResult<T?>` into `DataResult<T>`, failing if the value is null.
+
+### In Transaction Blocks
+
+```kotlin
+val result = dataAccess.transaction { tx ->
+    // Without assertNotNull - user is nullable
+    val user = tx.select("*")
+        .from("users")
+        .where("id = :id")
+        .toSingleOf<User>("id" to userId)
+        .getOrElse { return@transaction DataResult.Failure(it) }
+
+    if (user == null) {
+        return@transaction DataResult.Failure(/* custom error */)
+    }
+
+    // With assertNotNull - cleaner flow
+    val user = tx.select("*")
+        .from("users")
+        .where("id = :id")
+        .toSingleOf<User>("id" to userId)
+        .assertNotNull()  // Fails with ConversionException if null
+        .getOrElse { return@transaction DataResult.Failure(it) }
+
+    // user is now guaranteed non-null
+    DataResult.Success(user)
+}
+```
+
+### With Transaction Plans
+
+When using `TransactionPlanResult.get()`, the returned value is already typed based on the step's terminal method. For `toSingleOf<T>()` steps that may return null, use `assertNotNull()` when fetching:
+
+```kotlin
+val plan = TransactionPlan()
+
+val userHandle = plan.add(
+    dataAccess.select("*")
+        .from("users")
+        .where("id = :id")
+        .asStep()
+        .toSingleOf<User>("id" to userId)  // Returns T?
+)
+
+val result = dataAccess.executeTransactionPlan(plan)
+
+result.onSuccess { planResult ->
+    val user: User? = planResult.get(userHandle)
+
+    // Check for null manually, or design steps to use toListOf()
+    // and check for empty list instead
+    user?.let { processUser(it) }
+}
+```
+
+> **Tip**: For steps where you expect exactly one result, consider using `toField<T>()` with a `RETURNING id` clause, or validate non-null in subsequent steps using handle transformations.
+
+See [Executing Queries - assertNotNull](executing-queries.md#assertnotnull) for more details on the `assertNotNull()` function.
 
 ---
 

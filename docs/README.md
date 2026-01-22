@@ -7,42 +7,54 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 | Document | Description |
 |----------|-------------|
 | [Configuration](configuration.md) | Initialization, DatabaseConfig, Flyway, core types, DynamicDto strategy |
-| [Query Builders](query-builders.md) | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT, async, streaming |
-| [ORM-Like Patterns](orm-patterns.md) | toMap(), toDataObject(), auto-placeholders, CRUD patterns, @MapKey |
-| [Transactions](transactions.md) | Transaction blocks, TransactionPlan, StepHandle, passing data between steps, propagation |
-| [Error Handling](error-handling.md) | DataResult pattern, exception hierarchy, cause chain, best practices |
+| [Query Builders](query-builders.md) | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT |
+| [Executing Queries](executing-queries.md) | Terminal methods, DataResult, assertNotNull, async execution, streaming |
+| [Data Mapping](data-mapping.md) | toMap(), toDataObject(), @MapKey - converting between objects and maps |
+| [ORM-Like Patterns](orm-patterns.md) | CRUD patterns, real-world examples, PostgreSQL composite types |
+| [Transactions](transactions.md) | Transaction blocks, TransactionPlan, StepHandle, passing data between steps |
+| [Error Handling](error-handling.md) | Exception hierarchy, QueryExecutionException, ConversionException |
 | [Type System](type-system.md) | @PgEnum, @PgComposite, @DynamicallyMappable, PgTyped, standard type mappings |
 
 ## Quick Links
 
 ### Query Building
-- [Terminal Methods](query-builders.md#terminal-methods) - `toList()`, `toListOf()`, `toField()`, `execute()`
+- [SelectQueryBuilder](query-builders.md#selectquerybuilder) - SELECT queries with JOINs, pagination
+- [InsertQueryBuilder](query-builders.md#insertquerybuilder) - INSERT with RETURNING
 - [RawQueryBuilder](query-builders.md#rawquerybuilder) - Execute arbitrary SQL
 - [CTE (WITH clauses)](query-builders.md#common-table-expressions-cte) - Common Table Expressions
 - [ON CONFLICT (Upsert)](query-builders.md#on-conflict-upsert) - Insert or update on conflict
-- [Async Execution](query-builders.md#async-execution) - Coroutine-based async queries
-- [Streaming](query-builders.md#streaming) - Process large datasets without loading into memory
+- [Auto Placeholders](query-builders.md#auto-generated-placeholders) - `values()`, `setValues()` auto-generation
+
+### Executing Queries
+- [Terminal Methods](executing-queries.md#terminal-methods) - `toList()`, `toListOf()`, `toField()`, `execute()`
+- [DataResult](executing-queries.md#dataresult) - Success/Failure pattern
+- [assertNotNull](executing-queries.md#assertnotnull) - Handle nullable results
+- [Async Execution](executing-queries.md#async-execution) - Coroutine-based async queries
+- [Streaming](executing-queries.md#streaming) - Process large datasets without loading into memory
+
+### Data Mapping
+- [toDataObject()](data-mapping.md#todataobject---map-to-data-class) - Map to data class
+- [toMap()](data-mapping.md#tomap---data-class-to-map) - Data class to map
+- [@MapKey](data-mapping.md#mapkey-annotation) - Custom property-to-column mapping
 
 ### ORM-Like Patterns
 - [Key Advantages](orm-patterns.md#key-advantages) - Why this approach works
-- [toMap() / toDataObject()](orm-patterns.md#object-map-conversion) - Object-Map conversion
-- [Auto Placeholders](orm-patterns.md#auto-generated-placeholders) - `values()`, `setValues()` auto-generation
-- [Real-World Example](orm-patterns.md#real-world-example) - Complete configuration manager
 - [CRUD Patterns](orm-patterns.md#crud-patterns) - Repository patterns
-- [@MapKey](orm-patterns.md#mapkey-annotation) - Custom property-to-column mapping
+- [Real-World Example](orm-patterns.md#real-world-example) - Complete configuration manager
 
 ### Transactions
 - [Transaction Blocks](transactions.md#transaction-blocks) - `dataAccess.transaction { }`
 - [Transaction Plans](transactions.md#transaction-plans) - Declarative multi-step operations
 - [StepHandle API](transactions.md#stephandle-api) - `field()`, `column()`, `row()`
 - [Passing Data Between Steps](transactions.md#passing-data-between-steps) - Reference previous step results
+- [assertNotNull in Transactions](transactions.md#assertnotnull-in-transactions) - Handle nullable results
 - [Transaction Propagation](transactions.md#transaction-propagation) - REQUIRED, REQUIRES_NEW, NESTED
 
 ### Error Handling
-- [DataResult](error-handling.md#dataresult) - Success/Failure pattern
-- [Exception Nesting](error-handling.md#exception-nesting-cause-chain) - How exceptions wrap each other
+- [Exception Hierarchy](error-handling.md#exception-hierarchy) - DatabaseException subtypes
 - [QueryExecutionException](error-handling.md#queryexecutionexception) - SQL errors with full context
-- [Best Practices](error-handling.md#patterns-and-best-practices) - Recommended patterns
+- [ConversionException](error-handling.md#conversionexception) - Type mapping errors
+- [Logging and Debugging](error-handling.md#logging-and-debugging) - Using toString() for diagnostics
 
 ### Type System
 - [Standard Type Mapping](type-system.md#standard-type-mapping) - PostgreSQL ↔ Kotlin conversions

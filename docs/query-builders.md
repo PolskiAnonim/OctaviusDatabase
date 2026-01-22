@@ -10,7 +10,6 @@ Octavius Database provides fluent query builders for all CRUD operations. Each b
 
 ## Table of Contents
 
-- [Terminal Methods](#terminal-methods)
 - [SelectQueryBuilder](#selectquerybuilder)
 - [InsertQueryBuilder](#insertquerybuilder)
 - [UpdateQueryBuilder](#updatequerybuilder)
@@ -19,49 +18,10 @@ Octavius Database provides fluent query builders for all CRUD operations. Each b
 - [Common Table Expressions (CTE)](#common-table-expressions-cte)
 - [Subqueries](#subqueries)
 - [ON CONFLICT (Upsert)](#on-conflict-upsert)
-- [Async Execution](#async-execution)
-- [Streaming](#streaming)
+- [Auto-Generated Placeholders](#auto-generated-placeholders)
 - [Builder Modes](#builder-modes)
 
----
-
-## Terminal Methods
-
-All query builders share common terminal methods that execute the query and return results.
-
-### Returning Methods (`TerminalReturningMethods`)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `toList(params)` | `DataResult<List<Map<String, Any?>>>` | All rows as list of maps |
-| `toSingle(params)` | `DataResult<Map<String, Any?>?>` | First row as map (or null) |
-| `toListOf<T>(params)` | `DataResult<List<T>>` | All rows mapped to data class |
-| `toSingleOf<T>(params)` | `DataResult<T?>` | First row mapped to data class |
-| `toField<T>(params)` | `DataResult<T?>` | Single value from first column/row |
-| `toColumn<T>(params)` | `DataResult<List<T?>>` | All values from first column |
-| `toSql()` | `String` | Generated SQL (no execution) |
-
-### Modification Methods (`TerminalModificationMethods`)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `execute(params)` | `DataResult<Int>` | Affected row count |
-
-### Parameter Passing
-
-Parameters can be passed as `Map` or `vararg Pair`:
-
-```kotlin
-// Using Map
-dataAccess.select("*").from("users")
-    .where("id = :id")
-    .toSingleOf<User>(mapOf("id" to 123))
-
-// Using vararg (more concise)
-dataAccess.select("*").from("users")
-    .where("id = :id")
-    .toSingleOf<User>("id" to 123)
-```
+> **Executing Queries**: For terminal methods (`toList()`, `toSingleOf()`, `execute()`, etc.), async execution, and streaming, see [Executing Queries](executing-queries.md).
 
 ---
 
@@ -71,17 +31,17 @@ Builds SQL SELECT queries with full support for all standard clauses.
 
 ### Methods
 
-| Method | Description |
-|--------|-------------|
-| `from(source)` | FROM clause - table name, alias, or JOIN expression |
-| `fromSubquery(subquery, alias)` | FROM with a subquery (auto-wrapped in parentheses) |
-| `where(condition)` | WHERE clause (nullable - pass null to skip) |
-| `groupBy(columns)` | GROUP BY clause |
-| `having(condition)` | HAVING clause (requires GROUP BY) |
-| `orderBy(ordering)` | ORDER BY clause |
-| `limit(count)` | LIMIT clause |
-| `offset(position)` | OFFSET clause |
-| `page(page, size)` | Pagination helper (zero-indexed pages) |
+| Method                          | Description                                         |
+|---------------------------------|-----------------------------------------------------|
+| `from(source)`                  | FROM clause - table name, alias, or JOIN expression |
+| `fromSubquery(subquery, alias)` | FROM with a subquery (auto-wrapped in parentheses)  |
+| `where(condition)`              | WHERE clause (nullable - pass null to skip)         |
+| `groupBy(columns)`              | GROUP BY clause                                     |
+| `having(condition)`             | HAVING clause (requires GROUP BY)                   |
+| `orderBy(ordering)`             | ORDER BY clause                                     |
+| `limit(count)`                  | LIMIT clause                                        |
+| `offset(position)`              | OFFSET clause                                       |
+| `page(page, size)`              | Pagination helper (zero-indexed pages)              |
 
 ### Examples
 
@@ -123,16 +83,17 @@ Builds SQL INSERT queries with support for values, expressions, SELECT source, a
 
 ### Methods
 
-| Method | Description |
-|--------|-------------|
-| `value(column)` | Add column with auto-generated `:column` placeholder |
-| `values(columns: List)` | Add multiple columns with auto placeholders |
-| `values(data: Map)` | Add columns from map keys with auto placeholders |
-| `valueExpression(column, expr)` | Add column with custom SQL expression |
-| `valuesExpressions(map)` | Add multiple columns with custom expressions |
-| `fromSelect(query)` | INSERT ... SELECT (requires columns in `insertInto`) |
-| `onConflict { }` | Configure ON CONFLICT clause (upsert) |
-| `returning(columns)` | Add RETURNING clause |
+| Method                          | Description                                              |
+|---------------------------------|----------------------------------------------------------|
+| `columns(vararg)`               | Explicitly define target columns (optional)              |
+| `value(column)`                 | Add column with auto-generated `:column` placeholder     |
+| `values(columns: List)`         | Add multiple columns with auto placeholders              |
+| `values(data: Map)`             | Add columns from map keys with auto placeholders         |
+| `valueExpression(column, expr)` | Add column with custom SQL expression                    |
+| `valuesExpressions(map)`        | Add multiple columns with custom expressions             |
+| `fromSelect(query)`             | INSERT ... SELECT (columns optional, inferred if absent) |
+| `onConflict { }`                | Configure ON CONFLICT clause (upsert)                    |
+| `returning(columns)`            | Add RETURNING clause                                     |
 
 ### Examples
 
@@ -160,13 +121,19 @@ dataAccess.insertInto("audit_log")
     .valueExpression("user_id", "COALESCE(:user_id, 0)")
     .execute("action" to "login", "user_id" to userId)
 
-// INSERT from SELECT
-dataAccess.insertInto("archive_orders", listOf("id", "total", "archived_at"))
+// INSERT from SELECT (with explicit columns)
+dataAccess.insertInto("archive_orders")
+    .columns("id", "total", "archived_at")
     .fromSelect("""
         SELECT id, total, NOW()
         FROM orders
         WHERE created_at < :cutoff
     """)
+    .execute("cutoff" to cutoffDate)
+
+// INSERT from SELECT (columns inferred by database)
+dataAccess.insertInto("archive_orders")
+    .fromSelect("SELECT id, total, NOW() FROM orders WHERE created_at < :cutoff")
     .execute("cutoff" to cutoffDate)
 ```
 
@@ -178,16 +145,16 @@ Builds SQL UPDATE queries. **WHERE clause is mandatory** for safety.
 
 ### Methods
 
-| Method | Description |
-|--------|-------------|
-| `setValue(column)` | SET column with auto `:column` placeholder |
-| `setValues(columns: List)` | SET multiple columns with auto placeholders |
-| `setValues(data: Map)` | SET columns from map keys |
-| `setExpression(column, expr)` | SET column with custom SQL expression |
-| `setExpressions(map)` | SET multiple columns with custom expressions |
-| `from(tables)` | FROM clause for UPDATE ... FROM |
-| `where(condition)` | WHERE clause (**mandatory**) |
-| `returning(columns)` | Add RETURNING clause |
+| Method                        | Description                                  |
+|-------------------------------|----------------------------------------------|
+| `setValue(column)`            | SET column with auto `:column` placeholder   |
+| `setValues(columns: List)`    | SET multiple columns with auto placeholders  |
+| `setValues(data: Map)`        | SET columns from map keys                    |
+| `setExpression(column, expr)` | SET column with custom SQL expression        |
+| `setExpressions(map)`         | SET multiple columns with custom expressions |
+| `from(tables)`                | FROM clause for UPDATE ... FROM              |
+| `where(condition)`            | WHERE clause (**mandatory**)                 |
+| `returning(columns)`          | Add RETURNING clause                         |
 
 ### Examples
 
@@ -228,11 +195,11 @@ Builds SQL DELETE queries. **WHERE clause is mandatory** for safety.
 
 ### Methods
 
-| Method | Description |
-|--------|-------------|
-| `using(tables)` | USING clause for DELETE with JOINs |
-| `where(condition)` | WHERE clause (**mandatory**) |
-| `returning(columns)` | Add RETURNING clause |
+| Method               | Description                        |
+|----------------------|------------------------------------|
+| `using(tables)`      | USING clause for DELETE with JOINs |
+| `where(condition)`   | WHERE clause (**mandatory**)       |
+| `returning(columns)` | Add RETURNING clause               |
 
 ### Examples
 
@@ -350,7 +317,8 @@ val hierarchy = dataAccess.select("*")
 ### CTE with INSERT
 
 ```kotlin
-val archivedCount = dataAccess.insertInto("archive", listOf("id", "data", "archived_at"))
+val archivedCount = dataAccess.insertInto("archive")
+    .columns("id", "data", "archived_at")
     .with("to_archive", "SELECT id, data FROM records WHERE status = 'completed'")
     .fromSelect("SELECT id, data, NOW() FROM to_archive")
     .execute()
@@ -390,14 +358,14 @@ The `onConflict` builder allows configuring PostgreSQL's ON CONFLICT clause for 
 
 ### Configuration Methods
 
-| Method | Description |
-|--------|-------------|
-| `onColumns(columns)` | Conflict target: columns |
-| `onConstraint(name)` | Conflict target: constraint name |
-| `doNothing()` | ON CONFLICT DO NOTHING |
-| `doUpdate(setExpression, where?)` | DO UPDATE SET with raw expression |
-| `doUpdate(vararg pairs, where?)` | DO UPDATE SET with column-value pairs |
-| `doUpdate(map, where?)` | DO UPDATE SET from map |
+| Method                            | Description                           |
+|-----------------------------------|---------------------------------------|
+| `onColumns(columns)`              | Conflict target: columns              |
+| `onConstraint(name)`              | Conflict target: constraint name      |
+| `doNothing()`                     | ON CONFLICT DO NOTHING                |
+| `doUpdate(setExpression, where?)` | DO UPDATE SET with raw expression     |
+| `doUpdate(vararg pairs, where?)`  | DO UPDATE SET with column-value pairs |
+| `doUpdate(map, where?)`           | DO UPDATE SET from map                |
 
 ### Examples
 
@@ -452,100 +420,61 @@ dataAccess.insertInto("orders")
 
 ---
 
-## Async Execution
+## Auto-Generated Placeholders
 
-Execute queries asynchronously using coroutines.
+### InsertQueryBuilder: `values()`
 
-### Usage
+Generates `:key` placeholders automatically for INSERT queries.
 
 ```kotlin
-// Requires a CoroutineScope (e.g., viewModelScope)
-val job = dataAccess.select("*")
-    .from("users")
-    .where("active = true")
-    .async(viewModelScope)
-    .toListOf<User> { result ->
-        result.onSuccess { users ->
-            // Handle success on the calling scope
-            updateUI(users)
-        }.onFailure { error ->
-            // Handle error
-            showError(error)
-        }
-    }
+// Using List - generates placeholders for each column name
+dataAccess.insertInto("users")
+    .values(listOf("name", "email", "created_at"))
+    // Generated: INSERT INTO users (name, email, created_at) VALUES (:name, :email, :created_at)
+    .execute("name" to "John", "email" to "john@example.com", "created_at" to now)
 
-// Cancel if needed
-job.cancel()
+// Using Map - uses map keys as column names
+val data = mapOf("name" to "John", "email" to "john@example.com")
+dataAccess.insertInto("users")
+    .values(data)
+    // Generated: INSERT INTO users (name, email) VALUES (:name, :email)
+    .execute(data)
 ```
 
-### Available Async Methods
+### UpdateQueryBuilder: `setValues()`
 
-All terminal methods have async counterparts accepting callbacks:
+Generates `:key` placeholders automatically for UPDATE queries.
 
 ```kotlin
-interface AsyncTerminalMethods {
-    fun toList(params, onResult: (DataResult<List<Map<String, Any?>>>) -> Unit): Job
-    fun toSingle(params, onResult: (DataResult<Map<String, Any?>?>) -> Unit): Job
-    fun <T> toListOf(kClass, params, onResult: (DataResult<List<T>>) -> Unit): Job
-    fun <T> toSingleOf(kClass, params, onResult: (DataResult<T?>) -> Unit): Job
-    fun <T> toField(kType, params, onResult: (DataResult<T?>) -> Unit): Job
-    fun <T> toColumn(kType, params, onResult: (DataResult<List<T?>>) -> Unit): Job
-    fun execute(params, onResult: (DataResult<Int>) -> Unit): Job
-}
+// Using List
+dataAccess.update("users")
+    .setValues(listOf("name", "email"))
+    // Generated: UPDATE users SET name = :name, email = :email WHERE ...
+    .where("id = :id")
+    .execute("name" to "Jane", "email" to "jane@example.com", "id" to 1)
+
+// Using Map
+val updates = mapOf("name" to "Jane", "email" to "jane@example.com")
+dataAccess.update("users")
+    .setValues(updates)
+    .where("id = :id")
+    .execute(updates + ("id" to 1))
 ```
 
-### Custom Dispatcher
+### Single-Column Variants: `value()` and `setValue()`
 
 ```kotlin
-dataAccess.select("*")
-    .from("users")
-    .async(scope, ioDispatcher = Dispatchers.Default)  // Use different dispatcher
-    .toListOf<User> { /* ... */ }
-```
+// For INSERT
+dataAccess.insertInto("users")
+    .value("name")
+    .value("email")
+    // Generated: INSERT INTO users (name, email) VALUES (:name, :email)
 
----
-
-## Streaming
-
-Process large datasets without loading everything into memory.
-
-### Important
-
-> **REQUIRES ACTIVE TRANSACTION.** Streaming must be called inside a `dataAccess.transaction { }` block. Otherwise, PostgreSQL ignores `fetchSize` and loads everything into RAM.
-
-### Usage
-
-Both `forEachRow` and `forEachRowOf` return `DataResult<Unit>` and accept an optional `params` parameter (defaults to `emptyMap()`).
-
-```kotlin
-dataAccess.transaction {
-    val result = dataAccess.select("*")
-        .from("large_table")
-        .where("created_at > :since")
-        .asStream(fetchSize = 500)  // Fetch 500 rows at a time
-        .forEachRow("since" to startDate) { row: Map<String, Any?> ->
-            // Process each row individually
-            processRow(row)
-        }
-
-    // Handle potential errors
-    result.onFailure { error ->
-        logger.error("Streaming failed: ${error.message}")
-    }
-}
-
-// With data class mapping (params defaults to emptyMap())
-dataAccess.transaction {
-    dataAccess.select("*")
-        .from("audit_log")
-        .asStream(fetchSize = 1000)
-        .forEachRowOf<AuditEntry> { entry ->  // No params needed
-            archiveEntry(entry)
-        }
-        .onFailure { error ->
-            logger.error("Archive failed: ${error.message}")
-        }
-}
+// For UPDATE
+dataAccess.update("users")
+    .setValue("name")
+    .setValue("email")
+    // Generated: UPDATE users SET name = :name, email = :email WHERE ...
 ```
 
 ---
@@ -572,15 +501,15 @@ val orderIdHandle = plan.add(
 // Use handle in subsequent steps...
 ```
 
-See [transactions.md](transactions.md) for full documentation.
+See [Transactions](transactions.md) for full documentation.
 
 ### `.async()` - Async Execution
 
-See [Async Execution](#async-execution) above.
+Execute queries asynchronously using coroutines. See [Executing Queries - Async](executing-queries.md#async-execution).
 
 ### `.asStream()` - Streaming
 
-See [Streaming](#streaming) above.
+Process large datasets without loading everything into memory. See [Executing Queries - Streaming](executing-queries.md#streaming).
 
 ### `.copy()` - Clone Builder
 

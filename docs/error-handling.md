@@ -2,10 +2,11 @@
 
 Octavius Database uses a **Result type pattern** instead of throwing exceptions. All database operations return `DataResult<T>` which forces explicit handling of both success and failure cases.
 
+> **Working with DataResult**: For `DataResult` usage patterns (`map`, `onSuccess`, `getOrElse`, `assertNotNull`, etc.), see [Executing Queries](executing-queries.md#dataresult).
+
 ## Table of Contents
 
-- [DataResult](#dataresult)
-- [Working with DataResult](#working-with-dataresult)
+- [Builder Validation Errors](#builder-validation-errors)
 - [Exception Hierarchy](#exception-hierarchy)
 - [QueryExecutionException](#queryexecutionexception)
 - [ConversionException](#conversionexception)
@@ -13,113 +14,32 @@ Octavius Database uses a **Result type pattern** instead of throwing exceptions.
 - [TransactionException](#transactionexception)
 - [StepDependencyException](#stepdependencyexception)
 - [TypeRegistryException](#typeregistryexception)
-- [Patterns and Best Practices](#patterns-and-best-practices)
+- [Logging and Debugging](#logging-and-debugging)
 
 ---
 
-## DataResult
+## Builder Validation Errors
 
-`DataResult<T>` is a sealed class with two variants:
+Query builders validate their configuration when building SQL. These errors throw standard Kotlin exceptions (`IllegalArgumentException`, `IllegalStateException`) rather than returning `DataResult.Failure`:
 
-```kotlin
-sealed class DataResult<out T> {
-    data class Success<out T>(val value: T) : DataResult<T>()
-    data class Failure(val error: DatabaseException) : DataResult<Nothing>()
-}
-```
+| Error | Exception | Cause |
+|-------|-----------|-------|
+| `having()` without `groupBy()` | `IllegalArgumentException` | HAVING requires GROUP BY |
+| `DELETE`/`UPDATE` without `where()` | `IllegalStateException` | Safety check to prevent accidental mass changes |
+| `fromSelect()` after `values()` | `IllegalStateException` | Mutually exclusive operations |
+| `values()` after `fromSelect()` | `IllegalStateException` | Mutually exclusive operations |
+| No values or select in INSERT | `IllegalStateException` | Nothing to insert |
 
-### Why DataResult?
+**Why not DataResult?**
 
-- **Explicit error handling** - Compiler forces you to handle failures
-- **No surprise exceptions** - Database errors don't crash your app unexpectedly
-- **Chainable operations** - Functional-style transformations and callbacks
-- **Type safety** - Errors are always `DatabaseException` subtypes
-
----
-
-## Working with DataResult
-
-### Extension Functions
-
-| Function | Description |
-|----------|-------------|
-| `map { }` | Transform success value, leave failure unchanged |
-| `onSuccess { }` | Execute action on success, return same result |
-| `onFailure { }` | Execute action on failure, return same result |
-| `getOrElse { }` | Get value or compute default from error |
-| `getOrThrow()` | Get value or throw exception (use sparingly) |
-
-### Basic Usage
+These are **programmer errors** (contract violations), not runtime errors. They should be caught during development and never occur in production. Additionally, `toSql()` returns `String`, not `DataResult`, so builder validation must throw exceptions for consistency.
 
 ```kotlin
-val result: DataResult<List<User>> = dataAccess.select("*")
-    .from("users")
-    .toListOf<User>()
-
-// Pattern 1: Callbacks
-result
-    .onSuccess { users -> println("Found ${users.size} users") }
-    .onFailure { error -> println("Error: ${error.message}") }
-
-// Pattern 2: Transform
-val names: DataResult<List<String>> = result.map { users ->
-    users.map { it.name }
-}
-
-// Pattern 3: Get with default
-val users: List<User> = result.getOrElse { emptyList() }
-
-// Pattern 4: Get or throw (careful!)
-val users: List<User> = result.getOrThrow()  // Throws on failure
-```
-
-### In Transactions
-
-```kotlin
-val result = dataAccess.transaction { tx ->
-    // Option 1: Early return on error
-    val user = tx.select("*")
-        .from("users")
-        .where("id = :id")
-        .toSingleOf<User>("id" to userId)
-        .getOrElse { error ->
-            return@transaction DataResult.Failure(error)
-        }
-
-    // Option 2: Check and handle
-    val insertResult = tx.insertInto("logs")
-        .values(logData)
-        .execute(logData)
-
-    if (insertResult is DataResult.Failure) {
-        return@transaction insertResult
-    }
-
-    DataResult.Success(user)
-}
-```
-
-### Chaining Multiple Operations
-
-```kotlin
-fun getOrderWithItems(orderId: Int): DataResult<OrderWithItems> {
-    val orderResult = dataAccess.select("*")
-        .from("orders")
-        .where("id = :id")
-        .toSingleOf<Order>("id" to orderId)
-
-    return orderResult.map { order ->
-        order ?: return DataResult.Failure(/* custom error */)
-
-        val items = dataAccess.select("*")
-            .from("order_items")
-            .where("order_id = :orderId")
-            .toListOf<OrderItem>("orderId" to orderId)
-            .getOrElse { return DataResult.Failure(it) }
-
-        OrderWithItems(order, items)
-    }
-}
+// This throws IllegalArgumentException, not DataResult.Failure
+dataAccess.select("department", "AVG(salary)")
+    .from("employees")
+    .having("AVG(salary) > 50000")  // Missing groupBy()!
+    .toListOf<DeptStats>()
 ```
 
 ---
@@ -602,9 +522,9 @@ try {
 
 ---
 
-## Patterns and Best Practices
+## Logging and Debugging
 
-### 1. Logging - Just Use toString()
+### Just Use toString()
 
 All exceptions have overridden `toString()` that includes the full context (SQL, params, cause chain). No need to manually unwrap:
 
@@ -614,57 +534,9 @@ result.onFailure { error ->
 }
 ```
 
-### 2. getOrThrow() with Global Exception Handler
+### Handling Specific PostgreSQL Errors
 
-When using Spring or other frameworks with global exception handling, `getOrThrow()` is the recommended approach:
-
-```kotlin
-@Service
-class UserService(private val dataAccess: DataAccess) {
-
-    fun getUser(id: Int): User {
-        return dataAccess.select("*")
-            .from("users")
-            .where("id = :id")
-            .toSingleOf<User>("id" to id)
-            .getOrThrow()  // Let global handler deal with errors
-            ?: throw NotFoundException("User $id not found")
-    }
-}
-
-// Spring global exception handler catches DatabaseException
-@ControllerAdvice
-class GlobalExceptionHandler {
-    @ExceptionHandler(DatabaseException::class)
-    fun handleDatabaseError(e: DatabaseException): ResponseEntity<*> {
-        logger.error(e.toString())
-        return ResponseEntity.status(500).body(ErrorResponse("Database error"))
-    }
-}
-```
-
-### 3. getOrElse() for Defaults
-
-When you want to provide a fallback value instead of failing:
-
-```kotlin
-// Empty list on error
-val users = dataAccess.select("*")
-    .from("users")
-    .toListOf<User>()
-    .getOrElse { emptyList() }
-
-// Null on error
-val user = dataAccess.select("*")
-    .from("users")
-    .where("id = :id")
-    .toSingleOf<User>("id" to userId)
-    .getOrElse { null }
-```
-
-### 4. Specific Error Handling (When Needed)
-
-Unwrap the hierarchy only when you need to handle specific cases:
+Unwrap the hierarchy when you need to handle specific cases:
 
 ```kotlin
 result.onFailure { error ->
@@ -683,23 +555,9 @@ result.onFailure { error ->
 }
 ```
 
-### 5. Transactions with Early Return
+---
 
-When you need to handle errors within a transaction block:
+## See Also
 
-```kotlin
-dataAccess.transaction { tx ->
-    val userId = tx.insertInto("users")
-        .values(userData)
-        .returning("id")
-        .toField<Int>(userData)
-        .getOrElse { return@transaction DataResult.Failure(it) }
-
-    tx.insertInto("profiles")
-        .values(mapOf("user_id" to userId))
-        .execute(mapOf("user_id" to userId))
-        .getOrElse { return@transaction DataResult.Failure(it) }
-
-    DataResult.Success(userId)
-}
-```
+- [Executing Queries](executing-queries.md) - DataResult patterns and usage
+- [Transactions](transactions.md) - Transaction error handling
