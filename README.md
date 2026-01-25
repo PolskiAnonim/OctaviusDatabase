@@ -319,7 +319,7 @@ For detailed guides and examples, see the [full documentation](docs/README.md):
 - [Configuration](docs/configuration.md) - Initialization, Flyway, core types, DynamicDto strategy
 - [Query Builders](docs/query-builders.md) - SELECT, INSERT, UPDATE, DELETE, CTEs, subqueries, ON CONFLICT
 - [Executing Queries](docs/executing-queries.md) - Terminal methods, DataResult, async, streaming
-- [Data Mapping](docs/data-mapping.md) - toMap(), toDataObject(), @MapKey
+- [Data Mapping](docs/data-mapping.md) - toMap(), toDataObject(), @MapKey, nested structures & strict typing
 - [ORM-Like Patterns](docs/orm-patterns.md) - CRUD patterns, real-world examples
 - [Transactions](docs/transactions.md) - Transaction plans, StepHandle, passing data between steps
 - [Error Handling](docs/error-handling.md) - Exception hierarchy, debugging

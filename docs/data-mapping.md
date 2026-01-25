@@ -5,6 +5,7 @@ Octavius provides utilities for converting between Kotlin data classes and `Map<
 ## Table of Contents
 
 - [toDataObject()](#todataobject---map-to-data-class)
+- [Nested Structures & Strict Type Checking](#nested-structures--strict-type-checking)
 - [toMap()](#tomap---data-class-to-map)
 - [@MapKey Annotation](#mapkey-annotation)
 - [Combining with Query Builders](#combining-with-query-builders)
@@ -41,6 +42,51 @@ val user: User = row.toDataObject()
 - Support for nullable properties and default values
 - Cached reflection metadata for performance
 - Clear error messages for missing/mismatched properties
+
+### Nested Structures & Strict Type Checking
+
+When dealing with `Map<String, Any?>` results (either from `toSingle()` or when using `toDataObject()`), type conversion happens **at the database layer**, before the Map is constructed.
+
+The Map contains **fully instantiated objects**, not raw values or JSON strings.
+
+**Nested composites are already typed:**
+
+```kotlin
+@PgComposite
+data class Address(val city: String)
+
+data class User(val name: String, val address: Address)
+
+// Query returns a Map with typed values
+val rowMap = dataAccess.select("name", "address")
+    .from("users")
+    .toSingle()
+    .getOrThrow()!!
+
+// rowMap structure is ALREADY typed:
+// {
+//   "name": "John" (String),
+//   "address": Address(city="London") (Instance of Address, NOT a Map!)
+// }
+
+// Conversion to Data Object works seamlessly
+val user = rowMap.toDataObject<User>()
+```
+
+**Strict type checking:**
+
+Because the Map holds specific types, `toDataObject()` performs a **strict mapping**. It does not attempt fuzzy conversion.
+
+```kotlin
+// ❌ FAILS: Type Mismatch
+// The map contains an Address object, but this class expects a String
+data class UserWrong(val name: String, val address: String)
+
+rowMap.toDataObject<UserWrong>()
+// Throws ConversionException: Expected String for field 'address' but got Address
+```
+
+This ensures type safety: if the structure of your Data Class doesn't match the structure returned by the database (including nested composites, enums, and arrays), the operation fails fast rather than producing incorrect data.
 
 ---
 

@@ -34,6 +34,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 
 ### Data Mapping
 - [toDataObject()](data-mapping.md#todataobject---map-to-data-class) - Map to data class
+- [Nested Structures & Strict Type Checking](data-mapping.md#nested-structures--strict-type-checking) - How nested types are handled
 - [toMap()](data-mapping.md#tomap---data-class-to-map) - Data class to map
 - [@MapKey](data-mapping.md#mapkey-annotation) - Custom property-to-column mapping
 
