@@ -15,9 +15,6 @@ import java.time.temporal.ChronoField
 import java.util.*
 import kotlin.reflect.KClass
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.hours
-import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlin.time.toKotlinInstant
@@ -55,10 +52,6 @@ internal object StandardTypeMappingRegistry {
         .appendPattern("X")
         .toFormatter()
 
-    private const val PG_INFINITY = "infinity"
-    private const val PG_PLUS_INFINITY = "+infinity"
-    private const val PG_MINUS_INFINITY = "-infinity"
-
     private val mappings: Map<String, StandardTypeHandler> = buildMappings()
 
     private fun buildMappings(): Map<String, StandardTypeHandler> {
@@ -83,21 +76,27 @@ internal object StandardTypeMappingRegistry {
                     LocalDate::class,
                     { getObject(it, JLocalDate::class.java) },
                     { it.toKotlinLocalDate() },
-                    { parseDateWithInfinity(it) }
+                    { parseWithInfinity(it, LocalDate.DISTANT_FUTURE, LocalDate.DISTANT_PAST) { s ->
+                        LocalDate.parse(s)
+                    } }
                 )
 
                 PgStandardType.TIMESTAMP -> mapped(
                     LocalDateTime::class,
                     { getObject(it, JLocalDateTime::class.java) },
                     { it.toKotlinLocalDateTime() },
-                    { parseDateTimeWithInfinity(it) }
+                    { parseWithInfinity(it, LocalDateTime.DISTANT_FUTURE, LocalDateTime.DISTANT_PAST) { s ->
+                        LocalDateTime.parse(s.replace(' ', 'T'))
+                    } }
                 )
 
                 PgStandardType.TIMESTAMPTZ -> mapped(
                     Instant::class,
                     { getObject(it, JOffsetDateTime::class.java) },
                     { it.toInstant().toKotlinInstant() }, // Java OffsetDateTime -> Java Instant -> Kotlin Instant
-                    { parseInstantWithInfinity(it) }
+                    { parseWithInfinity(it, Instant.DISTANT_FUTURE, Instant.DISTANT_PAST) { s ->
+                        Instant.parse(s.replace(' ', 'T'))
+                    } }
                 )
 
                 PgStandardType.TIME -> mapped(
@@ -115,7 +114,9 @@ internal object StandardTypeMappingRegistry {
 
                 PgStandardType.INTERVAL -> fromStringOnly(
                     Duration::class) {
-                    parsePostgresIntervalString(it)
+                    parseWithInfinity(it, Duration.INFINITE, -Duration.INFINITE) { s ->
+                        pgIntervalToDuration(PGInterval(s))
+                    }
                 }
 
                 // Json
@@ -143,77 +144,34 @@ internal object StandardTypeMappingRegistry {
 
     // ----------------------- DATETIME FUNCTIONS -----------------------------------
 
+    private const val PG_INFINITY = "infinity"
+    private const val PG_PLUS_INFINITY = "+infinity"
+    private const val PG_MINUS_INFINITY = "-infinity"
+
     /**
-     * Parses a PostgreSQL DATE string with support for infinity values.
+     * Parses a string value from PostgreSQL that may represent infinity.
      *
-     * PostgreSQL's DATE type supports special values 'infinity' and '-infinity' to represent
-     * unbounded dates. These map to [LocalDate.DISTANT_FUTURE] and [LocalDate.DISTANT_PAST].
+     * PostgreSQL supports special infinity values for temporal types (DATE, TIMESTAMP, TIMESTAMPTZ)
+     * and INTERVAL. This function handles these special values by mapping them to appropriate
+     * Kotlin representations, while delegating parsing of regular values to the provided parser.
      *
-     * @param s The string representation from PostgreSQL (e.g., "2024-01-26", "infinity", "-infinity")
-     * @return A LocalDate value, or DISTANT_FUTURE/DISTANT_PAST for infinity values
+     * @param T The target Kotlin type
+     * @param s The string value to parse (from PostgreSQL)
+     * @param plusInfinity The value to return for positive infinity
+     * @param minusInfinity The value to return for negative infinity
+     * @param parser Function to parse non-infinity values
+     * @return Parsed value of type [T], either an infinity constant or parsed result
      */
-    private fun parseDateWithInfinity(s: String): LocalDate {
+    private fun <T> parseWithInfinity(
+        s: String,
+        plusInfinity: T,
+        minusInfinity: T,
+        parser: (String) -> T
+    ): T {
         return when (s.lowercase()) {
-            PG_INFINITY, PG_PLUS_INFINITY -> LocalDate.DISTANT_FUTURE
-            PG_MINUS_INFINITY -> LocalDate.DISTANT_PAST
-            else -> LocalDate.parse(s)
-        }
-    }
-
-    /**
-     * Parses a PostgreSQL TIMESTAMP string with support for infinity values.
-     *
-     * PostgreSQL's TIMESTAMP type supports special values 'infinity' and '-infinity' to represent
-     * unbounded timestamps. These map to [LocalDateTime.DISTANT_FUTURE] and [LocalDateTime.DISTANT_PAST].
-     *
-     * @param s The string representation from PostgreSQL (e.g., "2024-01-26 15:30:00", "infinity")
-     * @return A LocalDateTime value, or DISTANT_FUTURE/DISTANT_PAST for infinity values
-     */
-    private fun parseDateTimeWithInfinity(s: String): LocalDateTime {
-        val normalized = s.replace(' ', 'T')
-        return when (normalized.lowercase()) {
-            PG_INFINITY, PG_PLUS_INFINITY -> LocalDateTime.DISTANT_FUTURE
-            PG_MINUS_INFINITY -> LocalDateTime.DISTANT_PAST
-            else -> LocalDateTime.parse(normalized)
-        }
-    }
-
-    /**
-     * Parses a PostgreSQL TIMESTAMPTZ string with support for infinity values.
-     *
-     * PostgreSQL's TIMESTAMPTZ type supports special values 'infinity' and '-infinity' to represent
-     * unbounded timestamps with timezone. These map to [Instant.DISTANT_FUTURE] and [Instant.DISTANT_PAST].
-     *
-     * @param s The string representation from PostgreSQL (e.g., "2024-01-26 15:30:00+00", "infinity")
-     * @return An Instant value, or DISTANT_FUTURE/DISTANT_PAST for infinity values
-     */
-    private fun parseInstantWithInfinity(s: String): Instant {
-        val normalized = s.replace(' ', 'T')
-        return when (normalized.lowercase()) {
-            PG_INFINITY, PG_PLUS_INFINITY -> Instant.DISTANT_FUTURE
-            PG_MINUS_INFINITY -> Instant.DISTANT_PAST
-            else -> Instant.parse(normalized)
-        }
-    }
-
-    /**
-     * Parses a PostgreSQL INTERVAL string with support for infinity values.
-     *
-     * PostgreSQL's INTERVAL type supports special values 'infinity' and '-infinity' to represent
-     * unbounded durations. These map to [Duration.INFINITE] and [-Duration.INFINITE][Duration.INFINITE].
-     *
-     * For finite intervals, delegates to [pgIntervalToDuration] which applies PostgreSQL's
-     * conversion rules for date-based units.
-     *
-     * @param s The string representation from PostgreSQL (e.g., "5 days 3 hours", "infinity")
-     * @return A Duration value, or INFINITE/-INFINITE for infinity values
-     * @see pgIntervalToDuration
-     */
-    private fun parsePostgresIntervalString(s: String): Duration {
-        return when (s.lowercase()) {
-            PG_INFINITY, PG_PLUS_INFINITY -> Duration.INFINITE
-            PG_MINUS_INFINITY -> -Duration.INFINITE
-            else -> pgIntervalToDuration(PGInterval(s))
+            PG_INFINITY, PG_PLUS_INFINITY -> plusInfinity
+            PG_MINUS_INFINITY -> minusInfinity
+            else -> parser(s)
         }
     }
 
