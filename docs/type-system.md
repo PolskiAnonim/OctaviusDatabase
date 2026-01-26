@@ -24,25 +24,25 @@ Octavius Database provides automatic bidirectional mapping between PostgreSQL an
 
 Automatic conversion between PostgreSQL and Kotlin types:
 
-| PostgreSQL                | Kotlin          | Notes                          |
-|---------------------------|-----------------|--------------------------------|
-| `int2`, `smallserial`     | `Short`         |                                |
-| `int4`, `serial`          | `Int`           |                                |
-| `int8`, `bigserial`       | `Long`          |                                |
-| `float4`                  | `Float`         |                                |
-| `float8`                  | `Double`        |                                |
-| `numeric`                 | `BigDecimal`    |                                |
-| `text`, `varchar`, `char` | `String`        |                                |
-| `bool`                    | `Boolean`       |                                |
-| `uuid`                    | `UUID`          | `java.util.UUID`               |
-| `bytea`                   | `ByteArray`     |                                |
-| `json`, `jsonb`           | `JsonElement`   | `kotlinx.serialization.json`   |
-| `date`                    | `LocalDate`     | `kotlinx.datetime`             |
-| `time`                    | `LocalTime`     | `kotlinx.datetime`             |
-| `timetz`                  | `OffsetTime`    | `org.octavius.data.OffsetTime` |
-| `timestamp`               | `LocalDateTime` | `kotlinx.datetime`             |
-| `timestamptz`             | `Instant`       | `kotlin.time`                  |
-| `interval`                | `Duration`      | `kotlin.time`                  |
+| PostgreSQL                | Kotlin          | Notes                           |
+|---------------------------|-----------------|---------------------------------|
+| `int2`, `smallserial`     | `Short`         |                                 |
+| `int4`, `serial`          | `Int`           |                                 |
+| `int8`, `bigserial`       | `Long`          |                                 |
+| `float4`                  | `Float`         |                                 |
+| `float8`                  | `Double`        |                                 |
+| `numeric`                 | `BigDecimal`    |                                 |
+| `text`, `varchar`, `char` | `String`        |                                 |
+| `bool`                    | `Boolean`       |                                 |
+| `uuid`                    | `UUID`          | `java.util.UUID`                |
+| `bytea`                   | `ByteArray`     |                                 |
+| `json`, `jsonb`           | `JsonElement`   | `kotlinx.serialization.json`    |
+| `date`                    | `LocalDate`     | `kotlinx.datetime` <sup>1</sup> |
+| `time`                    | `LocalTime`     | `kotlinx.datetime`              |
+| `timetz`                  | `OffsetTime`    | `java.time`                     |
+| `timestamp`               | `LocalDateTime` | `kotlinx.datetime` <sup>1</sup> |
+| `timestamptz`             | `Instant`       | `kotlin.time` <sup>1</sup>      |
+| `interval`                | `Duration`      | `kotlin.time` <sup>2</sup>      |
 
 ### Arrays
 
@@ -54,6 +54,115 @@ Arrays of all standard types are supported and map to `List<T>`:
 | `text[]` | `List<String>` |
 | `uuid[]` | `List<UUID>` |
 | etc. | `List<T>` |
+
+### Infinity Values for Date/Time Types
+
+<sup>1</sup> **PostgreSQL special values** (`infinity`, `-infinity`) are supported for date and timestamp types:
+
+| PostgreSQL Type | Special Values          | Kotlin Constants                                             |
+|-----------------|-------------------------|--------------------------------------------------------------|
+| `date`          | `infinity`, `-infinity` | `LocalDate.DISTANT_FUTURE`, `LocalDate.DISTANT_PAST`         |
+| `timestamp`     | `infinity`, `-infinity` | `LocalDateTime.DISTANT_FUTURE`, `LocalDateTime.DISTANT_PAST` |
+| `timestamptz`   | `infinity`, `-infinity` | `Instant.DISTANT_FUTURE`, `Instant.DISTANT_PAST`             |
+
+**Usage example:**
+
+```kotlin
+data class Contract(val startDate: LocalDate, val endDate: LocalDate)
+
+// Inserting a contract with no end date (infinite)
+dataAccess.insertInto("contracts")
+    .values(listOf("start_date", "end_date"))
+    .execute(
+        "start_date" to LocalDate.parse("2024-01-01"),
+        "end_date" to LocalDate.DISTANT_FUTURE  // Stored as 'infinity' in PostgreSQL
+    )
+
+// Reading back
+val contract = dataAccess.select("start_date", "end_date")
+    .from("contracts")
+    .toSingleOf<Contract>()
+    .getOrThrow()!!
+
+// contract.endDate == LocalDate.DISTANT_FUTURE
+```
+
+**Constants provided by Octavius:**
+
+```kotlin
+import org.octavius.data.type.DISTANT_PAST
+import org.octavius.data.type.DISTANT_FUTURE
+
+LocalDate.DISTANT_PAST      // java.time.LocalDate.MIN → '-infinity'
+LocalDate.DISTANT_FUTURE    // java.time.LocalDate.MAX → 'infinity'
+
+LocalDateTime.DISTANT_PAST      // java.time.LocalDateTime.MIN → '-infinity'
+LocalDateTime.DISTANT_FUTURE    // java.time.LocalDateTime.MAX → 'infinity'
+
+Instant.DISTANT_PAST      // java.time.Instant.MIN → '-infinity'
+Instant.DISTANT_FUTURE    // java.time.Instant.MAX → 'infinity'
+```
+
+### Duration and Interval Conversion Rules
+
+<sup>2</sup> **PostgreSQL `INTERVAL` type** maps to Kotlin's `Duration` with full support for infinity values and precise conversion rules:
+
+**Infinity values:**
+
+```kotlin
+Duration.INFINITE        // Stored as 'infinity' in PostgreSQL
+-Duration.INFINITE       // Stored as '-infinity' in PostgreSQL
+```
+
+**Conversion rules from PostgreSQL to Kotlin:**
+
+PostgreSQL `INTERVAL` values without specific date context follow these conversion rules:
+
+| Unit    | Conversion Rule                    |
+|---------|------------------------------------|
+| 1 day   | 86,400 seconds                     |
+| 1 month | 30 days (= 2,592,000 seconds)      |
+| 1 year  | 365.25 days (= 31,557,600 seconds) |
+| 1 year  | 12 months                          |
+
+**Example conversions:**
+
+```sql
+-- PostgreSQL INTERVAL
+'1 year 2 months 5 days 3 hours 30 minutes 15 seconds'
+```
+
+Converts to Kotlin `Duration`:
+- Years: `1 * 365.25 * 86400 = 31,557,600 seconds`
+- Months: `2 * 30 * 86400 = 5,184,000 seconds`
+- Days: `5 * 86400 = 432,000 seconds`
+- Hours: `3 * 3600 = 10,800 seconds`
+- Minutes: `30 * 60 = 1,800 seconds`
+- Seconds: `15 seconds`
+- **Total: 37,186,215 seconds** (≈ 1.18 years as a duration)
+
+```kotlin
+// Using Duration values
+data class Task(val estimatedDuration: Duration, val actualDuration: Duration?)
+
+dataAccess.insertInto("tasks")
+    .values(listOf("estimated_duration", "actual_duration"))
+    .execute(
+        "estimated_duration" to 5.hours + 30.minutes,
+        "actual_duration" to null
+    )
+
+// Infinite duration example
+dataAccess.update("subscriptions")
+    .setValue("valid_until")
+    .where("id = :id")
+    .execute("valid_until" to Duration.INFINITE, "id" to subscriptionId)
+```
+
+**Important notes:**
+- These conversion rules apply when converting PostgreSQL intervals **without a specific date anchor point**
+- For date arithmetic with actual calendar dates, use native PostgreSQL date functions within your SQL queries
+- The conversion preserves precision but normalizes to total seconds in Kotlin's `Duration` type
 
 ---
 
@@ -137,9 +246,9 @@ Maps a Kotlin `data class` to a PostgreSQL `COMPOSITE` type.
 
 ### Annotation Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `name` | `String` | `""` | PostgreSQL type name (auto-generated if empty) |
+| Parameter | Type     | Default | Description                                    |
+|-----------|----------|---------|------------------------------------------------|
+| `name`    | `String` | `""`    | PostgreSQL type name (auto-generated if empty) |
 
 ### Basic Usage
 

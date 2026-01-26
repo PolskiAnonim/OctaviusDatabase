@@ -3,12 +3,13 @@ package org.octavius.database.type
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.datetime.*
 import kotlinx.serialization.json.JsonElement
-import org.octavius.data.OffsetTime
 import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
 import org.octavius.data.toMap
+import org.octavius.data.type.DISTANT_FUTURE
+import org.octavius.data.type.DISTANT_PAST
 import org.octavius.data.type.DynamicDto
 import org.octavius.data.type.PgTyped
 import org.octavius.data.util.clean
@@ -62,22 +63,52 @@ internal class KotlinToPostgresConverter(
         private val logger = KotlinLogging.logger {}
     }
 
+    /**
+     * Maps Kotlin types to their PostgreSQL representations for JDBC.
+     *
+     * This map handles standard type conversions including special support for PostgreSQL infinity values:
+     * - **DATE**: [LocalDate.DISTANT_FUTURE]/[LocalDate.DISTANT_PAST] → 'infinity'/'-infinity'
+     * - **TIMESTAMP**: [LocalDateTime.DISTANT_FUTURE]/[LocalDateTime.DISTANT_PAST] → 'infinity'/'-infinity'
+     * - **TIMESTAMPTZ**: [Instant.DISTANT_FUTURE]/[Instant.DISTANT_PAST] → 'infinity'/'-infinity'
+     * - **INTERVAL**: [Duration.INFINITE]/[-Duration.INFINITE][Duration.INFINITE] → 'infinity'/'-infinity'
+     *
+     * For finite values, standard conversions apply:
+     * - kotlinx.datetime types → java.sql types
+     * - Duration → ISO 8601 interval string format
+     */
     @OptIn(ExperimentalTime::class)
     private val KOTLIN_TO_JDBC_CONVERTERS: Map<KClass<*>, (Any) -> Any> = mapOf(
-        LocalDate::class to { v -> java.sql.Date.valueOf((v as LocalDate).toJavaLocalDate()) },
-        LocalDateTime::class to { v -> java.sql.Timestamp.valueOf((v as LocalDateTime).toJavaLocalDateTime()) },
+        LocalDate::class to { v ->
+            when (val date = v as LocalDate) {
+                LocalDate.DISTANT_FUTURE -> PGobject().apply { type = "date"; value = "infinity" }
+                LocalDate.DISTANT_PAST -> PGobject().apply { type = "date"; value = "-infinity" }
+                else -> java.sql.Date.valueOf(date.toJavaLocalDate())
+            }
+        },
+        LocalDateTime::class to { v ->
+            when (val dateTime = v as LocalDateTime) {
+                LocalDateTime.DISTANT_FUTURE -> PGobject().apply { type = "timestamp"; value = "infinity" }
+                LocalDateTime.DISTANT_PAST -> PGobject().apply { type = "timestamp"; value = "-infinity" }
+                else -> java.sql.Timestamp.valueOf(dateTime.toJavaLocalDateTime())
+            }
+        },
         LocalTime::class to { v -> java.sql.Time.valueOf((v as LocalTime).toJavaLocalTime()) },
-        Instant::class to { v -> java.sql.Timestamp.from((v as Instant).toJavaInstant()) },
-        OffsetTime::class to { v ->
-            val ktTime = v as OffsetTime
-            val javaOffset = ZoneOffset.ofTotalSeconds(ktTime.offset.totalSeconds)
-            val javaTime = ktTime.time.toJavaLocalTime()
-            java.time.OffsetTime.of(javaTime, javaOffset)
+        Instant::class to { v ->
+            when (val instant = v as Instant) {
+                Instant.DISTANT_FUTURE -> PGobject().apply { type = "timestamptz"; value = "infinity" }
+                Instant.DISTANT_PAST -> PGobject().apply { type = "timestamptz"; value = "-infinity" }
+                else -> java.sql.Timestamp.from(instant.toJavaInstant())
+            }
         },
         Duration::class to { v ->
+            val duration = v as Duration
             PGobject().apply {
                 type = "interval"
-                value = (v as Duration).toIsoString()
+                value = when (duration) {
+                    Duration.INFINITE -> "infinity"
+                    -Duration.INFINITE -> "-infinity"
+                    else -> duration.toIsoString()
+                }
             }
         }
     )
