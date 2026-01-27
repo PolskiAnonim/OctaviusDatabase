@@ -15,6 +15,7 @@ Octavius Database provides fluent query builders for all CRUD operations. Each b
 - [UpdateQueryBuilder](#updatequerybuilder)
 - [DeleteQueryBuilder](#deletequerybuilder)
 - [RawQueryBuilder](#rawquerybuilder)
+- [QueryFragment & Dynamic Queries](#queryfragment--dynamic-queries)
 - [Common Table Expressions (CTE)](#common-table-expressions-cte)
 - [Subqueries](#subqueries)
 - [ON CONFLICT (Upsert)](#on-conflict-upsert)
@@ -252,19 +253,80 @@ val affected = dataAccess.rawQuery("""
     SET price = price * 1.1
     WHERE category = :cat AND price < :maxPrice
 """).execute("cat" to "electronics", "maxPrice" to 100)
+```
 
-// Using dynamic_dto for ad-hoc mapping
-val usersWithProfiles = dataAccess.rawQuery("""
-    SELECT
-        u.id,
-        u.name,
-        dynamic_dto(
-            'profile',
-            jsonb_build_object('role', p.role, 'permissions', p.permissions)
-        ) AS profile
-    FROM users u
-    JOIN profiles p ON p.user_id = u.id
-""").toListOf<UserWithProfile>()
+---
+
+## QueryFragment & Dynamic Queries
+
+Since standard builders construct SQL strings but do not store parameters internally until execution, `QueryFragment` serves as a container for holding a piece of SQL along with its associated parameters. This is essential for building dynamic queries, complex filters, or passing partial query logic between application layers.
+
+### The `QueryFragment` Class
+
+A simple data carrier containing the SQL string and a map of parameters.
+
+```kotlin
+data class QueryFragment(
+    val sql: String,
+    val params: Map<String, Any?> = emptyMap()
+)
+```
+
+### Joining Fragments
+
+You can combine a list of fragments using the `.join()` extension method. This is powerful because it:
+1.  **Merges Parameters Safely**: Collects all parameters into a single map, throwing an error if duplicate keys have conflicting values.
+2.  **Handles Logic Grouping**: By default, wraps each fragment in parentheses (e.g., `(A) AND (B)`) to preserve operator precedence.
+3.  **Applies Prefix/Postfix**: Useful for constructing specific clauses (like `WHERE ...` or `SET ...`).
+
+### Example: Dynamic WHERE Clause
+
+Using `listOfNotNull` combined with the Elvis operator or `?.let` is the cleanest way to build conditional filters.
+
+```kotlin
+fun searchUsers(name: String?, minAge: Int?, active: Boolean?): List<User> {
+    
+    // 1. Build list of fragments based on non-null inputs
+    val fragments = listOfNotNull(
+        name?.let { QueryFragment("name LIKE :name", mapOf("name" to "%$it%")) },
+        minAge?.let { QueryFragment("age >= :minAge", mapOf("minAge" to it)) },
+        active?.let { QueryFragment("active = :active", mapOf("active" to it)) }
+    )
+
+    // 2. Join them
+    // If list is empty, returns empty fragment.
+    // addParenthesis = true (default) ensures safety: (name LIKE...) AND (age >=...)
+    val whereClause = fragments.join(separator = " AND ")
+
+    // 3. Apply to builder
+    // Note: We pass whereClause.sql to the builder and whereClause.params to the executor
+    return dataAccess.select("*")
+        .from("users")
+        .where(whereClause.sql) // Builder ignores empty string
+        .toListOf<User>(whereClause.params)
+}
+```
+
+### Example: Dynamic Updates (Raw Query)
+
+`join` is particularly useful with `RawQueryBuilder` for dynamic SET clauses. You can use `prefix` and `postfix` to format the final SQL string.
+
+```kotlin
+val updates = listOfNotNull(
+    newStatus?.let { QueryFragment("status = :status", mapOf("status" to it)) },
+    newRole?.let { QueryFragment("role = :role", mapOf("role" to it)) },
+    QueryFragment("updated_at = NOW()") // Always update timestamp
+)
+
+val setClause = updates.join(
+    separator = ", ", 
+    prefix = "SET ",    // Prepend "SET " to the result
+    addParenthesis = false // Don't wrap SET assignments in ()
+)
+
+// Result SQL: "UPDATE users SET status = :status, role = :role, updated_at = NOW() WHERE id = :id"
+dataAccess.rawQuery("UPDATE users ${setClause.sql} WHERE id = :id")
+    .execute(setClause.params + ("id" to userId))
 ```
 
 ---
@@ -468,13 +530,13 @@ dataAccess.update("users")
 dataAccess.insertInto("users")
     .value("name")
     .value("email")
-    // Generated: INSERT INTO users (name, email) VALUES (:name, :email)
+// Generated: INSERT INTO users (name, email) VALUES (:name, :email)
 
 // For UPDATE
 dataAccess.update("users")
     .setValue("name")
     .setValue("email")
-    // Generated: UPDATE users SET name = :name, email = :email WHERE ...
+// Generated: UPDATE users SET name = :name, email = :email WHERE ...
 ```
 
 ---
