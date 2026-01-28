@@ -23,7 +23,10 @@ internal data class PgCompositeDefinition(
     val typeName: String,
     val attributes: Map<String, String>, // colName -> colType (ordered)
     val kClass: KClass<*>
-)
+) {
+    /** Cached list of attributes for indexed access without repeated allocation. */
+    val attributesList: List<Map.Entry<String, String>> = attributes.entries.toList()
+}
 
 /** Metadata for a PostgreSQL ARRAY type, linking to its element type. */
 internal data class PgArrayDefinition(

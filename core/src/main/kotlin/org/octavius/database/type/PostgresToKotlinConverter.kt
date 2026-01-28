@@ -20,6 +20,13 @@ import org.octavius.database.type.registry.*
 internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry) {
     companion object {
         private val logger = KotlinLogging.logger {}
+
+        /**
+         * Minimum number of array elements required to trigger parallel processing.
+         * Only applies to COMPOSITE and DYNAMIC types where per-element processing is expensive.
+         * For simple types (int, text, etc.) sequential processing is always faster.
+         */
+        private const val PARALLEL_THRESHOLD = 20
     }
 
     /**
@@ -165,6 +172,11 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      * Supports nested arrays and recursively processes elements
      * according to element type specified in TypeRegistry.
      *
+     * For COMPOSITE and DYNAMIC element types with more than [PARALLEL_THRESHOLD] elements,
+     * processing is done in parallel using Java's parallel streams.
+     * Simple types (int, text, etc.) are always processed sequentially as parallelization
+     * overhead outweighs the benefits.
+     *
      * @param value String representing PostgreSQL array (format: {elem1,elem2,...}).
      * @param typeInfo Array type information from TypeRegistry.
      * @return List of converted elements.
@@ -178,8 +190,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
 
         logger.trace { "Parsed ${elements.size} array elements" }
 
-        // Recursively convert each array element using the main conversion function
-        return elements.map { elementValue ->
+        val convertElement: (String?) -> Any? = { elementValue ->
             // Check if the string representing the element ITSELF is an array.
             val isNestedArray = elementValue?.startsWith('{') ?: false
 
@@ -189,6 +200,17 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
             val typeNameToUse = if (isNestedArray) typeInfo.typeName else typeInfo.elementTypeName
 
             convert(elementValue, typeNameToUse)
+        }
+
+        // Use parallel processing for large arrays, sequential for small ones
+        val elementCategory = typeRegistry.getCategory(typeInfo.elementTypeName)
+        return if ((elementCategory == TypeCategory.COMPOSITE || elementCategory == TypeCategory.DYNAMIC) && elements.size >= PARALLEL_THRESHOLD) {
+            logger.trace { "Using parallel processing for ${elements.size} elements" }
+            elements.parallelStream()
+                .map(convertElement)
+                .toList()
+        } else {
+            elements.map(convertElement)
         }
     }
 
@@ -204,7 +226,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
         val fieldValues: List<String?> = parseNestedStructure(value)
 
 
-        val dbAttributes = typeInfo.attributes.toList()
+        val dbAttributes = typeInfo.attributesList
 
         if (fieldValues.size != dbAttributes.size) {
             val ex = TypeRegistryException(TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE, typeName = typeInfo.typeName)
@@ -213,9 +235,9 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
         }
 
         logger.trace { "Converting ${dbAttributes.size} composite fields" }
-        val constructorArgsMap = dbAttributes.mapIndexed { index, (dbAttributeName, dbAttributeType) ->
-            val convertedValue = convert(fieldValues[index], dbAttributeType)
-            dbAttributeName to convertedValue
+        val constructorArgsMap = dbAttributes.mapIndexed { index, entry ->
+            val convertedValue = convert(fieldValues[index], entry.value)
+            entry.key to convertedValue
         }.toMap()
 
         return try {
@@ -244,10 +266,9 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      * Handles quotes, escaping, `NULL` values, and nesting.
      */
     private fun parseNestedStructure(input: String): List<String?> {
-        if (input.length < 2) return emptyList()
+        if (input.length <= 2) return emptyList()
 
         val contentView: CharSequence = input.subSequence(1, input.length - 1)
-        if (contentView.isEmpty()) return emptyList()
 
         val elements = mutableListOf<String?>()
         val state = ParserState()
