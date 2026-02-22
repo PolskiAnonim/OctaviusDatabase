@@ -5,6 +5,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 
 /**
+ * Controls the waiting behavior when acquiring row-level locks in a SELECT query.
+ *
+ * Used with [SelectQueryBuilder.forUpdate].
+ */
+enum class LockWaitMode {
+    /** Fail immediately with an error if any selected row is already locked. */
+    NOWAIT,
+
+    /** Skip rows that are already locked instead of waiting for them. */
+    SKIP_LOCKED
+}
+
+/**
  * Defines the public API for building SQL SELECT queries.
  */
 interface SelectQueryBuilder: TerminalReturningMethods, QueryBuilder<SelectQueryBuilder> {
@@ -50,6 +63,20 @@ interface SelectQueryBuilder: TerminalReturningMethods, QueryBuilder<SelectQuery
      * @param size Page size
      */
     fun page(page: Long, size: Long): SelectQueryBuilder
+
+    /**
+     * Appends a `FOR UPDATE` locking clause to the query.
+     *
+     * Locks selected rows for the duration of the current transaction,
+     * preventing concurrent modification.
+     *
+     * @param of Optional comma-separated list of table names to lock (e.g., `"users, accounts"`).
+     *           If `null`, all tables referenced in the query are locked.
+     * @param mode Optional wait strategy: [LockWaitMode.NOWAIT] raises an error immediately
+     *             if any row is locked; [LockWaitMode.SKIP_LOCKED] silently skips locked rows.
+     *             If `null`, the query waits until the lock is acquired.
+     */
+    fun forUpdate(of: String? = null, mode: LockWaitMode? = null): SelectQueryBuilder
 }
 
 /**

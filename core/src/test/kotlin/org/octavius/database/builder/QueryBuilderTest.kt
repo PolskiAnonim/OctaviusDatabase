@@ -5,6 +5,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.octavius.data.builder.LockWaitMode
 import org.octavius.database.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.springframework.jdbc.core.JdbcTemplate
@@ -65,6 +66,52 @@ class QueryBuilderTest {
         fun `should build a paginated query`() {
             val sql = TestQueryBuilderFactory.select("*").from("logs").page(2, 50).toSql()
             assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM logs LIMIT 50 OFFSET 100")
+        }
+
+        @Test
+        fun `should build a query with FOR UPDATE`() {
+            val sql = TestQueryBuilderFactory.select("*").from("orders").where("id = :id").forUpdate().toSql()
+            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM orders WHERE id = :id FOR UPDATE")
+        }
+
+        @Test
+        fun `should build a query with FOR UPDATE OF`() {
+            val sql = TestQueryBuilderFactory.select("*")
+                .from("orders o JOIN accounts a ON o.account_id = a.id")
+                .where("o.id = :id")
+                .forUpdate(of = "o")
+                .toSql()
+            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM orders o JOIN accounts a ON o.account_id = a.id WHERE o.id = :id FOR UPDATE OF o")
+        }
+
+        @Test
+        fun `should build a query with FOR UPDATE NOWAIT`() {
+            val sql = TestQueryBuilderFactory.select("*")
+                .from("seats")
+                .where("event_id = :event_id")
+                .forUpdate(mode = LockWaitMode.NOWAIT)
+                .toSql()
+            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM seats WHERE event_id = :event_id FOR UPDATE NOWAIT")
+        }
+
+        @Test
+        fun `should build a query with FOR UPDATE SKIP LOCKED`() {
+            val sql = TestQueryBuilderFactory.select("*")
+                .from("jobs")
+                .where("status = 'pending'")
+                .forUpdate(mode = LockWaitMode.SKIP_LOCKED)
+                .toSql()
+            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM jobs WHERE status = 'pending' FOR UPDATE SKIP LOCKED")
+        }
+
+        @Test
+        fun `should build a query with FOR UPDATE OF with SKIP LOCKED`() {
+            val sql = TestQueryBuilderFactory.select("*")
+                .from("jobs j JOIN queues q ON j.queue_id = q.id")
+                .where("j.status = 'pending'")
+                .forUpdate(of = "j", mode = LockWaitMode.SKIP_LOCKED)
+                .toSql()
+            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM jobs j JOIN queues q ON j.queue_id = q.id WHERE j.status = 'pending' FOR UPDATE OF j SKIP LOCKED")
         }
     }
 

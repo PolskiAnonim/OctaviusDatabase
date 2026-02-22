@@ -1,5 +1,6 @@
 package org.octavius.database.builder
 
+import org.octavius.data.builder.LockWaitMode
 import org.octavius.data.builder.SelectQueryBuilder
 import org.octavius.database.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
@@ -28,6 +29,9 @@ internal class DatabaseSelectQueryBuilder(
     private var orderByClause: String? = null
     private var limitValue: Long? = null
     private var offsetValue: Long? = null
+    private var forUpdateOf: String? = null
+    private var forUpdateMode: LockWaitMode? = null
+    private var forUpdate: Boolean = false
 
     //------------------------------------------------------------------------------------------------------------------
     //                                      BUILDING SELECT CLAUSE
@@ -90,6 +94,12 @@ internal class DatabaseSelectQueryBuilder(
         this.limitValue = size
     }
 
+    override fun forUpdate(of: String?, mode: LockWaitMode?): SelectQueryBuilder = apply {
+        this.forUpdate = true
+        this.forUpdateOf = of
+        this.forUpdateMode = mode
+    }
+
     //------------------------------------------------------------------------------------------------------------------
     //                                              BUILDING SQL
     //------------------------------------------------------------------------------------------------------------------
@@ -117,6 +127,11 @@ internal class DatabaseSelectQueryBuilder(
         orderByClause?.takeIf { it.isNotBlank() }?.let { sqlBuilder.append("\nORDER BY ").append(it) }
         limitValue?.takeIf { it > 0 }?.let { sqlBuilder.append("\nLIMIT ").append(it) }
         offsetValue?.takeIf { it >= 0 }?.let { sqlBuilder.append("\nOFFSET ").append(it) }
+        if (forUpdate) {
+            sqlBuilder.append("\nFOR UPDATE")
+            forUpdateOf?.takeIf { it.isNotBlank() }?.let { sqlBuilder.append(" OF ").append(it) }
+            forUpdateMode?.let { sqlBuilder.append(" ").append(it.name.replace('_', ' ')) }
+        }
 
         return sqlBuilder.toString()
     }
@@ -145,6 +160,9 @@ internal class DatabaseSelectQueryBuilder(
         newBuilder.orderByClause = this.orderByClause
         newBuilder.limitValue = this.limitValue
         newBuilder.offsetValue = this.offsetValue
+        newBuilder.forUpdate = this.forUpdate
+        newBuilder.forUpdateOf = this.forUpdateOf
+        newBuilder.forUpdateMode = this.forUpdateMode
 
         // 4. Return fully configured copy
         return newBuilder

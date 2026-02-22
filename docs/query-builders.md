@@ -19,6 +19,7 @@ Octavius Database provides fluent query builders for all CRUD operations. Each b
 - [Common Table Expressions (CTE)](#common-table-expressions-cte)
 - [Subqueries](#subqueries)
 - [ON CONFLICT (Upsert)](#on-conflict-upsert)
+- [Row-Level Locking (FOR UPDATE)](#row-level-locking-for-update)
 - [Auto-Generated Placeholders](#auto-generated-placeholders)
 - [Builder Modes](#builder-modes)
 
@@ -43,6 +44,7 @@ Builds SQL SELECT queries with full support for all standard clauses.
 | `limit(count)`                  | LIMIT clause                                        |
 | `offset(position)`              | OFFSET clause                                       |
 | `page(page, size)`              | Pagination helper (zero-indexed pages)              |
+| `forUpdate(of?, mode?)`         | FOR UPDATE locking clause (see [Row-Level Locking](#row-level-locking-for-update)) |
 
 ### Examples
 
@@ -478,6 +480,82 @@ dataAccess.insertInto("orders")
         doNothing()
     }
     .execute(orderData)
+```
+
+---
+
+## Row-Level Locking (FOR UPDATE)
+
+The `forUpdate()` method appends a `FOR UPDATE` clause, which locks the selected rows for the duration of the current transaction. This prevents other transactions from modifying or deleting them before your transaction commits.
+
+> **Requires an active transaction.** `FOR UPDATE` is only meaningful inside a `dataAccess.transaction { ... }` block. Outside of one, the lock is released immediately after the query.
+
+### Method Signature
+
+```kotlin
+fun forUpdate(of: String? = null, mode: LockWaitMode? = null): SelectQueryBuilder
+```
+
+### `LockWaitMode`
+
+Controls what happens if another transaction already holds a lock on one of the selected rows.
+
+| Value         | Behavior                                                       |
+|---------------|----------------------------------------------------------------|
+| *(none)*      | Wait until the lock is available (default PostgreSQL behavior) |
+| `NOWAIT`      | Return `Failure` immediately instead of waiting               |
+| `SKIP_LOCKED` | Silently skip rows that are currently locked                   |
+
+### Examples
+
+```kotlin
+// Basic FOR UPDATE - lock the row, then update it
+dataAccess.transaction { tx ->
+    val result = tx.select("*")
+        .from("orders")
+        .where("id = :id")
+        .forUpdate()
+        .toSingleOf<Order>("id" to orderId)
+
+    result.onSuccess { order ->
+        dataAccess.update("orders")
+            .setExpression("status", ":status")
+            .where("id = :id")
+            .execute("status" to "processing", "id" to order?.id)
+    }
+}
+
+// FOR UPDATE OF - lock only the specified table in a JOIN query
+dataAccess.transaction { tx ->
+    tx.select("o.id", "o.total", "a.balance")
+        .from("orders o JOIN accounts a ON o.account_id = a.id")
+        .where("o.id = :id")
+        .forUpdate(of = "o")  // only lock rows in 'orders', not 'accounts'
+        .toSingleOf<OrderWithBalance>("id" to orderId)
+}
+
+// FOR UPDATE NOWAIT - return Failure immediately if row is already locked
+dataAccess.transaction { tx ->
+    tx.select("*")
+        .from("seats")
+        .where("id = :id AND status = 'available'")
+        .forUpdate(mode = LockWaitMode.NOWAIT)
+        .toSingleOf<Seat>("id" to seatId)
+        .onSuccess { seat -> /* reserve it */ }
+        .onFailure { error -> /* row locked by another transaction */ }
+}
+
+// FOR UPDATE SKIP LOCKED - job queue / task processing pattern
+dataAccess.transaction { tx ->
+    tx.select("*")
+        .from("jobs")
+        .where("status = 'pending'")
+        .orderBy("created_at")
+        .limit(10)
+        .forUpdate(mode = LockWaitMode.SKIP_LOCKED) // skip rows claimed by other workers
+        .toListOf<Job>()
+        .onSuccess { jobs -> /* process jobs safely */ }
+}
 ```
 
 ---
