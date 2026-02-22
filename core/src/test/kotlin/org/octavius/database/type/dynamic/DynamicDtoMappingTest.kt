@@ -10,16 +10,12 @@ import org.octavius.data.DataAccess
 import org.octavius.data.builder.toSingle
 import org.octavius.data.getOrThrow
 import org.octavius.data.toDataObject
-import org.octavius.database.DatabaseAccess
+import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
-import org.octavius.database.type.KotlinToPostgresConverter
-import org.octavius.database.type.registry.TypeRegistry
-import org.octavius.database.type.registry.TypeRegistryLoader
 import org.octavius.domain.test.dynamic.DynamicProfile
 import org.octavius.domain.test.dynamic.UserStats
 import org.octavius.domain.test.dynamic.UserWithDynamicProfile
 import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -27,7 +23,6 @@ import java.nio.file.Paths
 class DynamicDtoMappingTest {
 
     private lateinit var dataAccess: DataAccess
-    private lateinit var typeRegistry: TypeRegistry // Potrzebne do weryfikacji
 
     @BeforeAll
     fun setup() {
@@ -47,7 +42,6 @@ class DynamicDtoMappingTest {
             password = databaseConfig.dbPassword
         })
         val jdbcTemplate = JdbcTemplate(dataSource)
-        val transactionManager = DataSourceTransactionManager(dataSource)
 
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
         jdbcTemplate.execute("CREATE SCHEMA public;")
@@ -61,17 +55,15 @@ class DynamicDtoMappingTest {
         jdbcTemplate.execute(initSql)
         println("Dynamic DTO test DB schema initialized successfully.")
 
-        // --- Krok 3: Załadowanie TypeRegistry i stworzenie pełnego DAL-a ---
-        typeRegistry =
-            TypeRegistryLoader(
-                jdbcTemplate,
-                listOf("org.octavius.domain.test.dynamic"),
-                databaseConfig.dbSchemas
-            ).load()
-
-        val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
+        // --- Krok 3: Stworzenie pełnego DAL-a ---
         // Używamy pełnej implementacji DataAccess, aby testować jak najbliżej rzeczywistości
-        dataAccess = DatabaseAccess(jdbcTemplate, transactionManager, typeRegistry, kotlinToPostgresConverter)
+        dataAccess = OctaviusDatabase.fromDataSource(
+            dataSource = dataSource,
+            packagesToScan = listOf("org.octavius.domain.test.dynamic"),
+            dbSchemas = databaseConfig.dbSchemas,
+            disableFlyway = true,
+            disableCoreTypeInitialization = true
+        )
     }
 
     @Test

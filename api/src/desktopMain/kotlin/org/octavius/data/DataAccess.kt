@@ -1,6 +1,7 @@
 package org.octavius.data
 
 import org.octavius.data.builder.*
+import org.octavius.data.notification.PgChannelListener
 import org.octavius.data.transaction.TransactionPlan
 import org.octavius.data.transaction.TransactionPlanResult
 import org.octavius.data.transaction.TransactionPropagation
@@ -95,4 +96,26 @@ interface DataAccess : QueryOperations {
         propagation: TransactionPropagation = TransactionPropagation.REQUIRED,
         block: (tx: QueryOperations) -> DataResult<T>
     ): DataResult<T>
+
+    /**
+     * Sends a notification to the given PostgreSQL channel via `pg_notify`.
+     *
+     * Can be used both inside and outside of a transaction. If used inside a transaction,
+     * the notification is only delivered to listeners after the transaction commits.
+     *
+     * @param channel Name of the channel to send the notification to.
+     * @param payload Optional payload string (max 8000 bytes). `null` sends no payload.
+     * @return [DataResult.Success] on success, or [DataResult.Failure] on error.
+     */
+    fun notify(channel: String, payload: String? = null): DataResult<Unit>
+
+    /**
+     * Creates a new [PgChannelListener] backed by a dedicated database connection.
+     *
+     * The returned listener holds an open connection until [PgChannelListener.close] is called.
+     * Always release the listener via [kotlin.io.use] or an explicit [PgChannelListener.close] call.
+     *
+     * @return A new [PgChannelListener] ready to subscribe to channels.
+     */
+    fun createChannelListener(): PgChannelListener
 }

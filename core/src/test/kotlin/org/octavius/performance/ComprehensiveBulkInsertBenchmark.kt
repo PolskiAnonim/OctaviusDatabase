@@ -6,12 +6,9 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.octavius.data.DataAccess
 import org.octavius.data.annotation.PgComposite
-import org.octavius.database.DatabaseAccess
+import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
-import org.octavius.database.type.KotlinToPostgresConverter
-import org.octavius.database.type.registry.TypeRegistryLoader
 import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import java.util.concurrent.ConcurrentHashMap
 import javax.sql.DataSource
 import kotlin.system.measureTimeMillis
@@ -78,15 +75,13 @@ class ComprehensiveBulkInsertBenchmark {
         """.trimIndent()
         )
         // --- Krok 3: Inicjalizacja frameworka ---
-        val loader = TypeRegistryLoader(
-            jdbcTemplate,
-            listOf("org.octavius.performance"),
-            databaseConfig.dbSchemas
+        this.dataAccess = OctaviusDatabase.fromDataSource(
+            dataSource = hikariDataSource,
+            packagesToScan = listOf("org.octavius.performance"),
+            dbSchemas = databaseConfig.dbSchemas,
+            disableFlyway = true,
+            disableCoreTypeInitialization = true
         )
-        val typeRegistry = loader.load()
-        val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
-        val transactionManager = DataSourceTransactionManager(hikariDataSource)
-        this.dataAccess = DatabaseAccess(jdbcTemplate, transactionManager, typeRegistry, kotlinToPostgresConverter)
         println("Performance test table and composite type created.")
 
         // --- Krok 4: Rozgrzewka JVM ---

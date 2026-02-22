@@ -16,6 +16,12 @@ internal class ResultSetValueExtractor(
 
     fun extract(rs: ResultSet, columnIndex: Int): Any? {
         val pgTypeName = rs.metaData.getColumnTypeName(columnIndex)
+
+        // void is a special JDBC-level case — not a real column type.
+        // Functions like pg_notify() return void; mapping it to Unit allows
+        // SELECT-ing void functions via toField<Unit>() without error.
+        if (pgTypeName == "void") return Unit
+
         val typeCategory = typeRegistry.getCategory(pgTypeName)
 
         // Main logic: path distinction

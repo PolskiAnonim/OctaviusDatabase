@@ -12,6 +12,8 @@ import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.registry.TypeRegistryLoader
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.support.JdbcTransactionManager
+import java.sql.Connection
+import java.sql.DriverManager
 import javax.sql.DataSource
 import kotlin.time.measureTime
 
@@ -53,6 +55,12 @@ object OctaviusDatabase {
         val dataSource = HikariDataSource(hikariConfig)
         logger.debug { "HikariCP datasource initialized with pool size: ${hikariConfig.maximumPoolSize}" }
 
+        val searchPathSql = connectionInitSql
+        val listenerConnectionFactory: () -> Connection = {
+            DriverManager.getConnection(config.dbUrl, config.dbUsername, config.dbPassword).also { conn ->
+                searchPathSql?.let { sql -> conn.createStatement().use { it.execute(sql) } }
+            }
+        }
 
         return fromDataSource(
             dataSource = dataSource,
@@ -61,7 +69,8 @@ object OctaviusDatabase {
             dynamicDtoStrategy = config.dynamicDtoStrategy,
             flywayBaselineVersion = config.flywayBaselineVersion,
             disableFlyway = config.disableFlyway,
-            disableCoreTypeInitialization = config.disableCoreTypeInitialization
+            disableCoreTypeInitialization = config.disableCoreTypeInitialization,
+            listenerConnectionFactory = listenerConnectionFactory
         )
     }
 
@@ -72,7 +81,8 @@ object OctaviusDatabase {
         dynamicDtoStrategy: DynamicDtoSerializationStrategy = DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS,
         flywayBaselineVersion: String? = null,
         disableFlyway: Boolean = false,
-        disableCoreTypeInitialization: Boolean = false
+        disableCoreTypeInitialization: Boolean = false,
+        listenerConnectionFactory: (() -> Connection)? = null
     ): DataAccess {
         logger.info { "Initializing OctaviusDatabase..." }
         val jdbcTemplate = JdbcTemplate(dataSource)
@@ -103,13 +113,30 @@ object OctaviusDatabase {
         logger.debug { "Initializing converters" }
         val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry, dynamicDtoStrategy)
 
+        val resolvedListenerConnectionFactory: () -> Connection = listenerConnectionFactory
+            ?: resolveListenerConnectionFactory(dataSource)
+
         logger.info { "OctaviusDatabase initialization completed" }
         return DatabaseAccess(
             jdbcTemplate,
             transactionManager,
             typeRegistry,
-            kotlinToPostgresConverter
+            kotlinToPostgresConverter,
+            resolvedListenerConnectionFactory
         )
+    }
+
+    private fun resolveListenerConnectionFactory(dataSource: DataSource): () -> Connection {
+        if (dataSource is HikariDataSource) {
+            logger.debug { "LISTEN connections will use DriverManager (bypassing HikariCP pool)" }
+            return { DriverManager.getConnection(dataSource.jdbcUrl, dataSource.username, dataSource.password) }
+        }
+        logger.warn {
+            "Cannot determine raw JDBC URL from the provided DataSource (${dataSource::class.simpleName}). " +
+            "LISTEN connections will use the main connection pool. " +
+            "Pass a custom listenerConnectionFactory to fromDataSource() to avoid this."
+        }
+        return { dataSource.connection }
     }
 
     private fun runMigrations(dataSource: DataSource, schemas: List<String>, flywayBaselineVersion: String?) {

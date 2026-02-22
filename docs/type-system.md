@@ -37,6 +37,7 @@ Automatic conversion between PostgreSQL and Kotlin types:
 | `uuid`                    | `UUID`          | `java.util.UUID`                |
 | `bytea`                   | `ByteArray`     |                                 |
 | `json`, `jsonb`           | `JsonElement`   | `kotlinx.serialization.json`    |
+| `void`                    | `Unit`          | Return type of void functions (e.g. `pg_notify`) |
 | `date`                    | `LocalDate`     | `kotlinx.datetime` <sup>1</sup> |
 | `time`                    | `LocalTime`     | `kotlinx.datetime`              |
 | `timetz`                  | `OffsetTime`    | `java.time`                     |

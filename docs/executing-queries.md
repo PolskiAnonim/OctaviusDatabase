@@ -240,6 +240,30 @@ val user = dataAccess.select("*")
 
 ---
 
+## Calling Void-Returning Functions
+
+PostgreSQL functions that return `void` (e.g. `pg_notify`, `pg_advisory_lock`, custom procedures) map to `Unit` in Kotlin. Use `toField<Unit>()` to call them through the query builders:
+
+```kotlin
+// Call a void function — result is DataResult<Unit>
+dataAccess.rawQuery("SELECT pg_notify(:channel, :payload)")
+    .toField<Unit>("channel" to "orders", "payload" to "order_99")
+
+// Also works inside transactions
+dataAccess.transaction { tx ->
+    tx.rawQuery("SELECT pg_advisory_lock(:key)")
+        .toField<Unit>("key" to lockKey)
+        .getOrElse { return@transaction DataResult.Failure(it) }
+
+    // ... do work ...
+    DataResult.Success(Unit)
+}
+```
+
+`void` columns are mapped to `Unit` at the JDBC boundary — before the type registry is consulted — so no additional configuration is needed.
+
+---
+
 ## Async Execution
 
 Execute queries asynchronously using coroutines.

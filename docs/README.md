@@ -12,6 +12,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 | [Data Mapping](data-mapping.md) | toMap(), toDataObject(), @MapKey - converting between objects and maps |
 | [ORM-Like Patterns](orm-patterns.md) | CRUD patterns, real-world examples, PostgreSQL composite types |
 | [Transactions](transactions.md) | Transaction blocks, TransactionPlan, StepHandle, passing data between steps |
+| [Notifications](notifications.md) | PostgreSQL LISTEN/NOTIFY, PgChannelListener, Flow-based receiving |
 | [Error Handling](error-handling.md) | Exception hierarchy, QueryExecutionException, ConversionException |
 | [Type System](type-system.md) | @PgEnum, @PgComposite, @DynamicallyMappable, PgTyped, standard type mappings |
 
@@ -50,6 +51,13 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Passing Data Between Steps](transactions.md#passing-data-between-steps) - Reference previous step results
 - [assertNotNull in Transactions](transactions.md#assertnotnull-in-transactions) - Handle nullable results
 - [Transaction Propagation](transactions.md#transaction-propagation) - REQUIRED, REQUIRES_NEW, NESTED
+
+### Notifications
+- [Sending Notifications](notifications.md#sending-notifications--notify) - `notify()` via `pg_notify`
+- [Receiving Notifications](notifications.md#receiving-notifications--createchannellistener) - `createChannelListener()` + `Flow<PgNotification>`
+- [Multiple Channels](notifications.md#multiple-channels) - Subscribe to several channels at once
+- [Transactions and NOTIFY](notifications.md#transactions-and-notify) - Notifications respect transaction commit/rollback
+- [Connection Management](notifications.md#connection-management) - Dedicated connections, always use `use { }`
 
 ### Error Handling
 - [Exception Hierarchy](error-handling.md#exception-hierarchy) - DatabaseException subtypes

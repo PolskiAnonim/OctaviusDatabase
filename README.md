@@ -28,6 +28,7 @@
 - **Transaction Plans** — Multi-step atomic operations with step dependencies
 - **Dynamic Filters** — Safe, composable `WHERE` clauses with `QueryFragment`
 - **Dynamic Type System** — Polymorphic storage & ad-hoc object mapping with `dynamic_dto`
+- **LISTEN / NOTIFY** — Flow-based async notifications on a dedicated connection outside the pool
 
 ## Quick Start
 
@@ -261,6 +262,30 @@ val users = dataAccess.rawQuery("""
 
 > **Why use this?** Usually, to get a user with their profile in one query, you'd fetch flat columns (`user_id`, `user_name`, `profile_role`...) and manually map them, or create a database VIEW. With ad-hoc mapping, you construct the nested structure directly in SQL. The database does the packaging, Octavius does the unpacking — zero boilerplate.
 
+## LISTEN / NOTIFY
+
+Subscribe to PostgreSQL channels and receive real-time notifications as a Kotlin `Flow`:
+
+```kotlin
+// Send a notification
+dataAccess.notify("orders", "order_id:42")
+
+// Listen on a dedicated connection (outside the HikariCP pool)
+dataAccess.createChannelListener().use { listener ->
+    listener.listen("orders", "inventory")
+
+    listener.notifications()
+        .collect { notification ->
+            when (notification.channel) {
+                "orders"    -> handleOrder(notification.payload)
+                "inventory" -> handleInventory(notification.payload)
+            }
+        }
+}
+```
+
+Each `PgChannelListener` holds its own dedicated JDBC connection, separate from the query pool. Notifications sent inside a transaction are only delivered after commit.
+
 ## Configuration
 
 ### Using Properties File
@@ -324,6 +349,7 @@ For detailed guides and examples, see the [full documentation](docs/README.md):
 - [Data Mapping](docs/data-mapping.md) - toMap(), toDataObject(), @MapKey, nested structures & strict typing
 - [ORM-Like Patterns](docs/orm-patterns.md) - CRUD patterns, real-world examples
 - [Transactions](docs/transactions.md) - Transaction plans, StepHandle, passing data between steps
+- [Notifications](docs/notifications.md) - LISTEN/NOTIFY, PgChannelListener, Flow-based receiving
 - [Error Handling](docs/error-handling.md) - Exception hierarchy, debugging
 - [Type System](docs/type-system.md) - @PgEnum, @PgComposite, @DynamicallyMappable, helper serializers
 

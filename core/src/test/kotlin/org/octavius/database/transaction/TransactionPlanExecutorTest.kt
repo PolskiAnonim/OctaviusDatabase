@@ -15,12 +15,9 @@ import org.octavius.data.builder.toField
 import org.octavius.data.exception.StepDependencyException
 import org.octavius.data.exception.TransactionStepExecutionException
 import org.octavius.data.transaction.TransactionPlan
-import org.octavius.database.DatabaseAccess
+import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
-import org.octavius.database.type.KotlinToPostgresConverter
-import org.octavius.database.type.registry.TypeRegistryLoader
 import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -51,10 +48,13 @@ class TransactionPlanExecutorTest {
         jdbcTemplate.execute(initSql)
 
         // --- Krok 3: Stworzenie pełnej instancji DataAccess ---
-        val typeRegistry = TypeRegistryLoader(jdbcTemplate, listOf(), dbConfig.dbSchemas).load()
-        val kotlinToPg = KotlinToPostgresConverter(typeRegistry)
-        val txManager = DataSourceTransactionManager(dataSource)
-        dataAccess = DatabaseAccess(jdbcTemplate, txManager, typeRegistry, kotlinToPg)
+        dataAccess = OctaviusDatabase.fromDataSource(
+            dataSource = dataSource,
+            packagesToScan = listOf(),
+            dbSchemas = dbConfig.dbSchemas,
+            disableFlyway = true,
+            disableCoreTypeInitialization = true
+        )
     }
 
     @BeforeEach

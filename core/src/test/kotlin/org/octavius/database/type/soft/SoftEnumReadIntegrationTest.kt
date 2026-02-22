@@ -11,12 +11,9 @@ import org.junit.jupiter.api.TestInstance
 import org.octavius.data.DataAccess
 import org.octavius.data.annotation.DynamicallyMappable
 import org.octavius.data.getOrThrow
-import org.octavius.database.DatabaseAccess
+import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
-import org.octavius.database.type.KotlinToPostgresConverter
-import org.octavius.database.type.registry.TypeRegistryLoader
 import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.datasource.DataSourceTransactionManager
 
 // Definicja Soft Enuma w kodzie testowym
 @DynamicallyMappable(typeName = "feature_flag")
@@ -51,7 +48,6 @@ class SoftEnumReadIntegrationTest {
             password = databaseConfig.dbPassword
         })
         val jdbcTemplate = JdbcTemplate(dataSource)
-        val transactionManager = DataSourceTransactionManager(dataSource)
 
         // Upewniamy się, że typ i funkcja istnieją (idempotentnie)
         jdbcTemplate.execute("""
@@ -79,17 +75,13 @@ class SoftEnumReadIntegrationTest {
         $$ LANGUAGE plpgsql;
         """.trimIndent())
 
-        val loader = TypeRegistryLoader(
-            jdbcTemplate,
-            listOf("org.octavius.database.type.soft"),
-            databaseConfig.dbSchemas
+        dataAccess = OctaviusDatabase.fromDataSource(
+            dataSource = dataSource,
+            packagesToScan = listOf("org.octavius.database.type.soft"),
+            dbSchemas = databaseConfig.dbSchemas,
+            disableFlyway = true,
+            disableCoreTypeInitialization = true
         )
-
-        val typeRegistry = loader.load()
-
-        val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
-
-        dataAccess = DatabaseAccess(jdbcTemplate, transactionManager, typeRegistry, kotlinToPostgresConverter)
     }
 
     @Test
