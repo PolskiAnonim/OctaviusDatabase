@@ -9,21 +9,17 @@ import org.octavius.data.type.PgStandardType
 import org.postgresql.util.PGInterval
 import java.math.BigDecimal
 import java.sql.ResultSet
+import java.time.OffsetTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
 import java.util.*
 import kotlin.reflect.KClass
-import kotlin.time.Duration
-import kotlin.time.ExperimentalTime
+import kotlin.time.*
 import kotlin.time.Instant
-import kotlin.time.toKotlinInstant
 import java.time.LocalDate as JLocalDate
 import java.time.LocalDateTime as JLocalDateTime
 import java.time.LocalTime as JLocalTime
-import java.time.OffsetTime
-import kotlin.time.DurationUnit
-import kotlin.time.toDuration
 import java.time.OffsetDateTime as JOffsetDateTime
 
 internal data class StandardTypeHandler(

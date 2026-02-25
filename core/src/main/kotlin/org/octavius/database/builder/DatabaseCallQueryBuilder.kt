@@ -28,7 +28,7 @@ internal class DatabaseCallQueryBuilder(
 
         val rawQuery = DatabaseRawQueryBuilder(jdbcTemplate, kotlinToPostgresConverter, rowMappers, plan.sql)
 
-        return if (plan.outParamNames.isEmpty()) {
+        return if (!plan.hasOutParams) {
             rawQuery.execute(plan.params).map { emptyMap() }
         } else {
             rawQuery.toSingle(plan.params).assertNotNull()
@@ -42,12 +42,12 @@ internal class DatabaseCallQueryBuilder(
     /**
      * @property sql           The CALL statement, e.g. `CALL proc(:a, NULL::text)`
      * @property params        Filtered user params (IN/INOUT only) for rawQuery binding
-     * @property outParamNames Names of OUT/INOUT params, in ResultSet column order
+     * @property hasOutParams  Whether the procedure has OUT/INOUT params (determines execution path)
      */
     private data class CallPlan(
         val sql: String,
         val params: Map<String, Any?>,
-        val outParamNames: List<String>
+        val hasOutParams: Boolean
     )
 
     /**
@@ -62,7 +62,7 @@ internal class DatabaseCallQueryBuilder(
     private fun buildCallPlan(procDef: PgProcedureDefinition, userParams: Map<String, Any?>): CallPlan {
         val sqlFragments = mutableListOf<String>()
         val filteredParams = mutableMapOf<String, Any?>()
-        val outParamNames = mutableListOf<String>()
+        var hasOutParams = false
 
         for (param in procDef.params) {
             when (param.mode) {
@@ -73,19 +73,19 @@ internal class DatabaseCallQueryBuilder(
 
                 PgParamMode.OUT -> {
                     sqlFragments.add("NULL::${param.typeName}")
-                    outParamNames.add(param.name)
+                    hasOutParams = true
                 }
 
                 PgParamMode.INOUT -> {
                     sqlFragments.add(":${param.name}")
                     filteredParams[param.name] = userParams[param.name]
-                    outParamNames.add(param.name)
+                    hasOutParams = true
                 }
             }
         }
 
         val sql = "CALL $procedureName(${sqlFragments.joinToString(", ")})"
-        return CallPlan(sql, filteredParams, outParamNames)
+        return CallPlan(sql, filteredParams, hasOutParams)
     }
 
     companion object {
