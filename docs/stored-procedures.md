@@ -86,62 +86,6 @@ result["counter"] // 13
 
 All parameter types supported by the [Type System](type-system.md) work with procedures — composites, arrays, enums, and combinations thereof.
 
-### Composite Types (@PgComposite)
-
-```kotlin
-// CREATE PROCEDURE greet_person(IN person test_person, OUT greeting text)
-val person = TestPerson("Alice", 30, "alice@test.com", true, listOf("admin"))
-
-val result = dataAccess.call("greet_person")
-    .execute("person" to person)
-    .getOrThrow()
-
-result["greeting"] // "Hello, Alice! Age: 30"
-```
-
-Composites are automatically expanded to `ROW(?,?,?,?,?)::type_name` with correct JDBC positional tracking.
-
-### Arrays
-
-```kotlin
-// CREATE PROCEDURE sum_array(IN numbers int4[], OUT total int4)
-val result = dataAccess.call("sum_array")
-    .execute("numbers" to listOf(10, 20, 30))
-    .getOrThrow()
-
-result["total"] // 60
-```
-
-Arrays are expanded to `ARRAY[?,?,?]` with each element bound individually.
-
-### Enum Types (@PgEnum)
-
-```kotlin
-// CREATE PROCEDURE next_status(IN current_status test_status, OUT next test_status)
-val result = dataAccess.call("next_status")
-    .execute("current_status" to TestStatus.Pending)
-    .getOrThrow()
-
-result["next"] // TestStatus.Active
-```
-
-### Combining Complex Types
-
-Composites, arrays, and enums can be freely combined. Parameter position tracking handles the expansion correctly:
-
-```kotlin
-// CREATE PROCEDURE complex_proc(IN person test_person, IN tags text[], OUT summary text)
-// test_person has 5 fields → expands to ROW(?,?,?,?,?)::test_person (5 JDBC params)
-// tags list of 2 → expands to ARRAY[?,?] (2 JDBC params)
-// summary OUT → NULL::text literal (no JDBC param)
-val result = dataAccess.call("complex_proc").execute(
-    "person" to TestPerson("Bob", 25, "bob@test.com", true, emptyList()),
-    "tags" to listOf("dev", "senior")
-)
-
-result.getOrThrow()["summary"] // "Bob [dev, senior]"
-```
-
 ---
 
 ## How It Works
@@ -152,17 +96,20 @@ Octavius scans `pg_proc` at startup to discover procedure signatures (parameter 
 
 ### Execution Strategy
 
-The builder uses `PreparedStatement` — **not** `CallableStatement`. PgJDBC's `CallableStatement` is a thin wrapper that internally does the same thing but with broken type conversion (`getObject(int, Class)` throws for most types). By using `PreparedStatement` directly, OUT parameter values are read from the `ResultSet` using the same `ResultSetValueExtractor` as all other queries — with native JDBC fast-path getters for standard types.
+`DatabaseCallQueryBuilder` builds the CALL SQL from procedure metadata and then **delegates execution to `rawQuery`** — the same path used by all other queries. This means procedure calls benefit from the same parameter expansion, type conversion, and result extraction as `SELECT`, `INSERT`, etc.
 
 The CALL statement is constructed as follows:
 
-| Parameter Mode | SQL Fragment | JDBC Bind |
-|---|---|---|
-| **IN** | Expanded placeholder (`?`, `ROW(?,...)::type`, `ARRAY[?,...]`) | `setObject()` for each value |
-| **OUT** | `NULL::typeName` literal | No bind — PostgreSQL requires the slot but ignores the value |
-| **INOUT** | Expanded placeholder (same as IN) | `setObject()` for each value |
+| Parameter Mode | SQL Fragment                     | Binding                                                                       |
+|----------------|----------------------------------|-------------------------------------------------------------------------------|
+| **IN**         | Named placeholder (`:paramName`) | Expanded by `rawQuery` (composites → `ROW(?,…)::type`, arrays → `ARRAY[?,…]`) |
+| **OUT**        | `NULL::typeName` literal         | No bind — PostgreSQL requires the slot but ignores the value                  |
+| **INOUT**      | Named placeholder (`:paramName`) | Same expansion as IN                                                          |
 
-OUT and INOUT values are returned by PostgreSQL as a `ResultSet`, which is read using the standard type extraction pipeline.
+- **No OUT params:** delegates to `rawQuery(...).execute()` → returns empty map
+- **Has OUT params:** delegates to `rawQuery(...).toSingle()` → returns OUT/INOUT values as `Map<String, Any?>`
+
+OUT and INOUT values are returned by PostgreSQL as a `ResultSet`, which is read using the standard `RowMappers` pipeline — same as all other queries.
 
 ### Example: Generated SQL
 
@@ -170,35 +117,25 @@ OUT and INOUT values are returned by PostgreSQL as a `ResultSet`, which is read 
 Procedure: complex_proc(IN person test_person, IN tags text[], OUT summary text)
 
 Generated SQL:
-  CALL complex_proc(ROW(?, ?, ?, ?, ?)::test_person, ARRAY[?, ?], NULL::text)
-
-JDBC binds (7 total):
-  1: "Bob"           -- person.name
-  2: 25              -- person.age
-  3: "bob@test.com"  -- person.email
-  4: true            -- person.active
-  5: {}              -- person.roles (empty array)
-  6: "dev"           -- tags[0]
-  7: "senior"        -- tags[1]
+  CALL complex_proc(:person, :tags, NULL::text)
 
 ResultSet (1 row, 1 column):
   summary = "Bob [dev, senior]"
 ```
-
 ---
 
 ## Functions vs Procedures
 
 PostgreSQL has two distinct callable types. Octavius handles them differently:
 
-| | Procedure (`CREATE PROCEDURE`) | Function (`CREATE FUNCTION`) |
-|---|---|---|
-| **SQL syntax** | `CALL proc(...)` | `SELECT * FROM func(...)` |
-| **Octavius API** | `dataAccess.call("proc")` | `dataAccess.rawQuery("SELECT * FROM func(:params)")` |
-| **OUT params in call** | Require placeholder (`NULL::type`) | Not passed at all — they define the return columns |
-| **INOUT params** | Passed as input, returned as output | Passed as input, returned as output |
-| **Return value** | `DataResult<Map<String, Any?>>` | Use standard terminal methods (`toField`, `toListOf`, etc.) |
-| **Void return** | Empty map | `toField<Unit>()` |
+|                        | Procedure (`CREATE PROCEDURE`)      | Function (`CREATE FUNCTION`)                                |
+|------------------------|-------------------------------------|-------------------------------------------------------------|
+| **SQL syntax**         | `CALL proc(...)`                    | `SELECT * FROM func(...)`                                   |
+| **Octavius API**       | `dataAccess.call("proc")`           | `dataAccess.rawQuery("SELECT * FROM func(:params)")`        |
+| **OUT params in call** | Require placeholder (`NULL::type`)  | Not passed at all — they define the return columns          |
+| **INOUT params**       | Passed as input, returned as output | Passed as input, returned as output                         |
+| **Return value**       | `DataResult<Map<String, Any?>>`     | Use standard terminal methods (`toField`, `toListOf`, etc.) |
+| **Void return**        | Empty map                           | `toField<Unit>()`                                           |
 
 ### Calling Functions
 

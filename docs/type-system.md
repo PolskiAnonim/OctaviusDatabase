@@ -301,6 +301,24 @@ dataAccess.insertInto("users")
     )
 ```
 
+### Parameter Expansion (Flattening)
+
+When a composite or array is passed as a named parameter (`:param`), Octavius **expands** it into individual JDBC positional placeholders before execution:
+
+| Kotlin value                             | Expanded SQL fragment                                 | JDBC params consumed |
+|------------------------------------------|-------------------------------------------------------|----------------------|
+| `"hello"` (scalar)                       | `?`                                                   | 1                    |
+| `Address("Main St", "NYC", "10001")`     | `ROW(?, ?, ?)::address`                               | 3                    |
+| `listOf(1, 2, 3)`                        | `ARRAY[?, ?, ?]`                                      | 3                    |
+| `listOf(addr1, addr2)` (composite array) | `ARRAY[ROW(?, ?, ?)::address, ROW(?, ?, ?)::address]` | 6                    |
+| `arrayOf("a", "b", "c")` (typed array)   | `?`                                                   | **1**                |
+
+This means a single named parameter can expand into many JDBC bind slots. **PostgreSQL has a limit of 65535 parameters per query** — keep this in mind when passing large lists or many composites in a single query.
+
+
+**`List<T>` vs `Array<T>`:** Lists are expanded element-by-element into `ARRAY[?, ?, …]` — each element is a separate JDBC bind. Typed Kotlin arrays (`Array<String>`, `Array<Int>`, etc.) are passed as a **single JDBC parameter** via PgJDBC's native array protocol. This makes `Array<T>` much more efficient for large collections of simple types. However, typed arrays only support standard types — composites and enums must use `List<T>`.
+
+
 ### Nested Composites
 
 ```kotlin
