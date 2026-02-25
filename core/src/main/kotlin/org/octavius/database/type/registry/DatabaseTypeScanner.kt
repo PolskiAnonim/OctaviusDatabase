@@ -1,5 +1,6 @@
 package org.octavius.database.type.registry
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
 import org.springframework.jdbc.core.JdbcTemplate
@@ -45,15 +46,18 @@ internal class DatabaseTypeScanner(
     }
 
     private fun scanProcedures(): Map<String, List<PgProcedureParam>> {
-        val procedures = mutableMapOf<String, MutableList<PgProcedureParam>>()
+        // Key by (procName, oid) to correctly separate overloaded procedures
+        val byOid = mutableMapOf<Pair<String, Long>, MutableList<PgProcedureParam>>()
 
         try {
             val schemas = dbSchemas.toTypedArray()
             jdbcTemplate.query(SQL_QUERY_PROCEDURES, { rs, _ ->
                 val procName = rs.getString("proc_name")
+                val procOid = rs.getLong("proc_oid")
                 val paramName = rs.getString("param_name")
                 val paramType = rs.getString("param_type")
                 val paramMode = rs.getString("param_mode")
+                val key = procName to procOid
 
                 if (paramName != null) {
                     val mode = when (paramMode) {
@@ -61,20 +65,29 @@ internal class DatabaseTypeScanner(
                         "b" -> PgParamMode.INOUT
                         else -> PgParamMode.IN
                     }
-                    procedures.getOrPut(procName) { mutableListOf() }
+                    byOid.getOrPut(key) { mutableListOf() }
                         .add(PgProcedureParam(paramName, paramType, mode))
                 } else {
-                    procedures.getOrPut(procName) { mutableListOf() }
+                    byOid.getOrPut(key) { mutableListOf() }
                 }
             }, schemas, schemas)
         } catch (e: Exception) {
             throw TypeRegistryException(TypeRegistryExceptionMessage.DB_QUERY_FAILED, cause = e)
         }
 
-        return procedures
+        // Group by name and detect overloads
+        val grouped = byOid.entries.groupBy({ it.key.first }, { it.value })
+        val overloaded = grouped.filter { it.value.size > 1 }.keys
+        if (overloaded.isNotEmpty()) {
+            logger.warn { "Overloaded procedures detected: $overloaded — these are excluded from dataAccess.call() and can only be invoked via rawQuery()" }
+        }
+
+        return grouped.filterNot { it.key in overloaded }.mapValues { it.value.single() }
     }
 
     companion object {
+        val logger = KotlinLogging.logger {}
+
         private const val SQL_QUERY_ENUM_TYPES = """
             SELECT
                 'enum' AS info_type,
@@ -129,9 +142,10 @@ internal class DatabaseTypeScanner(
          *   These emit a single row with NULLs so the procedure name is still registered.
          */
         private const val SQL_QUERY_PROCEDURES = """
-            SELECT proc_name, param_name, param_type, param_mode FROM (
+            SELECT proc_oid, proc_name, param_name, param_type, param_mode FROM (
                 -- Procedures WITH parameters
                 SELECT
+                    p.oid AS proc_oid,
                     p.proname AS proc_name,
                     args.param_name,
                     t.typname AS param_type,
@@ -155,6 +169,7 @@ internal class DatabaseTypeScanner(
 
                 -- Parameterless procedures
                 SELECT
+                    p.oid AS proc_oid,
                     p.proname AS proc_name,
                     NULL AS param_name,
                     NULL AS param_type,
