@@ -9,10 +9,12 @@ import org.junit.jupiter.api.TestInstance
 import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.builder.execute
+import org.octavius.data.builder.toSingle
 import org.octavius.data.getOrThrow
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.domain.test.pgtype.TestPerson
 import org.octavius.domain.test.pgtype.TestStatus
+import org.springframework.jdbc.core.JdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -39,7 +41,7 @@ class ProcedureCallIntegrationTest {
             password = databaseConfig.dbPassword
         }
         val dataSource = HikariDataSource(hikariConfig)
-        val jdbcTemplate = org.springframework.jdbc.core.JdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(dataSource)
 
         // Init schema with types + procedures
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
@@ -135,5 +137,23 @@ class ProcedureCallIntegrationTest {
         val result = dataAccess.call("add_numbers").execute(mapOf("a" to 100, "b" to 200))
 
         assertThat(result.getOrThrow()).containsEntry("result", 300)
+    }
+
+    // ---- rawQuery CALL tests ----
+
+    @Test
+    fun `should call void procedure via rawQuery execute`() {
+        val result = dataAccess.rawQuery("CALL void_proc(:p_text)")
+            .execute("p_text" to "hello")
+
+        assertThat(result).isInstanceOf(DataResult.Success::class.java)
+    }
+
+    @Test
+    fun `should call procedure with OUT params via rawQuery toSingle`() {
+        val result = dataAccess.rawQuery("CALL add_numbers(:a, :b, NULL::int4)")
+            .toSingle("a" to 17, "b" to 25)
+
+        assertThat(result.getOrThrow()).containsEntry("result", 42)
     }
 }
