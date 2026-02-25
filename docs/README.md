@@ -33,6 +33,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Complex Parameters](stored-procedures.md#complex-parameters) - Composites, arrays, enums
 - [How It Works](stored-procedures.md#how-it-works) - PreparedStatement, NULL::type, ResultSet extraction
 - [Functions vs Procedures](stored-procedures.md#functions-vs-procedures) - CALL vs SELECT, when to use which
+- [Limitations](stored-procedures.md#limitations) - Overloaded procedures, rawQuery() fallback
 
 ### Executing Queries
 - [Terminal Methods](executing-queries.md#terminal-methods) - `toList()`, `toListOf()`, `toField()`, `execute()`

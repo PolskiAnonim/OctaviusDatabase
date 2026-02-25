@@ -9,6 +9,7 @@ Octavius Database supports calling PostgreSQL stored procedures (`CREATE PROCEDU
 - [Complex Parameters](#complex-parameters)
 - [How It Works](#how-it-works)
 - [Functions vs Procedures](#functions-vs-procedures)
+- [Limitations](#limitations)
 
 ---
 
@@ -222,6 +223,46 @@ parts["right"]   // "def"
 dataAccess.rawQuery("SELECT pg_notify(:channel, :payload)")
     .toField<Unit>("channel" to "orders", "payload" to "new_order")
 ```
+
+---
+
+## Limitations
+
+### Overloaded Procedures
+
+PostgreSQL allows multiple procedures with the same name but different parameter signatures. Octavius **detects overloaded procedures at startup** and excludes them from `dataAccess.call()` with a warning log:
+
+```
+Overloaded procedures detected: [my_proc] — these are excluded from dataAccess.call() and can only be invoked via rawQuery()
+```
+
+To call an overloaded procedure, use `rawQuery()` instead (see below).
+
+### Calling Procedures via rawQuery()
+
+Any procedure — including overloaded ones — can be called through `rawQuery()`. You write the full `CALL` statement yourself, including `NULL::type` placeholders for OUT parameters:
+
+```kotlin
+// Void procedure (no OUT params) — use execute()
+dataAccess.rawQuery("CALL void_proc(:p_text)")
+    .execute("p_text" to "hello")
+
+// Procedure with OUT params — use toSingle()
+val result = dataAccess.rawQuery("CALL add_numbers(:a, :b, NULL::int4)")
+    .toSingle("a" to 17, "b" to 25)
+    .getOrThrow()
+
+result!!["result"] // 42
+```
+
+**Terminal method rules for CALL statements:**
+
+| Has OUT params? | Terminal method | Return type |
+|---|---|---|
+| No | `execute()` | `DataResult<Int>` (always 0) |
+| Yes | `toSingle()` | `DataResult<Map<String, Any?>?>` |
+
+> **Note:** `toList()` also works but procedures always return a single row, so `toSingle()` is the natural fit.
 
 ---
 
