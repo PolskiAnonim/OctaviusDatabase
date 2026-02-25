@@ -56,10 +56,12 @@ class NotificationTest {
             listener.listen("orders")
             dataAccess.notify("orders", "order_99")
 
-            val notification = withTimeout(5_000) {
+            val result = withTimeout(5_000) {
                 listener.notifications().first()
             }
 
+            assertThat(result).isInstanceOf(DataResult.Success::class.java)
+            val notification = (result as DataResult.Success).value
             assertThat(notification.channel).isEqualTo("orders")
             assertThat(notification.payload).isEqualTo("order_99")
             assertThat(notification.pid).isGreaterThan(0)
@@ -72,10 +74,12 @@ class NotificationTest {
             listener.listen("pings")
             dataAccess.notify("pings")
 
-            val notification = withTimeout(5_000) {
+            val result = withTimeout(5_000) {
                 listener.notifications().first()
             }
 
+            assertThat(result).isInstanceOf(DataResult.Success::class.java)
+            val notification = (result as DataResult.Success).value
             assertThat(notification.channel).isEqualTo("pings")
             assertThat(notification.payload).isNullOrEmpty()
         }
@@ -88,10 +92,11 @@ class NotificationTest {
             dataAccess.notify("channel_a", "msg_a")
             dataAccess.notify("channel_b", "msg_b")
 
-            val notifications = withTimeout(5_000) {
+            val results = withTimeout(5_000) {
                 listener.notifications().take(2).toList()
             }
 
+            val notifications = results.map { (it as DataResult.Success).value }
             assertThat(notifications.map { it.channel }).containsExactlyInAnyOrder("channel_a", "channel_b")
             assertThat(notifications.map { it.payload }).containsExactlyInAnyOrder("msg_a", "msg_b")
         }
@@ -103,7 +108,8 @@ class NotificationTest {
             listener.listen("events")
             dataAccess.notify("events", "before")
 
-            val first = withTimeout(5_000) { listener.notifications().first() }
+            val firstResult = withTimeout(5_000) { listener.notifications().first() }
+            val first = (firstResult as DataResult.Success).value
             assertThat(first.payload).isEqualTo("before")
 
             listener.unlisten("events")
@@ -128,7 +134,9 @@ class NotificationTest {
                 DataResult.Success(Unit)
             }
 
-            val notification = withTimeout(5_000) { listener.notifications().first() }
+            val result = withTimeout(5_000) { listener.notifications().first() }
+            assertThat(result).isInstanceOf(DataResult.Success::class.java)
+            val notification = (result as DataResult.Success).value
             assertThat(notification.channel).isEqualTo("tx_channel")
             assertThat(notification.payload).isEqualTo("from_tx")
         }

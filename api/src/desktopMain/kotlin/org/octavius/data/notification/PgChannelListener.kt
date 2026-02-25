@@ -1,6 +1,7 @@
 package org.octavius.data.notification
 
 import kotlinx.coroutines.flow.Flow
+import org.octavius.data.DataResult
 import java.io.Closeable
 
 /**
@@ -26,20 +27,24 @@ interface PgChannelListener : Closeable {
      * Subscribes to the given channels. Executes `LISTEN` for each channel.
      *
      * @param channels One or more channel names to subscribe to.
+     * @return [DataResult.Success] if all channels were subscribed, [DataResult.Failure] on error.
      */
-    fun listen(vararg channels: String)
+    fun listen(vararg channels: String): DataResult<Unit>
 
     /**
      * Unsubscribes from the given channels. Executes `UNLISTEN` for each channel.
      *
      * @param channels One or more channel names to unsubscribe from.
+     * @return [DataResult.Success] if all channels were unsubscribed, [DataResult.Failure] on error.
      */
-    fun unlisten(vararg channels: String)
+    fun unlisten(vararg channels: String): DataResult<Unit>
 
     /**
      * Unsubscribes from all currently subscribed channels. Executes `UNLISTEN *`.
+     *
+     * @return [DataResult.Success] if unsubscribed, [DataResult.Failure] on error.
      */
-    fun unlistenAll()
+    fun unlistenAll(): DataResult<Unit>
 
     /**
      * Returns a cold [Flow] of [PgNotification] objects received on subscribed channels.
@@ -51,5 +56,5 @@ interface PgChannelListener : Closeable {
      *
      * @return Flow emitting notifications as they arrive.
      */
-    fun notifications(): Flow<PgNotification>
+    fun notifications(): Flow<DataResult<PgNotification>>
 }

@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
+import org.octavius.data.DataResult
+import org.octavius.data.exception.QueryExecutionException
 import org.octavius.data.notification.PgChannelListener
 import org.octavius.data.notification.PgNotification
 import org.postgresql.PGConnection
@@ -18,34 +20,59 @@ internal class DatabasePgChannelListener(
 
     private val pgConnection = connection.unwrap(PGConnection::class.java)
 
-    override fun listen(vararg channels: String) {
-        channels.forEach { channel ->
+    override fun listen(vararg channels: String): DataResult<Unit> {
+        return try {
+            channels.forEach { channel ->
+                connection.createStatement().use { stmt ->
+                    stmt.execute("LISTEN ${pgConnection.escapeIdentifier(channel)}")
+                }
+            }
+            DataResult.Success(Unit)
+        } catch (e: Exception) {
+            val sql = channels.joinToString("; ") { "LISTEN ${it}" }
+            logger.error(e) { "Error executing LISTEN on channels: ${channels.toList()}" }
+            DataResult.Failure(QueryExecutionException(sql = sql, params = emptyMap(), cause = e))
+        }
+    }
+
+    override fun unlisten(vararg channels: String): DataResult<Unit> {
+        return try {
+            channels.forEach { channel ->
+                connection.createStatement().use { stmt ->
+                    stmt.execute("UNLISTEN ${pgConnection.escapeIdentifier(channel)}")
+                }
+            }
+            DataResult.Success(Unit)
+        } catch (e: Exception) {
+            val sql = channels.joinToString("; ") { "UNLISTEN ${it}" }
+            logger.error(e) { "Error executing UNLISTEN on channels: ${channels.toList()}" }
+            DataResult.Failure(QueryExecutionException(sql = sql, params = emptyMap(), cause = e))
+        }
+    }
+
+    override fun unlistenAll(): DataResult<Unit> {
+        return try {
             connection.createStatement().use { stmt ->
-                stmt.execute("LISTEN \"$channel\"")
+                stmt.execute("UNLISTEN *")
             }
+            DataResult.Success(Unit)
+        } catch (e: Exception) {
+            logger.error(e) { "Error executing UNLISTEN *" }
+            DataResult.Failure(QueryExecutionException(sql = "UNLISTEN *", params = emptyMap(), cause = e))
         }
     }
 
-    override fun unlisten(vararg channels: String) {
-        channels.forEach { channel ->
-            connection.createStatement().use { stmt ->
-                stmt.execute("UNLISTEN \"$channel\"")
+    override fun notifications(): Flow<DataResult<PgNotification>> = flow {
+        try {
+            while (currentCoroutineContext().isActive) {
+                val notifs = pgConnection.getNotifications(POLL_TIMEOUT_MS)
+                notifs?.forEach { notif ->
+                    emit(DataResult.Success(PgNotification(notif.name, notif.parameter, notif.pid)))
+                }
             }
-        }
-    }
-
-    override fun unlistenAll() {
-        connection.createStatement().use { stmt ->
-            stmt.execute("UNLISTEN *")
-        }
-    }
-
-    override fun notifications(): Flow<PgNotification> = flow {
-        while (currentCoroutineContext().isActive) {
-            val notifs = pgConnection.getNotifications(POLL_TIMEOUT_MS)
-            notifs?.forEach { notif ->
-                emit(PgNotification(notif.name, notif.parameter, notif.pid))
-            }
+        } catch (e: Exception) {
+            logger.error(e) { "Connection lost during notification polling." }
+            emit(DataResult.Failure(QueryExecutionException(sql = "getNotifications", params = emptyMap(), cause = e)))
         }
     }.flowOn(Dispatchers.IO)
 

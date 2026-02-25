@@ -60,15 +60,23 @@ dataAccess.createChannelListener().use { listener ->
     listener.listen("orders")
 
     listener.notifications()
-        .collect { notification ->
-            println("Channel: ${notification.channel}")
-            println("Payload: ${notification.payload}")
-            println("Sender PID: ${notification.pid}")
+        .collect { result ->
+            when (result) {
+                is DataResult.Success -> {
+                    val notification = result.value
+                    println("Channel: ${notification.channel}")
+                    println("Payload: ${notification.payload}")
+                    println("Sender PID: ${notification.pid}")
+                }
+                is DataResult.Failure -> {
+                    println("Error: ${result.error}")
+                }
+            }
         }
 }
 ```
 
-`notifications()` returns a cold `Flow<PgNotification>`. It polls the underlying connection every **500 ms**. Cancel the collecting coroutine or call `close()` to stop.
+`notifications()` returns a cold `Flow<DataResult<PgNotification>>`. Each emitted element is wrapped in a `DataResult` — a `Success` containing the notification or a `Failure` with error details. The flow polls the underlying connection every **500 ms**. Cancel the collecting coroutine or call `close()` to stop.
 
 **`PgNotification` fields:**
 
@@ -89,7 +97,8 @@ dataAccess.createChannelListener().use { listener ->
     listener.listen("orders", "inventory", "payments")
 
     listener.notifications()
-        .collect { notification ->
+        .collect { result ->
+            val notification = (result as DataResult.Success).value
             when (notification.channel) {
                 "orders"    -> handleOrder(notification.payload)
                 "inventory" -> handleInventory(notification.payload)
@@ -103,7 +112,7 @@ dataAccess.createChannelListener().use { listener ->
 
 ## Unsubscribing
 
-Unsubscribe from specific channels without closing the listener:
+Unsubscribe from specific channels without closing the listener. All methods return `DataResult<Unit>`:
 
 ```kotlin
 // Unsubscribe from one channel
@@ -170,8 +179,11 @@ class OrderEventService(private val db: DataAccess) {
             listener.listen("orders")
             listener.notifications()
                 .catch { e -> logger.error(e) { "Listener error" } }
-                .collect { notification ->
-                    processOrder(notification.payload)
+                .collect { result ->
+                    when (result) {
+                        is DataResult.Success -> processOrder(result.value.payload)
+                        is DataResult.Failure -> logger.error { "Notification error: ${result.error}" }
+                    }
                 }
         }
     }
