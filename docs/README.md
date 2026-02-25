@@ -8,6 +8,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 |----------|-------------|
 | [Configuration](configuration.md) | Initialization, DatabaseConfig, Flyway, core types, DynamicDto strategy |
 | [Query Builders](query-builders.md) | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT |
+| [Stored Procedures](stored-procedures.md) | CALL, IN/OUT/INOUT parameters, composite & array expansion, functions vs procedures |
 | [Executing Queries](executing-queries.md) | Terminal methods, DataResult, assertNotNull, async execution, streaming |
 | [Data Mapping](data-mapping.md) | toMap(), toDataObject(), @MapKey - converting between objects and maps |
 | [ORM-Like Patterns](orm-patterns.md) | CRUD patterns, real-world examples, PostgreSQL composite types |
@@ -25,6 +26,13 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [CTE (WITH clauses)](query-builders.md#common-table-expressions-cte) - Common Table Expressions
 - [ON CONFLICT (Upsert)](query-builders.md#on-conflict-upsert) - Insert or update on conflict
 - [Auto Placeholders](query-builders.md#auto-generated-placeholders) - `values()`, `setValues()` auto-generation
+
+### Stored Procedures
+- [Basic Usage](stored-procedures.md#basic-usage) - `dataAccess.call("proc").execute(...)`
+- [Parameter Modes](stored-procedures.md#parameter-modes) - IN, OUT, INOUT
+- [Complex Parameters](stored-procedures.md#complex-parameters) - Composites, arrays, enums
+- [How It Works](stored-procedures.md#how-it-works) - PreparedStatement, NULL::type, ResultSet extraction
+- [Functions vs Procedures](stored-procedures.md#functions-vs-procedures) - CALL vs SELECT, when to use which
 
 ### Executing Queries
 - [Terminal Methods](executing-queries.md#terminal-methods) - `toList()`, `toListOf()`, `toField()`, `execute()`

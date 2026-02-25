@@ -24,6 +24,7 @@
 ## Features
 
 - **Fluent Query Builders** — SELECT, INSERT, UPDATE, DELETE with a clean API
+- **Stored Procedures** — CALL with automatic IN/OUT/INOUT handling, composite & array expansion
 - **Automatic Type Mapping** — PostgreSQL `COMPOSITE`, `ENUM`, `ARRAY` ↔ Kotlin types
 - **Transaction Plans** — Multi-step atomic operations with step dependencies
 - **Dynamic Filters** — Safe, composable `WHERE` clauses with `QueryFragment`
@@ -74,6 +75,28 @@ dataAccess.deleteFrom("sessions")
     .where("expires_at < NOW()")
     .execute()
 ```
+
+## Stored Procedures
+
+Call PostgreSQL procedures with full type support for IN, OUT, and INOUT parameters:
+
+```kotlin
+// Simple IN + OUT
+// CREATE PROCEDURE add_numbers(IN a int4, IN b int4, OUT result int4)
+val result = dataAccess.call("add_numbers")
+    .execute("a" to 17, "b" to 25)
+    .getOrThrow()  // { "result" to 42 }
+
+// Complex types work seamlessly — composites, arrays, enums
+// CREATE PROCEDURE complex_proc(IN person test_person, IN tags text[], OUT summary text)
+val result = dataAccess.call("complex_proc").execute(
+    "person" to TestPerson("Bob", 25, "bob@test.com", true, emptyList()),
+    "tags" to listOf("dev", "senior")
+)
+result.getOrThrow()["summary"]  // "Bob [dev, senior]"
+```
+
+Composites expand to `ROW(?,…)::type`, arrays to `ARRAY[?,…]`, enums to typed parameters — all automatically. See [Stored Procedures](docs/stored-procedures.md) for the full guide.
 
 ## Safe Dynamic Filters
 
@@ -349,6 +372,7 @@ For detailed guides and examples, see the [full documentation](docs/README.md):
 
 - [Configuration](docs/configuration.md) - Initialization, Flyway, core types, DynamicDto strategy
 - [Query Builders](docs/query-builders.md) - SELECT, INSERT, UPDATE, DELETE, CTEs, subqueries, ON CONFLICT
+- [Stored Procedures](docs/stored-procedures.md) - CALL, IN/OUT/INOUT, composite & array expansion, functions vs procedures
 - [Executing Queries](docs/executing-queries.md) - Terminal methods, DataResult, async, streaming
 - [Data Mapping](docs/data-mapping.md) - toMap(), toDataObject(), @MapKey, nested structures & strict typing
 - [ORM-Like Patterns](docs/orm-patterns.md) - CRUD patterns, real-world examples
