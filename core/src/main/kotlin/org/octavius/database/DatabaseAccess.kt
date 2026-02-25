@@ -16,6 +16,7 @@ import org.octavius.database.builder.*
 import org.octavius.database.notification.DatabasePgChannelListener
 import org.octavius.database.transaction.TransactionPlanExecutor
 import org.octavius.database.type.KotlinToPostgresConverter
+import org.octavius.database.type.PostgresToKotlinConverter
 import org.octavius.database.type.registry.TypeRegistry
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
@@ -26,11 +27,12 @@ import java.sql.Connection
 internal class DatabaseAccess(
     private val jdbcTemplate: JdbcTemplate,
     private val transactionManager: DataSourceTransactionManager,
-    typeRegistry: TypeRegistry,
+    private val typeRegistry: TypeRegistry,
     private val kotlinToPostgresConverter: KotlinToPostgresConverter,
     private val listenerConnectionFactory: () -> Connection
 ) : DataAccess {
     private val rowMappers = RowMappers(typeRegistry)
+    private val postgresToKotlinConverter = PostgresToKotlinConverter(typeRegistry)
     val transactionPlanExecutor = TransactionPlanExecutor(transactionManager)
     // --- QueryOperations implementation (for single queries and transaction usage) ---
 
@@ -107,6 +109,12 @@ internal class DatabaseAccess(
                 )
             }
         }
+    }
+
+    override fun call(procedureName: String): CallQueryBuilder {
+        return DatabaseCallQueryBuilder(
+            jdbcTemplate, typeRegistry, kotlinToPostgresConverter, postgresToKotlinConverter, procedureName
+        )
     }
 
     override fun notify(channel: String, payload: String?): DataResult<Unit> {

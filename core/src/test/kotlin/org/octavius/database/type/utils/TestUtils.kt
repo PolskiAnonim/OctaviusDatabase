@@ -152,6 +152,7 @@ internal fun createFakeTypeRegistry(): TypeRegistry {
         enums = enums,
         composites = composites,
         arrays = arrays,
+        procedures = emptyMap(),
         classToPgNameMap = classToPgNameMap,
         dynamicSerializers = emptyMap(), // Pusta mapa dla dynamicznych w tym teście
         classToDynamicNameMap = emptyMap()

@@ -53,6 +53,18 @@ interface QueryOperations {
      * @return New builder instance for a raw query.
      */
     fun rawQuery(sql: String): RawQueryBuilder
+
+    /**
+     * Starts building a CALL statement for a PostgreSQL stored procedure.
+     *
+     * The procedure must exist in the database and be registered in the TypeRegistry
+     * (auto-scanned at startup). OUT/INOUT parameters are automatically registered using
+     * procedure metadata from the registry.
+     *
+     * @param procedureName Name of the procedure to call.
+     * @return New builder instance for a procedure call.
+     */
+    fun call(procedureName: String): CallQueryBuilder
 }
 
 /**

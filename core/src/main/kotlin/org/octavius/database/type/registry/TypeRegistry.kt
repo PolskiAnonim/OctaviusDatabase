@@ -25,6 +25,7 @@ internal class TypeRegistry(
     private val enums: Map<String, PgEnumDefinition>,
     private val composites: Map<String, PgCompositeDefinition>,
     private val arrays: Map<String, PgArrayDefinition>,
+    private val procedures: Map<String, PgProcedureDefinition>,
 
     // Mappings for writing (Kotlin Class -> PgType)
     private val classToPgNameMap: Map<KClass<*>, String>,
@@ -60,6 +61,13 @@ internal class TypeRegistry(
         return arrays[pgTypeName] ?: throw TypeRegistryException(
             TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
             typeName = "$pgTypeName (expected ARRAY)"
+        )
+    }
+
+    fun getProcedureDefinition(procedureName: String): PgProcedureDefinition {
+        return procedures[procedureName] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+            typeName = "$procedureName (expected PROCEDURE)"
         )
     }
 

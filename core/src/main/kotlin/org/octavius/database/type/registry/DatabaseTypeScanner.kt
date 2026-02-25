@@ -39,7 +39,39 @@ internal class DatabaseTypeScanner(
             throw TypeRegistryException(TypeRegistryExceptionMessage.DB_QUERY_FAILED, cause = e)
         }
 
-        return DatabaseScanResult(enums, composites)
+        val procedures = scanProcedures()
+
+        return DatabaseScanResult(enums, composites, procedures)
+    }
+
+    private fun scanProcedures(): Map<String, List<PgProcedureParam>> {
+        val procedures = mutableMapOf<String, MutableList<PgProcedureParam>>()
+
+        try {
+            val schemas = dbSchemas.toTypedArray()
+            jdbcTemplate.query(SQL_QUERY_PROCEDURES, { rs, _ ->
+                val procName = rs.getString("proc_name")
+                val paramName = rs.getString("param_name")
+                val paramType = rs.getString("param_type")
+                val paramMode = rs.getString("param_mode")
+
+                if (paramName != null) {
+                    val mode = when (paramMode) {
+                        "o" -> PgParamMode.OUT
+                        "b" -> PgParamMode.INOUT
+                        else -> PgParamMode.IN
+                    }
+                    procedures.getOrPut(procName) { mutableListOf() }
+                        .add(PgProcedureParam(paramName, paramType, mode))
+                } else {
+                    procedures.getOrPut(procName) { mutableListOf() }
+                }
+            }, schemas)
+        } catch (e: Exception) {
+            throw TypeRegistryException(TypeRegistryExceptionMessage.DB_QUERY_FAILED, cause = e)
+        }
+
+        return procedures
     }
 
     companion object {
@@ -84,6 +116,56 @@ internal class DatabaseTypeScanner(
             $SQL_QUERY_COMPOSITE_TYPES
             ORDER BY
                 type_name, sort_order
+        """
+
+        /**
+         * Scans stored procedures from pg_proc.
+         *
+         * PostgreSQL stores parameter metadata differently depending on the parameter modes:
+         * - **All-IN procedures**: `proargmodes` and `proallargtypes` are NULL.
+         *   Parameter names come from `proargnames`, types from `proargtypes` (oidvector).
+         * - **Procedures with OUT/INOUT**: `proargmodes` and `proallargtypes` are populated.
+         * - **Parameterless procedures**: `proargnames` is NULL, `proargtypes` is empty.
+         *   These emit a single row with NULLs so the procedure name is still registered.
+         */
+        private const val SQL_QUERY_PROCEDURES = """
+            SELECT proc_name, param_name, param_type, param_mode FROM (
+                -- Procedures WITH parameters
+                SELECT
+                    p.proname AS proc_name,
+                    args.param_name,
+                    t.typname AS param_type,
+                    args.param_mode
+                FROM
+                    pg_proc p
+                    JOIN pg_namespace n ON p.pronamespace = n.oid
+                    CROSS JOIN LATERAL ROWS FROM (
+                        unnest(p.proargnames),
+                        unnest(COALESCE(p.proallargtypes, p.proargtypes::oid[])),
+                        unnest(COALESCE(p.proargmodes, array_fill('i'::"char", ARRAY[cardinality(COALESCE(p.proallargtypes, p.proargtypes::oid[]))])))
+                    ) AS args(param_name, param_oid, param_mode)
+                    JOIN pg_type t ON t.oid = args.param_oid
+                WHERE
+                    p.prokind = 'p'
+                    AND p.proargnames IS NOT NULL
+                    AND n.nspname = ANY(?)
+
+                UNION ALL
+
+                -- Parameterless procedures
+                SELECT
+                    p.proname AS proc_name,
+                    NULL AS param_name,
+                    NULL AS param_type,
+                    NULL AS param_mode
+                FROM
+                    pg_proc p
+                    JOIN pg_namespace n ON p.pronamespace = n.oid
+                WHERE
+                    p.prokind = 'p'
+                    AND p.proargnames IS NULL
+                    AND n.nspname = ANY(?)
+            ) sub
         """
     }
 }

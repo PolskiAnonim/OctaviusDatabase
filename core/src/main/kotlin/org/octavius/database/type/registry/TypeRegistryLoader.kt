@@ -60,13 +60,17 @@ internal class TypeRegistryLoader(
         // Merge class maps
         val classToPgNameMap = enumClassMap + compositeClassMap
 
-        logger.info { "TypeRegistry initialized. Enums: ${finalEnums.size}, Composites: ${finalComposites.size}, Arrays: ${finalArrays.size}" }
+        // Procedures
+        val finalProcedures = buildProcedures(databaseData.procedures)
+
+        logger.info { "TypeRegistry initialized. Enums: ${finalEnums.size}, Composites: ${finalComposites.size}, Arrays: ${finalArrays.size}, Procedures: ${finalProcedures.size}" }
 
         TypeRegistry(
             categoryMap = categoryMap,
             enums = finalEnums,
             composites = finalComposites,
             arrays = finalArrays,
+            procedures = finalProcedures,
             classToPgNameMap = classToPgNameMap,
             dynamicSerializers = classpathData.dynamicSerializers,
             classToDynamicNameMap = classpathData.dynamicReverseMap
@@ -158,6 +162,14 @@ internal class TypeRegistryLoader(
             val arrayName = "_$base"
             arrayName to PgArrayDefinition(arrayName, base)
         }
+    }
+
+    private fun buildProcedures(
+        dbProcedures: Map<String, List<PgProcedureParam>>
+    ): Map<String, PgProcedureDefinition> {
+        return dbProcedures.map { (name, params) ->
+            name to PgProcedureDefinition(name = name, params = params)
+        }.toMap()
     }
 
     private fun buildCategoryMap(

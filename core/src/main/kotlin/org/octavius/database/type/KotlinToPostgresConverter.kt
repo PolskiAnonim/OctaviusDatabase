@@ -123,6 +123,19 @@ internal class KotlinToPostgresConverter(
      * @param params Parameter map for expansion, may contain complex Kotlin types.
      * @return `PositionalQuery` with processed SQL and flattened parameters.
      */
+    /**
+     * Expands a single Kotlin value into its SQL placeholder and JDBC parameters.
+     *
+     * Used by procedure call execution to build CALL statements with proper type handling
+     * for each parameter individually (composites → ROW(...)::type, arrays → ARRAY[...], etc.).
+     *
+     * @param value The Kotlin value to expand.
+     * @return Pair of SQL placeholder fragment and list of JDBC parameter values.
+     */
+    fun expandSingleValue(value: Any?): Pair<String, List<Any?>> {
+        return expandParameter(value)
+    }
+
     fun expandParametersInQuery(sql: String, params: Map<String, Any?>): PositionalQuery {
         logger.debug { "Expanding parameters to positional query. Original params count: ${params.size}" }
         logger.trace { "Original SQL: $sql" }

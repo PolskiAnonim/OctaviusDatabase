@@ -39,5 +39,7 @@ internal data class DatabaseScanResult(
     /** Enum type name -> list of enum values */
     val enums: Map<String, List<String>>,
     /** Composite type name -> ordered map of (attribute name -> attribute type) */
-    val composites: Map<String, Map<String, String>>
+    val composites: Map<String, Map<String, String>>,
+    /** Procedure name -> ordered list of parameters with modes */
+    val procedures: Map<String, List<PgProcedureParam>>
 )
