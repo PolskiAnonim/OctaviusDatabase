@@ -298,14 +298,10 @@ dataAccess.createChannelListener().use { listener ->
     listener.listen("orders", "inventory")
 
     listener.notifications()
-        .collect { result ->
-            result.onSuccess { notification ->
-                when (notification.channel) {
-                    "orders" -> handleOrder(notification.payload)
-                    "inventory" -> handleInventory(notification.payload)
-                }
-            }.onFailure { error ->
-                logger.error { "Notification error: $error" }
+        .collect { notification ->
+            when (notification.channel) {
+                "orders"    -> handleOrder(notification.payload)
+                "inventory" -> handleInventory(notification.payload)
             }
         }
 }

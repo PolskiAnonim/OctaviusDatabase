@@ -56,5 +56,5 @@ interface PgChannelListener : Closeable {
      *
      * @return Flow emitting notifications as they arrive.
      */
-    fun notifications(): Flow<DataResult<PgNotification>>
+    fun notifications(): Flow<PgNotification>
 }

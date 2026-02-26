@@ -18,7 +18,7 @@ internal class DatabasePgChannelListener(
     private val connection: Connection
 ) : PgChannelListener {
 
-    private val pgConnection = connection.unwrap(PGConnection::class.java)
+    private val pgConnection: PGConnection = connection.unwrap(PGConnection::class.java)
 
     override fun listen(vararg channels: String): DataResult<Unit> {
         return try {
@@ -62,17 +62,12 @@ internal class DatabasePgChannelListener(
         }
     }
 
-    override fun notifications(): Flow<DataResult<PgNotification>> = flow {
-        try {
-            while (currentCoroutineContext().isActive) {
-                val notifs = pgConnection.getNotifications(POLL_TIMEOUT_MS)
-                notifs?.forEach { notif ->
-                    emit(DataResult.Success(PgNotification(notif.name, notif.parameter, notif.pid)))
-                }
+    override fun notifications(): Flow<PgNotification> = flow {
+        while (currentCoroutineContext().isActive) {
+            val notifs = pgConnection.getNotifications(POLL_TIMEOUT_MS)
+            notifs?.forEach { notif ->
+                emit(PgNotification(notif.name, notif.parameter, notif.pid))
             }
-        } catch (e: Exception) {
-            logger.error(e) { "Connection lost during notification polling." }
-            emit(DataResult.Failure(QueryExecutionException(sql = "getNotifications", params = emptyMap(), cause = e)))
         }
     }.flowOn(Dispatchers.IO)
 
