@@ -32,6 +32,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Parameter Modes](stored-procedures.md#parameter-modes) - IN, OUT, INOUT
 - [Complex Parameters](stored-procedures.md#complex-parameters) - Composites, arrays, enums
 - [How It Works](stored-procedures.md#how-it-works) - PreparedStatement, NULL::type, ResultSet extraction
+- [OUT Type Overrides](stored-procedures.md#out-type-overrides) - Concrete types for pseudo-type OUT params (`anyarray`, `anyelement`)
 - [Functions vs Procedures](stored-procedures.md#functions-vs-procedures) - CALL vs SELECT, when to use which
 - [Limitations](stored-procedures.md#limitations) - Overloaded procedures, rawQuery() fallback
 
@@ -78,7 +79,9 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Standard Type Mapping](type-system.md#standard-type-mapping) - PostgreSQL ↔ Kotlin conversions
 - [@PgEnum](type-system.md#pgenum) - Map Kotlin enums to PostgreSQL ENUMs
 - [@PgComposite](type-system.md#pgcomposite) - Map data classes to COMPOSITE types
+- [Parameter Expansion (Flattening)](type-system.md#parameter-expansion-flattening) - How composites/arrays expand into SQL placeholders
 - [@DynamicallyMappable](type-system.md#dynamicallymappable) - Polymorphic storage with dynamic_dto
+- [Enum Serialization in dynamic_dto](type-system.md#enum-serialization-in-dynamic_dto) - `DynamicDtoEnumSerializer` for enum fields
 - [PgTyped](type-system.md#pgtyped---explicit-type-casts) - Explicit type casts, type resolution priority
 - [Helper Serializers](type-system.md#helper-serializers) - `BigDecimalAsNumberSerializer`, `DynamicDtoEnumSerializer`
 

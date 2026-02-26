@@ -20,6 +20,13 @@ internal class DatabaseCallQueryBuilder(
     private val procedureName: String
 ) : CallQueryBuilder {
 
+    private var outTypeOverrides: Map<String, String> = emptyMap()
+
+    override fun outTypes(outTypes: Map<String, String>): CallQueryBuilder {
+        this.outTypeOverrides = outTypes
+        return this
+    }
+
     override fun execute(params: Map<String, Any?>): DataResult<Map<String, Any?>> {
         val procDef = typeRegistry.getProcedureDefinition(procedureName)
         val plan = buildCallPlan(procDef, params)
@@ -72,7 +79,8 @@ internal class DatabaseCallQueryBuilder(
                 }
 
                 PgParamMode.OUT -> {
-                    sqlFragments.add("NULL::${param.typeName}")
+                    val resolvedType = outTypeOverrides[param.name] ?: param.typeName
+                    sqlFragments.add("NULL::$resolvedType")
                     hasOutParams = true
                 }
 

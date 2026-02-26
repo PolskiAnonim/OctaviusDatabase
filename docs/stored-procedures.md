@@ -9,6 +9,7 @@ Octavius Database supports calling PostgreSQL stored procedures (`CREATE PROCEDU
 - [Complex Parameters](#complex-parameters)
 - [How It Works](#how-it-works)
 - [Functions vs Procedures](#functions-vs-procedures)
+- [OUT Type Overrides](#out-type-overrides)
 - [Limitations](#limitations)
 
 ---
@@ -122,6 +123,35 @@ Generated SQL:
 ResultSet (1 row, 1 column):
   summary = "Bob [dev, senior]"
 ```
+---
+
+## OUT Type Overrides
+
+Some procedures use PostgreSQL pseudo-types (`anyarray`, `anyelement`, etc.) for OUT parameters. Since PostgreSQL rejects casts to pseudo-types, the default `NULL::anyarray` would fail. Use `outTypes()` to specify the concrete type:
+
+```kotlin
+// CREATE PROCEDURE extract_elements(IN input anyarray, OUT first anyelement, OUT last anyelement)
+val result = dataAccess.call("extract_elements")
+    .outTypes("first" to "int4", "last" to "int4")
+    .execute("input" to listOf(10, 20, 30))
+    .getOrThrow()
+
+result["first"] // 10
+result["last"]  // 30
+```
+
+`outTypes()` accepts `vararg Pair` or `Map`:
+
+```kotlin
+// vararg
+.outTypes("result" to "int4[]", "status" to "text")
+
+// Map
+.outTypes(mapOf("result" to "int4[]"))
+```
+
+Only the overridden OUT parameters are affected — other OUT parameters keep their types from procedure metadata.
+
 ---
 
 ## Functions vs Procedures
