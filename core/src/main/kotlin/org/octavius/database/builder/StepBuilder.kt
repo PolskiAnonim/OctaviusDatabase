@@ -28,6 +28,15 @@ internal class StepBuilder(private val builder: AbstractQueryBuilder<*>) : StepB
         )
     }
 
+    /** Creates TransactionStep with toSingleNotNull method */
+    override fun toSingleNotNull(params: Map<String, Any?>): TransactionStep<Map<String, Any?>> {
+        return TransactionStep(
+            builder = this.builder,
+            executionLogic = { b, p -> (b as AbstractQueryBuilder<*>).toSingleNotNull(p) },
+            params = params
+        )
+    }
+
     /** Creates TransactionStep with toListOf method */
     override fun <T> toListOf(kType: KType, params: Map<String, Any?>): TransactionStep<List<T>> {
         return TransactionStep(

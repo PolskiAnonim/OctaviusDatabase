@@ -11,8 +11,11 @@ interface TerminalReturningMethods {
     /** Fetches a list of rows as List<Map<String, Any?>>. */
     fun toList(params: Map<String, Any?> = emptyMap()): DataResult<List<Map<String, Any?>>>
 
-    /** Fetches a single row as Map<String, Any?>?. */
+    /** Fetches a single row as Map<String, Any?>?. Returns Success(null) if no rows. */
     fun toSingle(params: Map<String, Any?> = emptyMap()): DataResult<Map<String, Any?>?>
+
+    /** Fetches a single row as Map<String, Any?>. Returns Failure if no rows. */
+    fun toSingleNotNull(params: Map<String, Any?> = emptyMap()): DataResult<Map<String, Any?>>
 
     // --- Returning data class objects ---
 
@@ -59,6 +62,9 @@ fun TerminalReturningMethods.toList(vararg params: Pair<String, Any?>): DataResu
 
 fun TerminalReturningMethods.toSingle(vararg params: Pair<String, Any?>): DataResult<Map<String, Any?>?> =
     toSingle(params.toMap())
+
+fun TerminalReturningMethods.toSingleNotNull(vararg params: Pair<String, Any?>): DataResult<Map<String, Any?>> =
+    toSingleNotNull(params.toMap())
 
 inline fun <reified T> TerminalReturningMethods.toField(
     params: Map<String, Any?> = emptyMap()

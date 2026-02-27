@@ -3,8 +3,6 @@ package org.octavius.database.builder
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.octavius.data.DataResult
 import org.octavius.data.builder.CallQueryBuilder
-import org.octavius.data.exception.ConversionException
-import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.map
 import org.octavius.database.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
@@ -39,17 +37,7 @@ internal class DatabaseCallQueryBuilder(
         return if (!plan.hasOutParams) {
             rawQuery.execute(plan.params).map { emptyMap() }
         } else {
-            when (val result = rawQuery.toSingle(plan.params)) {
-                is DataResult.Success -> {
-                    val value = result.value
-                    if (value != null) {
-                        DataResult.Success(value)
-                    } else {
-                        DataResult.Failure(ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = "Map<String, Any?>"))
-                    }
-                }
-                is DataResult.Failure -> result
-            }
+            rawQuery.toSingleNotNull(plan.params)
         }
     }
 

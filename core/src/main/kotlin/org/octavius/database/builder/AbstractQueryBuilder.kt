@@ -150,6 +150,15 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
             DataResult.Success(result as T)
         }
     }
+
+    // --- Mapping to single row as Map ---
+
+    /** Executes the query and returns the first row, throwing if no rows and non-nullable expected. */
+    fun toSingleNotNull(params: Map<String, Any?>): DataResult<Map<String, Any?>> {
+        return executeReturningQuery(params, rowMappers.ColumnNameMapper()) {
+            val result = it.firstOrNull()
+                ?: throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = "Map<String, Any?>")
+            DataResult.Success(result)
         }
     }
 

@@ -17,6 +17,9 @@ interface StepBuilderMethods {
     /** Creates a TransactionStep with toSingle method */
     fun toSingle(params: Map<String, Any?> = emptyMap()): TransactionStep<Map<String, Any?>?>
 
+    /** Creates a TransactionStep with toSingleNotNull method */
+    fun toSingleNotNull(params: Map<String, Any?> = emptyMap()): TransactionStep<Map<String, Any?>>
+
     // --- Returning data class objects ---
 
     /** Creates a TransactionStep with toListOf method */
@@ -44,6 +47,9 @@ fun StepBuilderMethods.toList(vararg params: Pair<String, Any?>): TransactionSte
 
 fun StepBuilderMethods.toSingle(vararg params: Pair<String, Any?>): TransactionStep<Map<String, Any?>?> =
     toSingle(params.toMap())
+
+fun StepBuilderMethods.toSingleNotNull(vararg params: Pair<String, Any?>): TransactionStep<Map<String, Any?>> =
+    toSingleNotNull(params.toMap())
 
 inline fun <reified T> StepBuilderMethods.toField(
     params: Map<String, Any?> = emptyMap()

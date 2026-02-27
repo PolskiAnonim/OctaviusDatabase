@@ -43,6 +43,13 @@ internal class AsyncQueryBuilder(
         executeAndInvoke({ builder.toSingle(params) }, onResult)
     }
 
+    override fun toSingleNotNull(
+        params: Map<String, Any?>,
+        onResult: (DataResult<Map<String, Any?>>) -> Unit
+    ): Job = scope.launch {
+        executeAndInvoke({ builder.toSingleNotNull(params) }, onResult)
+    }
+
     override fun <T> toListOf(
         kType: KType,
         params: Map<String, Any?>,
