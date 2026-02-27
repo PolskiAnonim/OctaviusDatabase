@@ -1,7 +1,6 @@
 package org.octavius.data.transaction
 
 import org.octavius.data.DataResult
-import org.octavius.data.assertNotNull
 import org.octavius.data.builder.QueryBuilder
 
 /**
@@ -39,13 +38,4 @@ class TransactionStep<T>(
     }
 }
 
-fun <T : Any> TransactionStep<T?>.assertNotNull(): TransactionStep<T> {
-    return TransactionStep(
-        builder = this.builder,
-        params = this.params,
-        executionLogic = { builder, finalParams ->
-            val originalResult = this.executionLogic(builder, finalParams)
-            originalResult.assertNotNull()
-        }
-    )
-}
+
