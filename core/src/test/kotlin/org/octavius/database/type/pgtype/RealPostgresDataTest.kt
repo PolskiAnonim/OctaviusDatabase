@@ -128,6 +128,7 @@ class RealPostgresDataTest {
         assertThat(firstTask.metadata.tags).containsExactly("setup", "infrastructure", "priority")
 
         // Sprawdzamy tablicę projektów (zagnieżdżenie do potęgi)
+        @Suppress("UNCHECKED_CAST")
         val projectArray = result["project_array"] as List<TestProject>
         assertThat(projectArray).hasSize(2)
         assertThat(projectArray[0].name).isEqualTo("Small \"Maintenance\" Project")

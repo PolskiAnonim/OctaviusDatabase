@@ -1,7 +1,6 @@
 package org.octavius.data.builder
 
 import org.octavius.data.DataResult
-import kotlin.reflect.KClass
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
 
@@ -12,32 +11,45 @@ interface TerminalReturningMethods {
     /** Fetches a list of rows as List<Map<String, Any?>>. */
     fun toList(params: Map<String, Any?> = emptyMap()): DataResult<List<Map<String, Any?>>>
 
-    /** Fetches a single row as Map<String, Any?>?. */
+    /** Fetches a single row as Map<String, Any?>?. Returns Success(null) if no rows. */
     fun toSingle(params: Map<String, Any?> = emptyMap()): DataResult<Map<String, Any?>?>
+
+    /** Fetches a single row as Map<String, Any?>. Returns Failure if no rows. */
+    fun toSingleNotNull(params: Map<String, Any?> = emptyMap()): DataResult<Map<String, Any?>>
 
     // --- Returning data class objects ---
 
     /**
      * Maps results to a list of objects of the given type.
      * Requires that column names/aliases in SQL (in snake_case convention) match
-     * property names in the `kClass` class (in camelCase convention) or have a @MapKey annotation
+     * property names in the target class (in camelCase convention) or have a @MapKey annotation
      * with the stored column name.
      */
-    fun <T : Any> toListOf(kClass: KClass<T>, params: Map<String, Any?> = emptyMap()): DataResult<List<T>>
+    fun <T> toListOf(kType: KType, params: Map<String, Any?> = emptyMap()): DataResult<List<T>>
 
     /**
      * Maps the result to a single object of the given type.
      * Works on the same mapping principle as `toListOf`.
+     * Nullability is determined by the KType: use `toSingleOf<User>()` for non-null
+     * or `toSingleOf<User?>()` for nullable results.
      */
-    fun <T : Any> toSingleOf(kClass: KClass<T>, params: Map<String, Any?> = emptyMap()): DataResult<T?>
+    fun <T> toSingleOf(kType: KType, params: Map<String, Any?> = emptyMap()): DataResult<T>
 
     // --- Returning scalar values ---
 
-    /** Fetches a single value from the first column of the first row. */
-    fun <T : Any> toField(targetType: KType, params: Map<String, Any?> = emptyMap()): DataResult<T?>
+    /**
+     * Fetches a single value from the first column of the first row.
+     * Nullability is determined by the KType: use `toField<Int>()` for non-null
+     * or `toField<Int?>()` for nullable results.
+     */
+    fun <T> toField(targetType: KType, params: Map<String, Any?> = emptyMap()): DataResult<T>
 
-    /** Fetches a list of values from the first column of all rows. */
-    fun <T : Any> toColumn(targetType: KType, params: Map<String, Any?> = emptyMap()): DataResult<List<T?>>
+    /**
+     * Fetches a list of values from the first column of all rows.
+     * Nullability of elements is determined by the KType: use `toColumn<Int>()` for non-null
+     * or `toColumn<Int?>()` for nullable elements.
+     */
+    fun <T> toColumn(targetType: KType, params: Map<String, Any?> = emptyMap()): DataResult<List<T>>
 
     // --- Helper methods ---
 
@@ -51,41 +63,44 @@ fun TerminalReturningMethods.toList(vararg params: Pair<String, Any?>): DataResu
 fun TerminalReturningMethods.toSingle(vararg params: Pair<String, Any?>): DataResult<Map<String, Any?>?> =
     toSingle(params.toMap())
 
-inline fun <reified T : Any> TerminalReturningMethods.toField(
+fun TerminalReturningMethods.toSingleNotNull(vararg params: Pair<String, Any?>): DataResult<Map<String, Any?>> =
+    toSingleNotNull(params.toMap())
+
+inline fun <reified T> TerminalReturningMethods.toField(
     params: Map<String, Any?> = emptyMap()
-): DataResult<T?> = toField(typeOf<T>(), params)
+): DataResult<T> = toField(typeOf<T>(), params)
 
-inline fun <reified T : Any> TerminalReturningMethods.toField(
+inline fun <reified T> TerminalReturningMethods.toField(
     vararg params: Pair<String, Any?>
-): DataResult<T?> = toField(typeOf<T>(), params.toMap())
+): DataResult<T> = toField(typeOf<T>(), params.toMap())
 
-inline fun <reified T : Any> TerminalReturningMethods.toColumn(
+inline fun <reified T> TerminalReturningMethods.toColumn(
     params: Map<String, Any?> = emptyMap()
-): DataResult<List<T?>> = toColumn(typeOf<T>(), params)
+): DataResult<List<T>> = toColumn(typeOf<T>(), params)
 
-inline fun <reified T : Any> TerminalReturningMethods.toColumn(
+inline fun <reified T> TerminalReturningMethods.toColumn(
     vararg params: Pair<String, Any?>
-): DataResult<List<T?>> = toColumn(typeOf<T>() , params.toMap())
+): DataResult<List<T>> = toColumn(typeOf<T>(), params.toMap())
 
 inline fun <reified T : Any> TerminalReturningMethods.toListOf(vararg params: Pair<String, Any?>): DataResult<List<T>> =
-    toListOf(T::class, params.toMap())
+    toListOf(typeOf<T>(), params.toMap())
 
 /**
  * Convenient `inline` extension function for toListOf.
- * Uses `reified` to automatically infer `T::class`.
+ * Uses `reified` to automatically infer the target type.
  */
 inline fun <reified T : Any> TerminalReturningMethods.toListOf(params: Map<String, Any?> = emptyMap()): DataResult<List<T>> =
-    toListOf(T::class, params)
+    toListOf(typeOf<T>(), params)
 
-inline fun <reified T : Any> TerminalReturningMethods.toSingleOf(vararg params: Pair<String, Any?>): DataResult<T?> =
-    toSingleOf(T::class, params.toMap())
+inline fun <reified T> TerminalReturningMethods.toSingleOf(vararg params: Pair<String, Any?>): DataResult<T> =
+    toSingleOf(typeOf<T>(), params.toMap())
 
 /**
  * Convenient `inline` extension function for toSingleOf.
- * Uses `reified` to automatically infer `T::class`.
+ * Uses `reified` to automatically infer the target type.
  */
-inline fun <reified T : Any> TerminalReturningMethods.toSingleOf(params: Map<String, Any?> = emptyMap()): DataResult<T?> =
-    toSingleOf(T::class, params)
+inline fun <reified T> TerminalReturningMethods.toSingleOf(params: Map<String, Any?> = emptyMap()): DataResult<T> =
+    toSingleOf(typeOf<T>(), params)
 
 
 /** Interface containing terminal modification method */

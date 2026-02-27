@@ -15,7 +15,7 @@ Both approaches support configurable propagation behavior.
 - [TransactionValue](#transactionvalue)
 - [Passing Data Between Steps](#passing-data-between-steps)
 - [TransactionPlanResult](#transactionplanresult)
-- [assertNotNull in Transactions](#assertnotnull-in-transactions)
+- [Null Handling in Transactions](#null-handling-in-transactions)
 - [Transaction Propagation](#transaction-propagation)
 - [Error Handling](#error-handling)
 
@@ -135,15 +135,16 @@ val updateStep = dataAccess.update("users")
 
 ### Step Terminal Methods
 
-| Method | Result Type | Use Case |
-|--------|-------------|----------|
-| `toField<T>(params)` | `T?` | Single value (e.g., inserted ID) |
-| `toColumn<T>(params)` | `List<T?>` | All values from first column |
-| `toSingle(params)` | `Map<String, Any?>?` | Single row as map |
-| `toSingleOf<T>(params)` | `T?` | Single row as data class |
-| `toList(params)` | `List<Map<String, Any?>>` | All rows as maps |
-| `toListOf<T>(params)` | `List<T>` | All rows as data classes |
-| `execute(params)` | `Int` | Affected row count |
+| Method                    | Result Type               | Use Case                             |
+|---------------------------|---------------------------|--------------------------------------|
+| `toField<T>(params)`      | `T`                       | Single value (e.g., inserted ID)     |
+| `toColumn<T>(params)`     | `List<T>`                 | All values from first column         |
+| `toSingle(params)`        | `Map<String, Any?>?`      | Single row as map                    |
+| `toSingleNotNull(params)` | `Map<String, Any?>`       | Single row as map (fails if no rows) |
+| `toSingleOf<T>(params)`   | `T`                       | Single row as data class             |
+| `toList(params)`          | `List<Map<String, Any?>>` | All rows as maps                     |
+| `toListOf<T>(params)`     | `List<T>`                 | All rows as data classes             |
+| `execute(params)`         | `Int`                     | Affected row count                   |
 
 ---
 
@@ -155,13 +156,13 @@ When you add a step to a plan, you get a `StepHandle<T>` that can reference that
 
 All methods have default parameter values where applicable (`rowIndex` defaults to `0`).
 
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `field(rowIndex = 0)` | `FromStep.Field` | Reference to scalar value (from `toField()` or `execute()`) |
-| `field(columnName, rowIndex = 0)` | `FromStep.Field` | Reference to value in specific column (from `toList()`/`toSingle()`) |
-| `column()` | `FromStep.Column` | Reference to entire column (from `toColumn()`) |
-| `column(columnName)` | `FromStep.Column` | Reference to specific column (from `toList()`) |
-| `row(rowIndex = 0)` | `FromStep.Row` | Reference to entire row as `Map<String, Any?>` |
+| Method                            | Returns           | Description                                                          |
+|-----------------------------------|-------------------|----------------------------------------------------------------------|
+| `field(rowIndex = 0)`             | `FromStep.Field`  | Reference to scalar value (from `toField()` or `execute()`)          |
+| `field(columnName, rowIndex = 0)` | `FromStep.Field`  | Reference to value in specific column (from `toList()`/`toSingle()`) |
+| `column()`                        | `FromStep.Column` | Reference to entire column (from `toColumn()`)                       |
+| `column(columnName)`              | `FromStep.Column` | Reference to specific column (from `toList()`)                       |
+| `row(rowIndex = 0)`               | `FromStep.Row`    | Reference to entire row as `Map<String, Any?>`                       |
 
 ### Usage Examples
 
@@ -228,13 +229,13 @@ plan.add(
 
 ### Variants
 
-| Variant | Description |
-|---------|-------------|
-| `Value(value)` | Constant, predefined value |
-| `FromStep.Field(handle, columnName?, rowIndex)` | Single value from a previous step |
-| `FromStep.Column(handle, columnName?)` | List of values from a column |
-| `FromStep.Row(handle, rowIndex)` | Entire row as `Map<String, Any?>` |
-| `Transformed(source, transform)` | Transformed value from another TransactionValue |
+| Variant                                         | Description                                     |
+|-------------------------------------------------|-------------------------------------------------|
+| `Value(value)`                                  | Constant, predefined value                      |
+| `FromStep.Field(handle, columnName?, rowIndex)` | Single value from a previous step               |
+| `FromStep.Column(handle, columnName?)`          | List of values from a column                    |
+| `FromStep.Row(handle, rowIndex)`                | Entire row as `Map<String, Any?>`               |
+| `Transformed(source, transform)`                | Transformed value from another TransactionValue |
 
 ### Extension Functions
 
@@ -332,7 +333,7 @@ plan.add(
         .values(listOf("name", "email", "role", "archived_at", "archived_by"))
         .asStep()
         .execute(
-            sourceHandle.row(),           // Spreads name, email, role
+            "row" to sourceHandle.row(),           // Spreads name, email, role - row disappears
             "archived_at" to Instant.now(),
             "archived_by" to currentUserId
         )
@@ -423,67 +424,60 @@ dataAccess.executeTransactionPlan(mainPlan)
 
 ---
 
-## assertNotNull in Transactions
+## Null Handling in Transactions
 
-When working with transactions, you often need to ensure that query results are not null before proceeding. The `assertNotNull()` extension transforms `DataResult<T?>` into `DataResult<T>`, failing if the value is null.
+Nullability in terminal methods is controlled by the type parameter. Use non-nullable types when you expect a result, or nullable types when the result may be absent.
 
 ### In Transaction Blocks
 
 ```kotlin
 val result = dataAccess.transaction { tx ->
-    // Without assertNotNull - user is nullable
+    // Non-nullable — Failure if user not found
     val user = tx.select("*")
         .from("users")
         .where("id = :id")
         .toSingleOf<User>("id" to userId)
         .getOrElse { return@transaction DataResult.Failure(it) }
 
-    if (user == null) {
-        return@transaction DataResult.Failure(/* custom error */)
-    }
-
-    // With assertNotNull - cleaner flow
-    val user = tx.select("*")
-        .from("users")
-        .where("id = :id")
-        .toSingleOf<User>("id" to userId)
-        .assertNotNull()  // Fails with ConversionException if null
-        .getOrElse { return@transaction DataResult.Failure(it) }
-
-    // user is now guaranteed non-null
+    // user is guaranteed non-null here
     DataResult.Success(user)
 }
 ```
 
 ### With Transaction Plans
 
-When using `TransactionPlanResult.get()`, the returned value is already typed based on the step's terminal method. For `toSingleOf<T>()` steps that may return null, use `assertNotNull()` when fetching:
+When using `TransactionPlanResult.get()`, the returned value is typed based on the step's terminal method:
 
 ```kotlin
 val plan = TransactionPlan()
 
+// Non-nullable — step fails if no rows
 val userHandle = plan.add(
     dataAccess.select("*")
         .from("users")
         .where("id = :id")
         .asStep()
-        .toSingleOf<User>("id" to userId)  // Returns T?
+        .toSingleOf<User>("id" to userId)
+)
+
+// Nullable — step succeeds with null if no rows
+val maybeUserHandle = plan.add(
+    dataAccess.select("*")
+        .from("users")
+        .where("id = :id")
+        .asStep()
+        .toSingleOf<User?>("id" to userId)
 )
 
 val result = dataAccess.executeTransactionPlan(plan)
 
 result.onSuccess { planResult ->
-    val user: User? = planResult.get(userHandle)
-
-    // Check for null manually, or design steps to use toListOf()
-    // and check for empty list instead
-    user?.let { processUser(it) }
+    val user: User = planResult.get(userHandle)             // guaranteed non-null by step
+    val maybeUser: User? = planResult.get(maybeUserHandle)  // may be null
 }
 ```
 
-> **Tip**: For steps where you expect exactly one result, consider using `toField<T>()` with a `RETURNING id` clause, or validate non-null in subsequent steps using handle transformations.
-
-See [Executing Queries - assertNotNull](executing-queries.md#assertnotnull) for more details on the `assertNotNull()` function.
+See [Executing Queries - Null Handling](executing-queries.md#null-handling-via-type-parameter) for more details.
 
 ---
 

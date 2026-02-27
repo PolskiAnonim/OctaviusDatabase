@@ -125,7 +125,7 @@ class PolymorphicPrimitivesRoundTripTest {
 
         // Krok 3: Dodatkowe, jawne asercje dla pełnej jasności
         assertThat(retrievedPayload).hasSize(5)
-        assertThat(retrievedPayload!![0]).isInstanceOf(UserAction::class.java)
+        assertThat(retrievedPayload[0]).isInstanceOf(UserAction::class.java)
         assertThat(retrievedPayload[1]).isInstanceOf(IntWrapper::class.java)
         assertThat(retrievedPayload[2]).isInstanceOf(StringWrapper::class.java)
         assertThat(retrievedPayload[3]).isInstanceOf(BooleanWrapper::class.java)

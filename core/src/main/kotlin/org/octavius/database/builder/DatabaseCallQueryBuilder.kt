@@ -2,7 +2,6 @@ package org.octavius.database.builder
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.octavius.data.DataResult
-import org.octavius.data.assertNotNull
 import org.octavius.data.builder.CallQueryBuilder
 import org.octavius.data.map
 import org.octavius.database.RowMappers
@@ -38,7 +37,7 @@ internal class DatabaseCallQueryBuilder(
         return if (!plan.hasOutParams) {
             rawQuery.execute(plan.params).map { emptyMap() }
         } else {
-            rawQuery.toSingle(plan.params).assertNotNull()
+            rawQuery.toSingleNotNull(plan.params)
         }
     }
 

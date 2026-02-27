@@ -2,7 +2,7 @@
 
 Octavius Database uses a **Result type pattern** instead of throwing exceptions. All database operations return `DataResult<T>` which forces explicit handling of both success and failure cases.
 
-> **Working with DataResult**: For `DataResult` usage patterns (`map`, `onSuccess`, `getOrElse`, `assertNotNull`, etc.), see [Executing Queries](executing-queries.md#dataresult).
+> **Working with DataResult**: For `DataResult` usage patterns (`map`, `onSuccess`, `getOrElse`, etc.), see [Executing Queries](executing-queries.md#dataresult).
 
 ## Table of Contents
 
@@ -22,13 +22,13 @@ Octavius Database uses a **Result type pattern** instead of throwing exceptions.
 
 Query builders validate their configuration when building SQL. These errors throw standard Kotlin exceptions (`IllegalArgumentException`, `IllegalStateException`) rather than returning `DataResult.Failure`:
 
-| Error | Exception | Cause |
-|-------|-----------|-------|
-| `having()` without `groupBy()` | `IllegalArgumentException` | HAVING requires GROUP BY |
-| `DELETE`/`UPDATE` without `where()` | `IllegalStateException` | Safety check to prevent accidental mass changes |
-| `fromSelect()` after `values()` | `IllegalStateException` | Mutually exclusive operations |
-| `values()` after `fromSelect()` | `IllegalStateException` | Mutually exclusive operations |
-| No values or select in INSERT | `IllegalStateException` | Nothing to insert |
+| Error                               | Exception                  | Cause                                           |
+|-------------------------------------|----------------------------|-------------------------------------------------|
+| `having()` without `groupBy()`      | `IllegalArgumentException` | HAVING requires GROUP BY                        |
+| `DELETE`/`UPDATE` without `where()` | `IllegalStateException`    | Safety check to prevent accidental mass changes |
+| `fromSelect()` after `values()`     | `IllegalStateException`    | Mutually exclusive operations                   |
+| `values()` after `fromSelect()`     | `IllegalStateException`    | Mutually exclusive operations                   |
+| No values or select in INSERT       | `IllegalStateException`    | Nothing to insert                               |
 
 **Why not DataResult?**
 
@@ -142,13 +142,13 @@ Thrown when SQL query execution fails. Contains full debugging context.
 
 ### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `sql` | `String` | Original SQL with named parameters |
-| `params` | `Map<String, Any?>` | Original parameter map |
-| `expandedSql` | `String?` | SQL with positional placeholders (`$1`, `$2`) |
-| `expandedParams` | `List<Any?>?` | Converted parameters in positional order |
-| `cause` | `Throwable?` | Underlying JDBC exception |
+| Property         | Type                | Description                                   |
+|------------------|---------------------|-----------------------------------------------|
+| `sql`            | `String`            | Original SQL with named parameters            |
+| `params`         | `Map<String, Any?>` | Original parameter map                        |
+| `expandedSql`    | `String?`           | SQL with positional placeholders (`$1`, `$2`) |
+| `expandedParams` | `List<Any?>?`       | Converted parameters in positional order      |
+| `cause`          | `Throwable?`        | Underlying JDBC exception                     |
 
 ### When Thrown
 
@@ -157,6 +157,7 @@ Thrown when SQL query execution fails. Contains full debugging context.
 - Connection errors
 - Permission errors
 - Data type mismatches in database
+- Null value for non-nullable target type (cause: `ConversionException(UNEXPECTED_NULL_VALUE)`)
 
 ### Example Output
 
@@ -214,28 +215,29 @@ Thrown when converting between PostgreSQL and Kotlin types fails.
 
 ### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `messageEnum` | `ConversionExceptionMessage` | Error type enum |
-| `value` | `Any?` | The value that failed to convert |
-| `targetType` | `String?` | Target Kotlin type |
-| `rowData` | `Map<String, Any?>?` | Full row context (for object mapping) |
-| `propertyName` | `String?` | Property name (for object mapping) |
+| Property       | Type                         | Description                           |
+|----------------|------------------------------|---------------------------------------|
+| `messageEnum`  | `ConversionExceptionMessage` | Error type enum                       |
+| `value`        | `Any?`                       | The value that failed to convert      |
+| `targetType`   | `String?`                    | Target Kotlin type                    |
+| `rowData`      | `Map<String, Any?>?`         | Full row context (for object mapping) |
+| `propertyName` | `String?`                    | Property name (for object mapping)    |
 
 ### Error Types
 
-| Enum Value | Description |
-|------------|-------------|
-| `VALUE_CONVERSION_FAILED` | General type conversion error |
-| `ENUM_CONVERSION_FAILED` | Database value doesn't match Kotlin enum |
-| `UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY` | Complex types in native JDBC arrays |
-| `INVALID_DYNAMIC_DTO_FORMAT` | Malformed `dynamic_dto` value |
-| `INCOMPATIBLE_COLLECTION_ELEMENT_TYPE` | Wrong element type in collection |
-| `INCOMPATIBLE_TYPE` | General type mismatch |
-| `OBJECT_MAPPING_FAILED` | Data class instantiation error |
-| `MISSING_REQUIRED_PROPERTY` | Missing field for non-nullable property |
-| `JSON_DESERIALIZATION_FAILED` | JSON parsing error in dynamic_dto |
-| `JSON_SERIALIZATION_FAILED` | Object to JSON conversion error |
+| Enum Value                             | Description                              |
+|----------------------------------------|------------------------------------------|
+| `VALUE_CONVERSION_FAILED`              | General type conversion error            |
+| `ENUM_CONVERSION_FAILED`               | Database value doesn't match Kotlin enum |
+| `UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY`  | Complex types in native JDBC arrays      |
+| `INVALID_DYNAMIC_DTO_FORMAT`           | Malformed `dynamic_dto` value            |
+| `INCOMPATIBLE_COLLECTION_ELEMENT_TYPE` | Wrong element type in collection         |
+| `INCOMPATIBLE_TYPE`                    | General type mismatch                    |
+| `OBJECT_MAPPING_FAILED`                | Data class instantiation error           |
+| `MISSING_REQUIRED_PROPERTY`            | Missing field for non-nullable property  |
+| `JSON_DESERIALIZATION_FAILED`          | JSON parsing error in dynamic_dto        |
+| `JSON_SERIALIZATION_FAILED`            | Object to JSON conversion error          |
+| `UNEXPECTED_NULL_VALUE`                | Null value for non-nullable target type  |
 
 ### Where It Appears
 
@@ -283,10 +285,10 @@ Thrown when a step in a `TransactionPlan` fails.
 
 ### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `stepIndex` | `Int` | Zero-based index of the failed step |
-| `cause` | `Throwable` | Original exception (usually `QueryExecutionException`) |
+| Property    | Type        | Description                                            |
+|-------------|-------------|--------------------------------------------------------|
+| `stepIndex` | `Int`       | Zero-based index of the failed step                    |
+| `cause`     | `Throwable` | Original exception (usually `QueryExecutionException`) |
 
 ### Handling
 
@@ -320,9 +322,9 @@ Thrown when transaction execution fails (outside of step-specific errors).
 
 ### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `cause` | `Throwable` | Original exception |
+| Property | Type        | Description        |
+|----------|-------------|--------------------|
+| `cause`  | `Throwable` | Original exception |
 
 ### When Thrown
 
@@ -364,27 +366,27 @@ Thrown when a `TransactionValue.FromStep` reference is invalid.
 
 ### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `messageEnum` | `StepDependencyExceptionMessage` | Error type |
-| `referencedStepIndex` | `Int` | Index of the step being referenced |
-| `args` | `Array<Any>` | Additional context (row index, column name, etc.) |
+| Property              | Type                             | Description                                       |
+|-----------------------|----------------------------------|---------------------------------------------------|
+| `messageEnum`         | `StepDependencyExceptionMessage` | Error type                                        |
+| `referencedStepIndex` | `Int`                            | Index of the step being referenced                |
+| `args`                | `Array<Any>`                     | Additional context (row index, column name, etc.) |
 
 ### Error Types
 
-| Enum Value | Description |
-|------------|-------------|
-| `DEPENDENCY_ON_FUTURE_STEP` | Step references a step that runs later |
-| `UNKNOWN_STEP_HANDLE` | Handle doesn't exist in the plan |
-| `RESULT_NOT_FOUND` | Referenced step hasn't been executed |
-| `NULL_SOURCE_RESULT` | Referenced step returned null |
-| `ROW_INDEX_OUT_OF_BOUNDS` | Row index exceeds result size |
-| `RESULT_NOT_LIST` | Expected list result, got something else |
-| `RESULT_NOT_MAP_LIST` | Expected `List<Map>`, got different structure |
-| `INVALID_ROW_ACCESS_ON_NON_LIST` | Using `row(n)` on non-list result |
-| `COLUMN_NOT_FOUND` | Referenced column doesn't exist |
-| `SCALAR_NOT_FOUND` | Can't extract scalar from result |
-| `TRANSFORMATION_FAILED` | `.map {}` transformation threw exception |
+| Enum Value                       | Description                                   |
+|----------------------------------|-----------------------------------------------|
+| `DEPENDENCY_ON_FUTURE_STEP`      | Step references a step that runs later        |
+| `UNKNOWN_STEP_HANDLE`            | Handle doesn't exist in the plan              |
+| `RESULT_NOT_FOUND`               | Referenced step hasn't been executed          |
+| `NULL_SOURCE_RESULT`             | Referenced step returned null                 |
+| `ROW_INDEX_OUT_OF_BOUNDS`        | Row index exceeds result size                 |
+| `RESULT_NOT_LIST`                | Expected list result, got something else      |
+| `RESULT_NOT_MAP_LIST`            | Expected `List<Map>`, got different structure |
+| `INVALID_ROW_ACCESS_ON_NON_LIST` | Using `row(n)` on non-list result             |
+| `COLUMN_NOT_FOUND`               | Referenced column doesn't exist               |
+| `SCALAR_NOT_FOUND`               | Can't extract scalar from result              |
+| `TRANSFORMATION_FAILED`          | `.map {}` transformation threw exception      |
 
 ### Where It Appears
 
@@ -466,59 +468,38 @@ Thrown during type registry initialization or lookup.
 
 ### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `messageEnum` | `TypeRegistryExceptionMessage` | Error type |
-| `typeName` | `String?` | Related type name |
+| Property      | Type                           | Description       |
+|---------------|--------------------------------|-------------------|
+| `messageEnum` | `TypeRegistryExceptionMessage` | Error type        |
+| `typeName`    | `String?`                      | Related type name |
 
 ### Error Types
 
 **Initialization Errors (startup):**
 
-| Enum Value | Description |
-|------------|-------------|
+| Enum Value              | Description                              |
+|-------------------------|------------------------------------------|
 | `INITIALIZATION_FAILED` | Critical registry initialization failure |
-| `CLASSPATH_SCAN_FAILED` | ClassGraph scanning error |
-| `DB_QUERY_FAILED` | Failed to query database for types |
+| `CLASSPATH_SCAN_FAILED` | ClassGraph scanning error                |
+| `DB_QUERY_FAILED`       | Failed to query database for types       |
 
 **Schema Consistency Errors (startup):**
 
-| Enum Value | Description |
-|------------|-------------|
-| `TYPE_DEFINITION_MISSING_IN_DB` | `@PgEnum`/`@PgComposite` without matching DB type |
-| `DUPLICATE_PG_TYPE_DEFINITION` | Multiple classes with same PostgreSQL type name |
-| `DUPLICATE_DYNAMIC_TYPE_DEFINITION` | Multiple `@DynamicallyMappable` with same key |
+| Enum Value                          | Description                                       |
+|-------------------------------------|---------------------------------------------------|
+| `TYPE_DEFINITION_MISSING_IN_DB`     | `@PgEnum`/`@PgComposite` without matching DB type |
+| `DUPLICATE_PG_TYPE_DEFINITION`      | Multiple classes with same PostgreSQL type name   |
+| `DUPLICATE_DYNAMIC_TYPE_DEFINITION` | Multiple `@DynamicallyMappable` with same key     |
 
 **Runtime Lookup Errors:**
 
-| Enum Value | Description |
-|------------|-------------|
+| Enum Value                        | Description                         |
+|-----------------------------------|-------------------------------------|
 | `WRONG_FIELD_NUMBER_IN_COMPOSITE` | Composite type field count mismatch |
-| `PG_TYPE_NOT_FOUND` | PostgreSQL type not in registry |
-| `KOTLIN_CLASS_NOT_MAPPED` | Kotlin class has no type mapping |
-| `PG_TYPE_NOT_MAPPED` | No Kotlin class for PostgreSQL type |
-| `DYNAMIC_TYPE_NOT_FOUND` | Unknown `dynamic_dto` type key |
-
-### Handling
-
-```kotlin
-// These usually occur at startup
-try {
-    val dataAccess = OctaviusDatabase.fromConfig(config)
-} catch (e: TypeRegistryException) {
-    when (e.messageEnum) {
-        TypeRegistryExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB -> {
-            println("Missing SQL migration for type: ${e.typeName}")
-            println("Add: CREATE TYPE ${e.typeName} AS ...")
-        }
-        TypeRegistryExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION -> {
-            println("Duplicate type name: ${e.typeName}")
-            println("Check @PgEnum and @PgComposite annotations")
-        }
-        else -> throw e
-    }
-}
-```
+| `PG_TYPE_NOT_FOUND`               | PostgreSQL type not in registry     |
+| `KOTLIN_CLASS_NOT_MAPPED`         | Kotlin class has no type mapping    |
+| `PG_TYPE_NOT_MAPPED`              | No Kotlin class for PostgreSQL type |
+| `DYNAMIC_TYPE_NOT_FOUND`          | Unknown `dynamic_dto` type key      |
 
 ---
 

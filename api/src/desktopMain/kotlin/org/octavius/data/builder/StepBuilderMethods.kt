@@ -1,7 +1,6 @@
 package org.octavius.data.builder
 
 import org.octavius.data.transaction.TransactionStep
-import kotlin.reflect.KClass
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
 
@@ -18,21 +17,24 @@ interface StepBuilderMethods {
     /** Creates a TransactionStep with toSingle method */
     fun toSingle(params: Map<String, Any?> = emptyMap()): TransactionStep<Map<String, Any?>?>
 
+    /** Creates a TransactionStep with toSingleNotNull method */
+    fun toSingleNotNull(params: Map<String, Any?> = emptyMap()): TransactionStep<Map<String, Any?>>
+
     // --- Returning data class objects ---
 
     /** Creates a TransactionStep with toListOf method */
-    fun <T : Any> toListOf(kClass: KClass<T>, params: Map<String, Any?> = emptyMap()): TransactionStep<List<T>>
+    fun <T> toListOf(kType: KType, params: Map<String, Any?> = emptyMap()): TransactionStep<List<T>>
 
     /** Creates a TransactionStep with toSingleOf method */
-    fun <T : Any> toSingleOf(kClass: KClass<T>, params: Map<String, Any?> = emptyMap()): TransactionStep<T?>
+    fun <T> toSingleOf(kType: KType, params: Map<String, Any?> = emptyMap()): TransactionStep<T>
 
     // --- Returning scalar values ---
 
     /** Creates a TransactionStep with toField method */
-    fun <T : Any> toField(kType: KType, params: Map<String, Any?> = emptyMap()): TransactionStep<T?>
+    fun <T> toField(kType: KType, params: Map<String, Any?> = emptyMap()): TransactionStep<T>
 
     /** Creates a TransactionStep with toColumn method */
-    fun <T : Any> toColumn(kType: KType,  params: Map<String, Any?> = emptyMap()): TransactionStep<List<T?>>
+    fun <T> toColumn(kType: KType, params: Map<String, Any?> = emptyMap()): TransactionStep<List<T>>
 
     // --- Modification method ---
 
@@ -46,37 +48,40 @@ fun StepBuilderMethods.toList(vararg params: Pair<String, Any?>): TransactionSte
 fun StepBuilderMethods.toSingle(vararg params: Pair<String, Any?>): TransactionStep<Map<String, Any?>?> =
     toSingle(params.toMap())
 
-inline fun <reified T : Any> StepBuilderMethods.toField(
+fun StepBuilderMethods.toSingleNotNull(vararg params: Pair<String, Any?>): TransactionStep<Map<String, Any?>> =
+    toSingleNotNull(params.toMap())
+
+inline fun <reified T> StepBuilderMethods.toField(
     params: Map<String, Any?> = emptyMap()
-): TransactionStep<T?> = toField(typeOf<T>(), params)
+): TransactionStep<T> = toField(typeOf<T>(), params)
 
-inline fun <reified T : Any> StepBuilderMethods.toField(
+inline fun <reified T> StepBuilderMethods.toField(
     vararg params: Pair<String, Any?>
-): TransactionStep<T?> = toField(typeOf<T>(), params.toMap())
+): TransactionStep<T> = toField(typeOf<T>(), params.toMap())
 
-inline fun <reified T : Any> StepBuilderMethods.toColumn(
+inline fun <reified T> StepBuilderMethods.toColumn(
     params: Map<String, Any?> = emptyMap()
-): TransactionStep<List<T?>> = toColumn(typeOf<T>(), params)
+): TransactionStep<List<T>> = toColumn(typeOf<T>(), params)
 
-inline fun <reified T : Any> StepBuilderMethods.toColumn(
+inline fun <reified T> StepBuilderMethods.toColumn(
     vararg params: Pair<String, Any?>
-): TransactionStep<List<T?>> = toColumn(typeOf<T>(), params.toMap())
+): TransactionStep<List<T>> = toColumn(typeOf<T>(), params.toMap())
 
 fun StepBuilderMethods.execute(vararg params: Pair<String, Any?>): TransactionStep<Int> =
     execute(params.toMap())
 
 inline fun <reified T : Any> StepBuilderMethods.toListOf(vararg params: Pair<String, Any?>): TransactionStep<List<T>> =
-    toListOf(T::class, params.toMap())
+    toListOf(typeOf<T>(), params.toMap())
 
 /**
  * Convenient inline extension functions for StepBuilderMethods
  */
 inline fun <reified T : Any> StepBuilderMethods.toListOf(params: Map<String, Any?> = emptyMap()): TransactionStep<List<T>> =
-    toListOf(T::class, params)
+    toListOf(typeOf<T>(), params)
 
 
-inline fun <reified T : Any> StepBuilderMethods.toSingleOf(vararg params: Pair<String, Any?>): TransactionStep<T?> =
-    toSingleOf(T::class, params.toMap())
+inline fun <reified T> StepBuilderMethods.toSingleOf(vararg params: Pair<String, Any?>): TransactionStep<T> =
+    toSingleOf(typeOf<T>(), params.toMap())
 
-inline fun <reified T : Any> StepBuilderMethods.toSingleOf(params: Map<String, Any?> = emptyMap()): TransactionStep<T?> =
-    toSingleOf(T::class, params)
+inline fun <reified T> StepBuilderMethods.toSingleOf(params: Map<String, Any?> = emptyMap()): TransactionStep<T> =
+    toSingleOf(typeOf<T>(), params)

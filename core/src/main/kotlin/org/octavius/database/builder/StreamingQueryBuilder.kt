@@ -59,7 +59,7 @@ internal class StreamingQueryBuilder(
 
             // Step 2: Prepare ResultSetExtractor
             // Its only job is to iterate over results and invoke the action
-            val rse = ResultSetExtractor<Unit> { rs ->
+            val rse = ResultSetExtractor { rs ->
                 var rowNum = 0
                 while (rs.next()) {
                     val mappedItem = rowMapper.mapRow(rs, rowNum++)

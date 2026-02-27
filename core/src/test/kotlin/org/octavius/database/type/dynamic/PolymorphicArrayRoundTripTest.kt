@@ -144,7 +144,7 @@ class PolymorphicArrayRoundTripTest {
 
         // Krok 3: Dodatkowe, jawne asercje dla pełnej jasności
         Assertions.assertThat(retrievedEvents).hasSize(3)
-        Assertions.assertThat(retrievedEvents!![0]).isInstanceOf(DynamicProfile::class.java)
+        Assertions.assertThat(retrievedEvents[0]).isInstanceOf(DynamicProfile::class.java)
         Assertions.assertThat(retrievedEvents[1]).isInstanceOf(UserStats::class.java)
         Assertions.assertThat(retrievedEvents[2]).isInstanceOf(DynamicProfile::class.java)
         Assertions.assertThat((retrievedEvents[0] as DynamicProfile).role).isEqualTo("editor")

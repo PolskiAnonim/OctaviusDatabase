@@ -181,7 +181,7 @@ class TransactionPlanExecutorTest {
     fun `should fail if dependency references a non-existent column`() {
         val plan = TransactionPlan()
         val userHandle = plan.add(
-            dataAccess.insertInto("users").value("name").returning("id").asStep().toField(mapOf("name" to "Test"))
+            dataAccess.insertInto("users").value("name").returning("id").asStep().toField<Any?>(mapOf("name" to "Test"))
         )
         plan.add(
             dataAccess.insertInto("profiles").value("user_id").asStep().execute(mapOf("user_id" to userHandle.field<Any>("non_existent_column")))

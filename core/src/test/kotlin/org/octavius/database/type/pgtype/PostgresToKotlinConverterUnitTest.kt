@@ -190,6 +190,7 @@ class PostgresToKotlinConverterUnitTest {
     fun `should convert an array of deeply nested projects`() {
         // Obiekt expected dla tego testu byłby gigantyczny, więc dla czytelności
         // sprawdzimy tylko kilka kluczowych pól, ale nadal porównując całe obiekty.
+        @Suppress("UNCHECKED_CAST")
         val result = converter.convert(GOLDEN_STRING_PROJECT_ARRAY, "_test_project") as List<TestProject>
 
         assertThat(result).hasSize(2)

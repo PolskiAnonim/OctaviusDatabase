@@ -8,6 +8,8 @@ import org.octavius.data.builder.AsyncTerminalMethods
 import org.octavius.data.builder.QueryBuilder
 import org.octavius.data.builder.StepBuilderMethods
 import org.octavius.data.builder.StreamingTerminalMethods
+import org.octavius.data.exception.ConversionException
+import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.QueryExecutionException
 import org.octavius.database.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
@@ -125,34 +127,60 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
         return executeReturningQuery(params, rowMappers.ColumnNameMapper()) { DataResult.Success(it.firstOrNull()) }
     }
 
-    // --- Mapping to objects based on KClass ---
+    // --- Mapping to objects based on KType ---
 
-    /** Executes the query and maps results to a list of objects of the given class. */
-    fun <T : Any> toListOf(kClass: KClass<T>, params: Map<String, Any?>): DataResult<List<T>> {
-        return executeReturningQuery(params, rowMappers.DataObjectMapper(kClass)) { DataResult.Success(it) }
+    /** Executes the query and maps results to a list of objects of the given type. */
+    fun <T> toListOf(kType: KType, params: Map<String, Any?>): DataResult<List<T>> {
+        val kClass = kType.classifier as KClass<*>
+        @Suppress("UNCHECKED_CAST")
+        return executeReturningQuery(params, rowMappers.DataObjectMapper(kClass)) {
+            DataResult.Success(it as List<T>)
+        }
     }
 
-    /** Executes the query and maps the result to a single object of the given class. */
-    fun <T : Any> toSingleOf(kClass: KClass<T>, params: Map<String, Any?>): DataResult<T?> {
-        return executeReturningQuery(
-            params,
-            rowMappers.DataObjectMapper(kClass)
-        ) { DataResult.Success(it.firstOrNull()) }
+    /** Executes the query and maps the result to a single object of the given type. */
+    fun <T> toSingleOf(kType: KType, params: Map<String, Any?>): DataResult<T> {
+        val kClass = kType.classifier as KClass<*>
+        return executeReturningQuery(params, rowMappers.DataObjectMapper(kClass)) {
+            val result = it.firstOrNull()
+            if (result == null && !kType.isMarkedNullable) {
+                throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = kType.toString())
+            }
+            @Suppress("UNCHECKED_CAST")
+            DataResult.Success(result as T)
+        }
+    }
+
+    // --- Mapping to single row as Map ---
+
+    /** Executes the query and returns the first row, throwing if no rows and non-nullable expected. */
+    fun toSingleNotNull(params: Map<String, Any?>): DataResult<Map<String, Any?>> {
+        return executeReturningQuery(params, rowMappers.ColumnNameMapper()) {
+            val result = it.firstOrNull()
+                ?: throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = "Map<String, Any?>")
+            DataResult.Success(result)
+        }
     }
 
     // --- Mapping to single values (scalar) ---
 
     /** Executes the query and returns the value from the first column of the first row. */
-    fun <T: Any> toField(targetType: KType, params: Map<String, Any?>): DataResult<T?> {
-        return executeReturningQuery(params, rowMappers.SingleValueMapper<T>(targetType)) {
-            DataResult.Success(it.firstOrNull())
+    fun <T> toField(targetType: KType, params: Map<String, Any?>): DataResult<T> {
+        return executeReturningQuery(params, rowMappers.SingleValueMapper(targetType)) {
+            val result = it.firstOrNull()
+            if (result == null && !targetType.isMarkedNullable) {
+                throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = targetType.toString())
+            }
+            @Suppress("UNCHECKED_CAST")
+            DataResult.Success(result as T)
         }
     }
 
     /** Executes the query and returns a list of values from the first column of all rows. */
-    fun <T: Any> toColumn(targetType: KType, params: Map<String, Any?>): DataResult<List<T?>> {
-        return executeReturningQuery(params, rowMappers.SingleValueMapper<T>(targetType)) {
-            DataResult.Success(it)
+    fun <T> toColumn(targetType: KType, params: Map<String, Any?>): DataResult<List<T>> {
+        return executeReturningQuery(params, rowMappers.SingleValueMapper(targetType)) {
+            @Suppress("UNCHECKED_CAST")
+            DataResult.Success(it as List<T>)
         }
     }
 

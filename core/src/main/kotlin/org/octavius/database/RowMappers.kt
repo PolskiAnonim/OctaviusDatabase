@@ -2,6 +2,8 @@ package org.octavius.database
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.octavius.data.toDataObject
+import org.octavius.data.exception.ConversionException
+import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.validateValue
 import org.octavius.database.type.ResultSetValueExtractor
 import org.octavius.database.type.registry.TypeRegistry
@@ -45,11 +47,16 @@ internal class RowMappers(
      * Mapper mapping result from a single column to its value.
      * Used for queries like `SELECT COUNT(*)`, `SELECT id FROM ...` etc.
      */
-    fun <T : Any> SingleValueMapper(kType: KType): RowMapper<T?> = RowMapper { rs, _ ->
-        val value = valueExtractor.extract(rs, 1) ?: return@RowMapper null
+    fun SingleValueMapper(kType: KType): RowMapper<Any?> = RowMapper { rs, _ ->
+        val value = valueExtractor.extract(rs, 1)
+        if (value == null) {
+            if (!kType.isMarkedNullable) {
+                throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = kType.toString())
+            }
+            return@RowMapper null
+        }
 
-        @Suppress("UNCHECKED_CAST")
-        validateValue(value, kType) as T?
+        validateValue(value, kType)
     }
 
     /**

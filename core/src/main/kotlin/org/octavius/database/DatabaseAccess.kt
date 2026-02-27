@@ -4,7 +4,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.QueryOperations
-import org.octavius.data.assertNotNull
 import org.octavius.data.builder.*
 import org.octavius.data.exception.DatabaseException
 import org.octavius.data.exception.TransactionException
@@ -116,7 +115,7 @@ internal class DatabaseAccess(
     }
 
     override fun notify(channel: String, payload: String?): DataResult<Unit> {
-        return rawQuery("SELECT pg_notify(:channel, :payload)").toField<Unit>("channel" to channel, "payload" to payload).assertNotNull()
+        return rawQuery("SELECT pg_notify(:channel, :payload)").toField<Unit>("channel" to channel, "payload" to payload)
     }
 
     override fun createChannelListener(): PgChannelListener {

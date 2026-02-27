@@ -2,7 +2,6 @@ package org.octavius.database.builder
 
 import org.octavius.data.builder.StepBuilderMethods
 import org.octavius.data.transaction.TransactionStep
-import kotlin.reflect.KClass
 import kotlin.reflect.KType
 
 /**
@@ -29,26 +28,35 @@ internal class StepBuilder(private val builder: AbstractQueryBuilder<*>) : StepB
         )
     }
 
-    /** Creates TransactionStep with toListOf method */
-    override fun <T : Any> toListOf(kClass: KClass<T>, params: Map<String, Any?>): TransactionStep<List<T>> {
+    /** Creates TransactionStep with toSingleNotNull method */
+    override fun toSingleNotNull(params: Map<String, Any?>): TransactionStep<Map<String, Any?>> {
         return TransactionStep(
             builder = this.builder,
-            executionLogic = { b, p -> (b as AbstractQueryBuilder<*>).toListOf(kClass, p) },
+            executionLogic = { b, p -> (b as AbstractQueryBuilder<*>).toSingleNotNull(p) },
+            params = params
+        )
+    }
+
+    /** Creates TransactionStep with toListOf method */
+    override fun <T> toListOf(kType: KType, params: Map<String, Any?>): TransactionStep<List<T>> {
+        return TransactionStep(
+            builder = this.builder,
+            executionLogic = { b, p -> (b as AbstractQueryBuilder<*>).toListOf(kType, p) },
             params = params
         )
     }
 
     /** Creates TransactionStep with toSingleOf method */
-    override fun <T : Any> toSingleOf(kClass: KClass<T>, params: Map<String, Any?>): TransactionStep<T?> {
+    override fun <T> toSingleOf(kType: KType, params: Map<String, Any?>): TransactionStep<T> {
         return TransactionStep(
             builder = this.builder,
-            executionLogic = { b, p -> (b as AbstractQueryBuilder<*>).toSingleOf(kClass, p) },
+            executionLogic = { b, p -> (b as AbstractQueryBuilder<*>).toSingleOf(kType, p) },
             params = params
         )
     }
 
     /** Creates TransactionStep with toField method */
-    override fun <T : Any> toField(kType: KType, params: Map<String, Any?>): TransactionStep<T?> {
+    override fun <T> toField(kType: KType, params: Map<String, Any?>): TransactionStep<T> {
         return TransactionStep(
             builder = this.builder,
             executionLogic = { b, p -> (b as AbstractQueryBuilder<*>).toField(kType, p) },
@@ -57,7 +65,7 @@ internal class StepBuilder(private val builder: AbstractQueryBuilder<*>) : StepB
     }
 
     /** Creates TransactionStep with toColumn method */
-    override fun <T : Any> toColumn(kType: KType, params: Map<String, Any?>): TransactionStep<List<T?>> {
+    override fun <T> toColumn(kType: KType, params: Map<String, Any?>): TransactionStep<List<T>> {
         return TransactionStep(
             builder = this.builder,
             executionLogic = { b, p -> (b as AbstractQueryBuilder<*>).toColumn(kType, p) },

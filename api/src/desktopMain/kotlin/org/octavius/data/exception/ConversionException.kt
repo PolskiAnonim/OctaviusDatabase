@@ -21,7 +21,7 @@ enum class ConversionExceptionMessage {
     /** Object to JSON serialization error for dynamic_dto */
     JSON_SERIALIZATION_FAILED,
     /** When a non-null value was expected but null was received */
-    NON_NULL_ASSERTION_FAILED
+    UNEXPECTED_NULL_VALUE
 }
 
 private fun generateDeveloperMessage(
@@ -47,8 +47,8 @@ private fun generateDeveloperMessage(
 
         ConversionExceptionMessage.JSON_SERIALIZATION_FAILED -> "Failed to serialize object of class '$targetType' to JSON format. " +
                 "Ensure that the class and all its nested types have the @Serializable annotation."
-        ConversionExceptionMessage.NON_NULL_ASSERTION_FAILED ->
-            "A non-null value was expected, but null was received. This typically happens when using .assertNotNull() on a query result that was null."
+        ConversionExceptionMessage.UNEXPECTED_NULL_VALUE ->
+            "Query returned null but target type '$targetType' is non-nullable. Use a nullable type (e.g. toField<Int?>()) if null values are expected."
     }
 }
 

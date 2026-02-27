@@ -3,7 +3,6 @@ package org.octavius.database.builder
 import kotlinx.coroutines.*
 import org.octavius.data.DataResult
 import org.octavius.data.builder.AsyncTerminalMethods
-import kotlin.reflect.KClass
 import kotlin.reflect.KType
 
 /**
@@ -44,34 +43,41 @@ internal class AsyncQueryBuilder(
         executeAndInvoke({ builder.toSingle(params) }, onResult)
     }
 
-    override fun <T : Any> toListOf(
-        kClass: KClass<T>,
+    override fun toSingleNotNull(
+        params: Map<String, Any?>,
+        onResult: (DataResult<Map<String, Any?>>) -> Unit
+    ): Job = scope.launch {
+        executeAndInvoke({ builder.toSingleNotNull(params) }, onResult)
+    }
+
+    override fun <T> toListOf(
+        kType: KType,
         params: Map<String, Any?>,
         onResult: (DataResult<List<T>>) -> Unit
     ): Job = scope.launch {
-        executeAndInvoke({ builder.toListOf(kClass, params) }, onResult)
+        executeAndInvoke({ builder.toListOf(kType, params) }, onResult)
     }
 
-    override fun <T : Any> toSingleOf(
-        kClass: KClass<T>,
-        params: Map<String, Any?>,
-        onResult: (DataResult<T?>) -> Unit
-    ): Job = scope.launch {
-        executeAndInvoke({ builder.toSingleOf(kClass, params) }, onResult)
-    }
-
-    override fun <T : Any> toField(
+    override fun <T> toSingleOf(
         kType: KType,
         params: Map<String, Any?>,
-        onResult: (DataResult<T?>) -> Unit
+        onResult: (DataResult<T>) -> Unit
+    ): Job = scope.launch {
+        executeAndInvoke({ builder.toSingleOf(kType, params) }, onResult)
+    }
+
+    override fun <T> toField(
+        kType: KType,
+        params: Map<String, Any?>,
+        onResult: (DataResult<T>) -> Unit
     ): Job = scope.launch {
         executeAndInvoke({ builder.toField(kType, params) }, onResult)
     }
 
-    override fun <T : Any> toColumn(
+    override fun <T> toColumn(
         kType: KType,
         params: Map<String, Any?>,
-        onResult: (DataResult<List<T?>>) -> Unit
+        onResult: (DataResult<List<T>>) -> Unit
     ): Job = scope.launch {
         executeAndInvoke({ builder.toColumn(kType, params) }, onResult)
     }
