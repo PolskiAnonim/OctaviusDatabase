@@ -23,6 +23,7 @@ import kotlin.system.measureNanoTime
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
+@Disabled
 class ConverterPerformanceBenchmark {
 
     // --- Konfiguracja Benchmarku ---

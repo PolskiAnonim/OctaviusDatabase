@@ -4,6 +4,7 @@ package org.octavius.performance
 import com.zaxxer.hikari.HikariDataSource
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.octavius.database.RowMappers
@@ -28,6 +29,7 @@ import kotlin.system.measureTimeMillis
  * 3. Optimized Framework (Fast Path) - nowa, zoptymalizowana wersja z "szybką ścieżką".
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Disabled
 class SimpleTypeOverheadBenchmark {
 
     // --- Konfiguracja ---

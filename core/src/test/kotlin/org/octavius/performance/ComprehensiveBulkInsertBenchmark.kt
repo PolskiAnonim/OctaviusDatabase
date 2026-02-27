@@ -19,6 +19,7 @@ data class PerformanceTestData(val val1: Int, val val2: String)
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
+@Disabled
 class ComprehensiveBulkInsertBenchmark {
 
     // --- Konfiguracja Benchmarku ---
