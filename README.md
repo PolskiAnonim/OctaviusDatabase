@@ -162,25 +162,26 @@ Automatic conversion between PostgreSQL and Kotlin types.
 
 ### Standard Types
 
-| PostgreSQL                | Kotlin          | Notes                           |
-|---------------------------|-----------------|---------------------------------|
-| `int2`, `smallserial`     | `Short`         |                                 |
-| `int4`, `serial`          | `Int`           |                                 |
-| `int8`, `bigserial`       | `Long`          |                                 |
-| `float4`                  | `Float`         |                                 |
-| `float8`                  | `Double`        |                                 |
-| `numeric`                 | `BigDecimal`    |                                 |
-| `text`, `varchar`, `char` | `String`        |                                 |
-| `bool`                    | `Boolean`       |                                 |
-| `uuid`                    | `UUID`          | `java.util.UUID`                |
-| `bytea`                   | `ByteArray`     |                                 |
-| `json`, `jsonb`           | `JsonElement`   | `kotlinx.serialization.json`    |
-| `date`                    | `LocalDate`     | `kotlinx.datetime` <sup>*</sup> |
-| `time`                    | `LocalTime`     | `kotlinx.datetime`              |
-| `timetz`                  | `OffsetTime`    | `java.time`                     |
-| `timestamp`               | `LocalDateTime` | `kotlinx.datetime` <sup>*</sup> |
-| `timestamptz`             | `Instant`       | `kotlin.time` <sup>*</sup>      |
-| `interval`                | `Duration`      | `kotlin.time` <sup>*</sup>      |
+| PostgreSQL                | Kotlin          | Notes                                            |
+|---------------------------|-----------------|--------------------------------------------------|
+| `int2`, `smallserial`     | `Short`         |                                                  |
+| `int4`, `serial`          | `Int`           |                                                  |
+| `int8`, `bigserial`       | `Long`          |                                                  |
+| `float4`                  | `Float`         |                                                  |
+| `float8`                  | `Double`        |                                                  |
+| `numeric`                 | `BigDecimal`    |                                                  |
+| `text`, `varchar`, `char` | `String`        |                                                  |
+| `bool`                    | `Boolean`       |                                                  |
+| `uuid`                    | `UUID`          | `java.util.UUID`                                 |
+| `bytea`                   | `ByteArray`     |                                                  |
+| `json`, `jsonb`           | `JsonElement`   | `kotlinx.serialization.json`                     |
+| `void`                    | `Unit`          | Return type of void functions (e.g. `pg_notify`) |
+| `date`                    | `LocalDate`     | `kotlinx.datetime` <sup>*</sup>                  |
+| `time`                    | `LocalTime`     | `kotlinx.datetime`                               |
+| `timetz`                  | `OffsetTime`    | `java.time`                                      |
+| `timestamp`               | `LocalDateTime` | `kotlinx.datetime` <sup>*</sup>                  |
+| `timestamptz`             | `Instant`       | `kotlin.time` <sup>*</sup>                       |
+| `interval`                | `Duration`      | `kotlin.time` <sup>*</sup>                       |
 
 <sup>*</sup> Supports PostgreSQL infinity values (`infinity`, `-infinity`). See [Type System](docs/type-system.md#infinity-values-for-datetime-types) for details.
 
@@ -246,7 +247,7 @@ val notes: List<Any> = listOf(
 )
 
 dataAccess.insertInto("notebooks")
-    .values(listOf("notes"))
+    .value("notes")
     .execute("notes" to notes)
 
 // Read back — each element deserialized to its correct type
