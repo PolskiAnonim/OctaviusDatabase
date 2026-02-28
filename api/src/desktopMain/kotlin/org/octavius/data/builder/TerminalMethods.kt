@@ -15,7 +15,7 @@ interface TerminalReturningMethods {
     fun toSingle(params: Map<String, Any?> = emptyMap()): DataResult<Map<String, Any?>?>
 
     /** Fetches a single row as Map<String, Any?>. Returns Failure if no rows. */
-    fun toSingleNotNull(params: Map<String, Any?> = emptyMap()): DataResult<Map<String, Any?>>
+    fun toSingleStrict(params: Map<String, Any?> = emptyMap()): DataResult<Map<String, Any?>>
 
     // --- Returning data class objects ---
 
@@ -71,8 +71,8 @@ fun TerminalReturningMethods.toList(vararg params: Pair<String, Any?>): DataResu
 fun TerminalReturningMethods.toSingle(vararg params: Pair<String, Any?>): DataResult<Map<String, Any?>?> =
     toSingle(params.toMap())
 
-fun TerminalReturningMethods.toSingleNotNull(vararg params: Pair<String, Any?>): DataResult<Map<String, Any?>> =
-    toSingleNotNull(params.toMap())
+fun TerminalReturningMethods.toSingleStrict(vararg params: Pair<String, Any?>): DataResult<Map<String, Any?>> =
+    toSingleStrict(params.toMap())
 
 inline fun <reified T> TerminalReturningMethods.toField(
     params: Map<String, Any?> = emptyMap()

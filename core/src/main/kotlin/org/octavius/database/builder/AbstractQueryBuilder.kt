@@ -124,7 +124,21 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
 
     /** Executes the query and returns a single row as `Map<String, Any?>?`. */
     fun toSingle(params: Map<String, Any?>): DataResult<Map<String, Any?>?> {
-        return executeReturningQuery(params, rowMappers.ColumnNameMapper()) { DataResult.Success(it.firstOrNull()) }
+        return executeReturningQuery(params, rowMappers.ColumnNameMapper()) {
+            assertSingleRow(it, "Map<String, Any?>?")
+            DataResult.Success(it.firstOrNull())
+        }
+    }
+
+    /** Executes the query and returns the first row. Always fails on empty result. */
+    fun toSingleStrict(params: Map<String, Any?>): DataResult<Map<String, Any?>> {
+        return executeReturningQuery(params, rowMappers.ColumnNameMapper()) {
+            if (it.isEmpty()) {
+                throw ConversionException(ConversionExceptionMessage.EMPTY_RESULT, targetType = "Map<String, Any?>")
+            }
+            assertSingleRow(it, "Map<String, Any?>")
+            DataResult.Success(it.first())
+        }
     }
 
     // --- Mapping to objects based on KType ---
@@ -142,6 +156,7 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
     fun <T> toSingleOf(kType: KType, params: Map<String, Any?>): DataResult<T> {
         val kClass = kType.classifier as KClass<*>
         return executeReturningQuery(params, rowMappers.DataObjectMapper(kClass)) {
+            assertSingleRow(it, kType.toString())
             val result = it.firstOrNull()
             if (result == null && !kType.isMarkedNullable) {
                 throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = kType.toString())
@@ -151,22 +166,12 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
         }
     }
 
-    // --- Mapping to single row as Map ---
-
-    /** Executes the query and returns the first row, throwing if no rows and non-nullable expected. */
-    fun toSingleNotNull(params: Map<String, Any?>): DataResult<Map<String, Any?>> {
-        return executeReturningQuery(params, rowMappers.ColumnNameMapper()) {
-            val result = it.firstOrNull()
-                ?: throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = "Map<String, Any?>")
-            DataResult.Success(result)
-        }
-    }
-
     // --- Mapping to single values (scalar) ---
 
     /** Executes the query and returns the value from the first column of the first row. */
     fun <T> toField(targetType: KType, params: Map<String, Any?>): DataResult<T> {
         return executeReturningQuery(params, rowMappers.SingleValueMapper(targetType)) {
+            assertSingleRow(it, targetType.toString())
             val result = it.firstOrNull()
             if (result == null && !targetType.isMarkedNullable) {
                 throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = targetType.toString())
@@ -182,6 +187,7 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
             if (it.isEmpty()) {
                 throw ConversionException(ConversionExceptionMessage.EMPTY_RESULT, targetType = targetType.toString())
             }
+            assertSingleRow(it, targetType.toString())
             val result = it.first()
             if (result == null && !targetType.isMarkedNullable) {
                 throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = targetType.toString())
@@ -225,6 +231,20 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
     //------------------------------------------------------------------------------------------------------------------
     //                                          QUERY EXECUTION
     //------------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Throws [ConversionException] if the result list contains more than one row.
+     * Used by single-row terminal methods to enforce at-most-one-row semantics.
+     */
+    private fun assertSingleRow(results: List<*>, targetType: String) {
+        if (results.size > 1) {
+            throw ConversionException(
+                ConversionExceptionMessage.TOO_MANY_ROWS,
+                value = results.size,
+                targetType = targetType
+            )
+        }
+    }
 
     /**
      * Private helper method for executing queries that return rows.

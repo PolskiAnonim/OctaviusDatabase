@@ -23,7 +23,9 @@ enum class ConversionExceptionMessage {
     /** When a non-null value was expected but null was received */
     UNEXPECTED_NULL_VALUE,
     /** When a query returned no rows but at least one was expected */
-    EMPTY_RESULT
+    EMPTY_RESULT,
+    /** When a single-row method received more than one row */
+    TOO_MANY_ROWS
 }
 
 private fun generateDeveloperMessage(
@@ -53,6 +55,8 @@ private fun generateDeveloperMessage(
             "Query returned null but target type '$targetType' is non-nullable. Use a nullable type (e.g. toField<Int?>()) if null values are expected."
         ConversionExceptionMessage.EMPTY_RESULT ->
             "Query returned no rows but a result of type '$targetType' was expected. Use toField() instead of toFieldStrict() if empty results should return Success(null)."
+        ConversionExceptionMessage.TOO_MANY_ROWS ->
+            "Query returned multiple rows but only a single row was expected (target type: '$targetType'). Use toList() or toColumn() for multi-row results, or add LIMIT 1 to your query."
     }
 }
 

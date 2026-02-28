@@ -37,7 +37,7 @@ internal class DatabaseCallQueryBuilder(
         return if (!plan.hasOutParams) {
             rawQuery.execute(plan.params).map { emptyMap() }
         } else {
-            rawQuery.toSingleNotNull(plan.params)
+            rawQuery.toSingleStrict(plan.params)
         }
     }
 

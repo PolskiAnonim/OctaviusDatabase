@@ -25,7 +25,7 @@ interface AsyncTerminalMethods {
     ): Job
 
     /** Asynchronously fetches a single row (non-nullable) and passes the result to the onResult callback. */
-    fun toSingleNotNull(
+    fun toSingleStrict(
         params: Map<String, Any?> = emptyMap(),
         onResult: (DataResult<Map<String, Any?>>) -> Unit
     ): Job
@@ -88,10 +88,10 @@ fun AsyncTerminalMethods.toSingle(
     onResult: (DataResult<Map<String, Any?>?>) -> Unit
 ): Job = toSingle(params.toMap(), onResult)
 
-fun AsyncTerminalMethods.toSingleNotNull(
+fun AsyncTerminalMethods.toSingleStrict(
     vararg params: Pair<String, Any?>,
     onResult: (DataResult<Map<String, Any?>>) -> Unit
-): Job = toSingleNotNull(params.toMap(), onResult)
+): Job = toSingleStrict(params.toMap(), onResult)
 
 // Inline extensions
 inline fun <reified T : Any> AsyncTerminalMethods.toListOf(
