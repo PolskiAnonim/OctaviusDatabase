@@ -238,6 +238,8 @@ Thrown when converting between PostgreSQL and Kotlin types fails.
 | `JSON_DESERIALIZATION_FAILED`          | JSON parsing error in dynamic_dto        |
 | `JSON_SERIALIZATION_FAILED`            | Object to JSON conversion error          |
 | `UNEXPECTED_NULL_VALUE`                | Null value for non-nullable target type  |
+| `EMPTY_RESULT`                         | No rows when at least one was expected   |
+| `TOO_MANY_ROWS`                        | Multiple rows from a single-row method   |
 
 ### Where It Appears
 

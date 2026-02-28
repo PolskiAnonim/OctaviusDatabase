@@ -18,17 +18,17 @@ All query builders share common terminal methods that execute the query and retu
 
 ### Returning Methods (`TerminalReturningMethods`)
 
-| Method                    | Returns                               | Description                           |
-|---------------------------|---------------------------------------|---------------------------------------|
-| `toList(params)`          | `DataResult<List<Map<String, Any?>>>` | All rows as list of maps              |
-| `toSingle(params)`        | `DataResult<Map<String, Any?>?>`      | First row as map (or null)            |
-| `toSingleNotNull(params)` | `DataResult<Map<String, Any?>>`       | First row as map (Failure if no rows) |
-| `toListOf<T>(params)`     | `DataResult<List<T>>`                 | All rows mapped to data class         |
-| `toSingleOf<T>(params)`   | `DataResult<T>`                       | First row mapped to data class        |
-| `toField<T>(params)`      | `DataResult<T>`                       | Single value from first column/row    |
-| `toFieldStrict<T>(params)`| `DataResult<T>`                       | Single value, always Failure if no rows |
-| `toColumn<T>(params)`     | `DataResult<List<T>>`                 | All values from first column          |
-| `toSql()`                 | `String`                              | Generated SQL (no execution)          |
+| Method                     | Returns                               | Description                             |
+|----------------------------|---------------------------------------|-----------------------------------------|
+| `toList(params)`           | `DataResult<List<Map<String, Any?>>>` | All rows as list of maps                |
+| `toSingle(params)`         | `DataResult<Map<String, Any?>?>`      | Single row as map (or null)             |
+| `toSingleStrict(params)`   | `DataResult<Map<String, Any?>>`       | Single row as map (Failure if no rows)  |
+| `toListOf<T>(params)`      | `DataResult<List<T>>`                 | All rows mapped to data class           |
+| `toSingleOf<T>(params)`    | `DataResult<T>`                       | Single row mapped to data class         |
+| `toField<T>(params)`       | `DataResult<T>`                       | Single value from first column/row      |
+| `toFieldStrict<T>(params)` | `DataResult<T>`                       | Single value, always Failure if no rows |
+| `toColumn<T>(params)`      | `DataResult<List<T>>`                 | All values from first column            |
+| `toSql()`                  | `String`                              | Generated SQL (no execution)            |
 
 Nullability is controlled by the type parameter `T`. Use nullable types when null results are expected:
 
@@ -43,6 +43,8 @@ val id: DataResult<Int?> = query.toField<Int?>()
 val id: DataResult<Int> = query.toFieldStrict<Int>()      // Failure if no rows OR null value
 val id: DataResult<Int?> = query.toFieldStrict<Int?>()     // Failure if no rows, Success(null) if null value
 ```
+
+> **Single-row guard**: All single-row methods (`toSingle`, `toSingleStrict`, `toSingleOf`, `toField`, `toFieldStrict`) return `Failure(TOO_MANY_ROWS)` if the query returns more than one row. Use `toList`/`toColumn` for multi-row results, or add `LIMIT 1` to your query.
 
 ### Modification Methods (`TerminalModificationMethods`)
 
@@ -148,31 +150,33 @@ val user: User = dataAccess.select("*")
     .toSingleOf<User>("id" to userId)
     .getOrThrow()  // Guaranteed non-null
 
-// For untyped map results, use toSingleNotNull
+// For untyped map results, use toSingleStrict
 val row: DataResult<Map<String, Any?>> = dataAccess.select("*")
     .from("users")
     .where("id = :id")
-    .toSingleNotNull("id" to userId)  // Failure if no rows
+    .toSingleStrict("id" to userId)  // Failure if no rows
 ```
 
-Behavior for `toField<T>()`, `toSingleOf<T>()`:
-- Non-null `T` + result is null → `Failure(QueryExecutionException)` with `ConversionException(UNEXPECTED_NULL_VALUE)` as cause
-- Nullable `T?` + result is null → `Success(null)`
-- Non-null result → `Success(value)` in both cases
+### Terminal Method Behavior Matrix
 
-Behavior for `toFieldStrict<T>()`:
-- 0 rows → always `Failure(QueryExecutionException)` with `ConversionException(EMPTY_RESULT)` as cause, regardless of nullability
-- Non-null `T` + null value → `Failure(QueryExecutionException)` with `ConversionException(UNEXPECTED_NULL_VALUE)` as cause
-- Nullable `T?` + null value → `Success(null)`
-- Non-null result → `Success(value)` in both cases
+All failures are `DataResult.Failure(QueryExecutionException)` with `ConversionException` as cause.
 
-For `toColumn<T>()`, the element type determines nullability:
-- `toColumn<Int>()` — fails if any row has a null value
-- `toColumn<Int?>()` — allows null elements in the list
+| Method               | 0 rows                                                  | 1 row (non-null value) | 1 row (null value, non-null `T`) | 1 row (null value, nullable `T?`) | >1 rows          |
+|----------------------|---------------------------------------------------------|------------------------|----------------------------------|-----------------------------------|------------------|
+| `toField<T>()`       | `EMPTY_RESULT` if `T`, `Success(null)` if `T?`          | `Success(value)`       | `UNEXPECTED_NULL_VALUE`          | `Success(null)`                   | `TOO_MANY_ROWS`  |
+| `toFieldStrict<T>()` | always `EMPTY_RESULT`                                   | `Success(value)`       | `UNEXPECTED_NULL_VALUE`          | `Success(null)`                   | `TOO_MANY_ROWS`  |
+| `toSingleOf<T>()`    | `EMPTY_RESULT` if `T`, `Success(null)` if `T?`          | `Success(obj)`         | —                                | —                                 | `TOO_MANY_ROWS`  |
+| `toSingle()`         | `Success(null)`                                         | `Success(map)`         | —                                | —                                 | `TOO_MANY_ROWS`  |
+| `toSingleStrict()`   | `EMPTY_RESULT`                                          | `Success(map)`         | —                                | —                                 | `TOO_MANY_ROWS`  |
+| `toColumn<T>()`      | `Success([])`                                           | `Success([value])`     | `UNEXPECTED_NULL_VALUE` if `T`   | `Success([null])` if `T?`         | `Success([...])` |
+| `toListOf<T>()`      | `Success([])`                                           | `Success([obj])`       | —                                | —                                 | `Success([...])` |
+| `toList()`           | `Success([])`                                           | `Success([map])`       | —                                | —                                 | `Success([...])` |
 
-For `toSingle()` vs `toSingleNotNull()`:
-- `toSingle()` — 0 rows → `Success(null)`
-- `toSingleNotNull()` — 0 rows → `Failure(QueryExecutionException)` with `ConversionException(UNEXPECTED_NULL_VALUE)` as cause
+Key patterns:
+- **Regular** (`toField`, `toSingleOf`, `toSingle`) — empty result follows nullability of `T`
+- **Strict** (`toFieldStrict`, `toSingleStrict`) — empty result is always `Failure`, regardless of `T`
+- **Multi-row** (`toList`, `toListOf`, `toColumn`) — empty result is always `Success(emptyList())`
+- **Single-row guard** — all single-row methods fail with `TOO_MANY_ROWS` if query returns >1 row
 
 ### In Transactions
 
@@ -328,7 +332,7 @@ All terminal methods have async counterparts accepting callbacks:
 interface AsyncTerminalMethods {
     fun toList(params, onResult: (DataResult<List<Map<String, Any?>>>) -> Unit): Job
     fun toSingle(params, onResult: (DataResult<Map<String, Any?>?>) -> Unit): Job
-    fun toSingleNotNull(params, onResult: (DataResult<Map<String, Any?>>) -> Unit): Job
+    fun toSingleStrict(params, onResult: (DataResult<Map<String, Any?>>) -> Unit): Job
     fun <T> toListOf(kType, params, onResult: (DataResult<List<T>>) -> Unit): Job
     fun <T> toSingleOf(kType, params, onResult: (DataResult<T>) -> Unit): Job
     fun <T> toField(kType, params, onResult: (DataResult<T>) -> Unit): Job
