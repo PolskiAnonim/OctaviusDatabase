@@ -161,16 +161,18 @@ val row: DataResult<Map<String, Any?>> = dataAccess.select("*")
 
 All failures are `DataResult.Failure(QueryExecutionException)` with `ConversionException` as cause.
 
-| Method               | 0 rows                                                  | 1 row (non-null value) | 1 row (null value, non-null `T`) | 1 row (null value, nullable `T?`) | >1 rows          |
-|----------------------|---------------------------------------------------------|------------------------|----------------------------------|-----------------------------------|------------------|
-| `toField<T>()`       | `EMPTY_RESULT` if `T`, `Success(null)` if `T?`          | `Success(value)`       | `UNEXPECTED_NULL_VALUE`          | `Success(null)`                   | `TOO_MANY_ROWS`  |
-| `toFieldStrict<T>()` | always `EMPTY_RESULT`                                   | `Success(value)`       | `UNEXPECTED_NULL_VALUE`          | `Success(null)`                   | `TOO_MANY_ROWS`  |
-| `toSingleOf<T>()`    | `EMPTY_RESULT` if `T`, `Success(null)` if `T?`          | `Success(obj)`         | —                                | —                                 | `TOO_MANY_ROWS`  |
-| `toSingle()`         | `Success(null)`                                         | `Success(map)`         | —                                | —                                 | `TOO_MANY_ROWS`  |
-| `toSingleStrict()`   | `EMPTY_RESULT`                                          | `Success(map)`         | —                                | —                                 | `TOO_MANY_ROWS`  |
-| `toColumn<T>()`      | `Success([])`                                           | `Success([value])`     | `UNEXPECTED_NULL_VALUE` if `T`   | `Success([null])` if `T?`         | `Success([...])` |
-| `toListOf<T>()`      | `Success([])`                                           | `Success([obj])`       | —                                | —                                 | `Success([...])` |
-| `toList()`           | `Success([])`                                           | `Success([map])`       | —                                | —                                 | `Success([...])` |
+| Method               | 0 rows                                       | non-null value   | null value, non-null `T` | null value, nullable `T?` | >1 rows          |
+|----------------------|----------------------------------------------|------------------|--------------------------|---------------------------|------------------|
+| `toField<T>()`       | `T` → `EMPTY_RESULT`, `T?` → `Success(null)` | `Success(value)` | `UNEXPECTED_NULL_VALUE`  | `Success(null)`           | `TOO_MANY_ROWS`  |
+| `toFieldStrict<T>()` | always `EMPTY_RESULT`                        | `Success(value)` | `UNEXPECTED_NULL_VALUE`  | `Success(null)`           | `TOO_MANY_ROWS`  |
+| `toSingleOf<T>()`    | `T` → `EMPTY_RESULT`, `T?` → `Success(null)` | `Success(obj)`   | —                        | —                         | `TOO_MANY_ROWS`  |
+| `toSingle()`         | `Success(null)`                              | `Success(map)`   | —                        | —                         | `TOO_MANY_ROWS`  |
+| `toSingleStrict()`   | `EMPTY_RESULT`                               | `Success(map)`   | —                        | —                         | `TOO_MANY_ROWS`  |
+| `toColumn<T>()`      | `Success([])`                                | `Success([...])` | `UNEXPECTED_NULL_VALUE`* | `Success([..., null])`    | `Success([...])` |
+| `toListOf<T>()`      | `Success([])`                                | `Success([...])` | —                        | —                         | `Success([...])` |
+| `toList()`           | `Success([])`                                | `Success([...])` | —                        | —                         | `Success([...])` |
+
+*`toColumn<T>()` checks **every** element — a single null in any row fails the entire call with `UNEXPECTED_NULL_VALUE`.
 
 Key patterns:
 - **Regular** (`toField`, `toSingleOf`, `toSingle`) — empty result follows nullability of `T`
