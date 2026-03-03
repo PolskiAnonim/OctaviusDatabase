@@ -6,7 +6,9 @@ import kotlinx.serialization.json.JsonElement
 import org.octavius.data.type.DISTANT_FUTURE
 import org.octavius.data.type.DISTANT_PAST
 import org.octavius.data.type.PgStandardType
+import org.octavius.data.util.clean
 import org.postgresql.util.PGInterval
+import org.postgresql.util.PGobject
 import java.math.BigDecimal
 import java.sql.ResultSet
 import java.time.OffsetTime
@@ -15,24 +17,33 @@ import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
 import java.util.*
 import kotlin.reflect.KClass
-import kotlin.time.*
+import kotlin.time.Duration
+import kotlin.time.DurationUnit
+import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
+import kotlin.time.toDuration
+import kotlin.time.toJavaInstant
+import kotlin.time.toKotlinInstant
 import java.time.LocalDate as JLocalDate
 import java.time.LocalDateTime as JLocalDateTime
 import java.time.LocalTime as JLocalTime
 import java.time.OffsetDateTime as JOffsetDateTime
 
 internal data class StandardTypeHandler(
+    val pgTypeName: String,
     val kotlinClass: KClass<*>,
     val fromResultSet: ((ResultSet, Int) -> Any?)?,
-    val fromString: (String) -> Any
+    val fromString: (String) -> Any,
+    val toJdbc: (Any) -> Any,
+    val toPgString: (Any) -> String
 )
 
 /**
  * Central registry and single source of truth for mappings of standard PostgreSQL types to Kotlin types.
  *
- * Replaces scattered `when` blocks in `PostgresToKotlinConverter` and `ResultSetValueExtractor`,
- * ensuring consistency and ease of extension.
+ * Provides bidirectional conversion logic for:
+ * - **Reading**: Result Set -> Kotlin, String (Literal) -> Kotlin
+ * - **Writing**: Kotlin -> JDBC Parameter, Kotlin -> String (Text Protocol/Literal)
  */
 @OptIn(ExperimentalTime::class)
 internal object StandardTypeMappingRegistry {
@@ -49,6 +60,8 @@ internal object StandardTypeMappingRegistry {
         .toFormatter()
 
     private val mappings: Map<String, StandardTypeHandler> = buildMappings()
+    private val kotlinClassToHandler: Map<KClass<*>, StandardTypeHandler> = mappings.values
+        .associateBy { it.kotlinClass }
 
     private fun buildMappings(): Map<String, StandardTypeHandler> {
         val map = mutableMapOf<String, StandardTypeHandler>()
@@ -56,231 +69,320 @@ internal object StandardTypeMappingRegistry {
         PgStandardType.entries.forEach { pgType ->
             if (pgType.isArray) return@forEach
             val handler = when (pgType) {
-                // Integer numeric types
-                PgStandardType.INT2, PgStandardType.SMALLSERIAL -> primitive(Short::class, ResultSet::getShort, String::toShort)
-                PgStandardType.INT4, PgStandardType.SERIAL -> primitive(Int::class, ResultSet::getInt, String::toInt)
-                PgStandardType.INT8, PgStandardType.BIGSERIAL -> primitive(Long::class, ResultSet::getLong, String::toLong)
-                // Floating-point types
-                PgStandardType.FLOAT4 -> primitive(Float::class, ResultSet::getFloat, String::toFloat)
-                PgStandardType.FLOAT8 -> primitive(Double::class, ResultSet::getDouble, String::toDouble)
+                // Integer types
+                PgStandardType.INT2, PgStandardType.SMALLSERIAL -> primitive(
+                    pgType.typeName,
+                    Short::class,
+                    ResultSet::getShort,
+                    parser = String::toShort
+                )
 
-                PgStandardType.NUMERIC -> standard(BigDecimal::class, ResultSet::getBigDecimal, String::toBigDecimal)
-                // Text types
-                PgStandardType.TEXT, PgStandardType.VARCHAR, PgStandardType.CHAR -> fromStringOnly(String::class) { it }
-                // Date and time
+                PgStandardType.INT4, PgStandardType.SERIAL -> primitive(
+                    pgType.typeName,
+                    Int::class,
+                    ResultSet::getInt,
+                    parser = String::toInt
+                )
+
+                PgStandardType.INT8, PgStandardType.BIGSERIAL -> primitive(
+                    pgType.typeName,
+                    Long::class,
+                    ResultSet::getLong,
+                    parser = String::toLong
+                )
+
+                // Floating-point types
+                PgStandardType.FLOAT4 -> primitive(
+                    pgType.typeName,
+                    Float::class,
+                    ResultSet::getFloat,
+                    parser = String::toFloat
+                )
+
+                PgStandardType.FLOAT8 -> primitive(
+                    pgType.typeName,
+                    Double::class,
+                    ResultSet::getDouble,
+                    parser = String::toDouble
+                )
+
+                PgStandardType.NUMERIC -> standard(
+                    pgType.typeName,
+                    BigDecimal::class,
+                    ResultSet::getBigDecimal,
+                    parser = String::toBigDecimal
+                )
+
+                // Text types (with automatic cleaning)
+                PgStandardType.TEXT, PgStandardType.VARCHAR, PgStandardType.BPHAR -> fromStringOnly(
+                    pgType.typeName,
+                    String::class,
+                    toPgString = { (it as String).clean() }) { it }
+
+                // Date and time types
                 PgStandardType.DATE -> mapped(
+                    pgType.typeName,
                     LocalDate::class,
                     { getObject(it, JLocalDate::class.java) },
                     { it.toKotlinLocalDate() },
-                    { parseWithInfinity(it, LocalDate.DISTANT_FUTURE, LocalDate.DISTANT_PAST) { s ->
-                        LocalDate.parse(s)
-                    } }
+                    {
+                        parseWithInfinity(
+                            it,
+                            LocalDate.DISTANT_FUTURE,
+                            LocalDate.DISTANT_PAST
+                        ) { s -> LocalDate.parse(s) }
+                    },
+                    toJdbc = { v ->
+                        val date = v as LocalDate
+                        when (date) {
+                            LocalDate.DISTANT_FUTURE -> pgObject("date", "infinity")
+                            LocalDate.DISTANT_PAST -> pgObject("date", "-infinity")
+                            else -> java.sql.Date.valueOf(date.toJavaLocalDate())
+                        }
+                    },
+                    toPgString = { v ->
+                        val date = v as LocalDate
+                        when (date) {
+                            LocalDate.DISTANT_FUTURE -> "infinity"
+                            LocalDate.DISTANT_PAST -> "-infinity"
+                            else -> date.toString()
+                        }
+                    }
                 )
 
                 PgStandardType.TIMESTAMP -> mapped(
+                    pgType.typeName,
                     LocalDateTime::class,
                     { getObject(it, JLocalDateTime::class.java) },
                     { it.toKotlinLocalDateTime() },
-                    { parseWithInfinity(it, LocalDateTime.DISTANT_FUTURE, LocalDateTime.DISTANT_PAST) { s ->
-                        LocalDateTime.parse(s.replace(' ', 'T'))
-                    } }
+                    {
+                        parseWithInfinity(
+                            it,
+                            LocalDateTime.DISTANT_FUTURE,
+                            LocalDateTime.DISTANT_PAST
+                        ) { s -> LocalDateTime.parse(s.replace(' ', 'T')) }
+                    },
+                    toJdbc = { v ->
+                        when (val dateTime = v as LocalDateTime) {
+                            LocalDateTime.DISTANT_FUTURE -> pgObject("timestamp", "infinity")
+                            LocalDateTime.DISTANT_PAST -> pgObject("timestamp", "-infinity")
+                            else -> java.sql.Timestamp.valueOf(dateTime.toJavaLocalDateTime())
+                        }
+                    },
+                    toPgString = { v ->
+                        val dateTime = v as LocalDateTime
+                        when (dateTime) {
+                            LocalDateTime.DISTANT_FUTURE -> "infinity"
+                            LocalDateTime.DISTANT_PAST -> "-infinity"
+                            else -> dateTime.toString()
+                        }
+                    }
                 )
 
                 PgStandardType.TIMESTAMPTZ -> mapped(
+                    pgType.typeName,
                     Instant::class,
                     { getObject(it, JOffsetDateTime::class.java) },
-                    { it.toInstant().toKotlinInstant() }, // Java OffsetDateTime -> Java Instant -> Kotlin Instant
-                    { parseWithInfinity(it, Instant.DISTANT_FUTURE, Instant.DISTANT_PAST) { s ->
-                        Instant.parse(s.replace(' ', 'T'))
-                    } }
+                    { it.toInstant().toKotlinInstant() },
+                    {
+                        parseWithInfinity(
+                            it,
+                            Instant.DISTANT_FUTURE,
+                            Instant.DISTANT_PAST
+                        ) { s -> Instant.parse(s.replace(' ', 'T')) }
+                    },
+                    toJdbc = { v ->
+                        when (val instant = v as Instant) {
+                            Instant.DISTANT_FUTURE -> pgObject("timestamptz", "infinity")
+                            Instant.DISTANT_PAST -> pgObject("timestamptz", "-infinity")
+                            else -> java.sql.Timestamp.from(instant.toJavaInstant())
+                        }
+                    },
+                    toPgString = { v ->
+                        val instant = v as Instant
+                        when (instant) {
+                            Instant.DISTANT_FUTURE -> "infinity"
+                            Instant.DISTANT_PAST -> "-infinity"
+                            else -> instant.toString()
+                        }
+                    }
                 )
 
                 PgStandardType.TIME -> mapped(
+                    pgType.typeName,
                     LocalTime::class,
                     { getObject(it, JLocalTime::class.java) },
                     { it.toKotlinLocalTime() },
-                    { LocalTime.parse(it) }
+                    { LocalTime.parse(it) },
+                    toJdbc = { java.sql.Time.valueOf((it as LocalTime).toJavaLocalTime()) },
+                    toPgString = { it.toString() }
                 )
 
                 PgStandardType.TIMETZ -> standard(
+                    pgType.typeName,
                     OffsetTime::class,
                     { getObject(it, OffsetTime::class.java) },
-                    { s -> OffsetTime.parse(s, POSTGRES_TIMETZ_FORMATTER) }
+                    parser = { s -> OffsetTime.parse(s, POSTGRES_TIMETZ_FORMATTER) }
                 )
 
                 PgStandardType.INTERVAL -> fromStringOnly(
-                    Duration::class) {
+                    pgType.typeName,
+                    Duration::class,
+                    toJdbc = { v ->
+                        val duration = v as Duration
+                        pgObject(
+                            "interval", when (duration) {
+                                Duration.INFINITE -> "infinity"
+                                -Duration.INFINITE -> "-infinity"
+                                else -> duration.toIsoString()
+                            }
+                        )
+                    },
+                    toPgString = { v ->
+                        when (val duration = v as Duration) {
+                            Duration.INFINITE -> "infinity"
+                            -Duration.INFINITE -> "-infinity"
+                            else -> duration.toIsoString()
+                        }
+                    }
+                ) {
                     parseWithInfinity(it, Duration.INFINITE, -Duration.INFINITE) { s ->
                         pgIntervalToDuration(PGInterval(s))
                     }
                 }
 
-                // Json
-                PgStandardType.JSON, PgStandardType.JSONB -> fromStringOnly(JsonElement::class) { Json.parseToJsonElement(it) }
-                // Other
-                PgStandardType.BOOL -> primitive(Boolean::class, ResultSet::getBoolean) { it == "t" }
+                // JSON types (now correctly using Standard Registry)
+                PgStandardType.JSON, PgStandardType.JSONB -> fromStringOnly(
+                    pgType.typeName,
+                    JsonElement::class,
+                    toJdbc = { pgObject(pgType.typeName, it.toString()) },
+                    toPgString = { it.toString() }
+                ) { Json.parseToJsonElement(it) }
 
-                PgStandardType.UUID -> standard(UUID::class, { getObject(it) as UUID? }, UUID::fromString)
+                // Boolean type
+                PgStandardType.BOOL -> primitive(
+                    pgType.typeName,
+                    Boolean::class,
+                    ResultSet::getBoolean,
+                    toPgString = { if (it as Boolean) "t" else "f" },
+                    parser = { it == "t" })
 
-                PgStandardType.BYTEA -> standard(ByteArray::class, ResultSet::getBytes) {
-                    if (it.startsWith("\\x")) {
-                        hexStringToByteArray(it.substring(2))
-                    } else {
-                        throw UnsupportedOperationException("Unsupported bytea format. Only hex format (e.g. '\\xDEADBEEF') is supported.")
+                // UUID type
+                PgStandardType.UUID -> standard(
+                    pgType.typeName,
+                    UUID::class,
+                    { getObject(it) as UUID? },
+                    parser = UUID::fromString
+                )
+
+                // Binary data (bytea hex encoding)
+                PgStandardType.BYTEA -> standard(
+                    pgType.typeName,
+                    ByteArray::class,
+                    ResultSet::getBytes,
+                    toPgString = { byteArrayToHexString(it as ByteArray) },
+                    parser = {
+                        if (it.startsWith("\\x")) hexStringToByteArray(it.substring(2))
+                        else throw UnsupportedOperationException("Unsupported bytea format. Only hex format (e.g. '\\xDEADBEEF') is supported.")
                     }
-                }
+                )
+
                 else -> null
             }
-            if (handler != null) {
-                map[pgType.typeName] = handler
-            }
+            if (handler != null) map[pgType.typeName] = handler
         }
         return map.toMap()
     }
 
-    // ----------------------- DATETIME FUNCTIONS -----------------------------------
+    /**
+     * Resolves the base type name for an array type name (e.g., "_int4" -> "int4", "text[]" -> "text").
+     */
+    fun resolveBaseTypeName(arrayTypeName: String): String {
+        return when {
+            arrayTypeName.startsWith("_") -> arrayTypeName.substring(1)
+            arrayTypeName.endsWith("[]") -> arrayTypeName.removeSuffix("[]")
+            else -> arrayTypeName
+        }
+    }
+
+    private fun pgObject(type: String, value: String) = PGobject().apply {
+        this.type = type
+        this.value = value
+    }
 
     private const val PG_INFINITY = "infinity"
     private const val PG_PLUS_INFINITY = "+infinity"
     private const val PG_MINUS_INFINITY = "-infinity"
 
-    /**
-     * Parses a string value from PostgreSQL that may represent infinity.
-     *
-     * PostgreSQL supports special infinity values for temporal types (DATE, TIMESTAMP, TIMESTAMPTZ)
-     * and INTERVAL. This function handles these special values by mapping them to appropriate
-     * Kotlin representations, while delegating parsing of regular values to the provided parser.
-     *
-     * @param T The target Kotlin type
-     * @param s The string value to parse (from PostgreSQL)
-     * @param plusInfinity The value to return for positive infinity
-     * @param minusInfinity The value to return for negative infinity
-     * @param parser Function to parse non-infinity values
-     * @return Parsed value of type [T], either an infinity constant or parsed result
-     */
-    private fun <T> parseWithInfinity(
-        s: String,
-        plusInfinity: T,
-        minusInfinity: T,
-        parser: (String) -> T
-    ): T {
-        return when (s.lowercase()) {
-            PG_INFINITY, PG_PLUS_INFINITY -> plusInfinity
-            PG_MINUS_INFINITY -> minusInfinity
-            else -> parser(s)
-        }
+    private fun <T> parseWithInfinity(s: String, plus: T, minus: T, parser: (String) -> T): T = when (s.lowercase()) {
+        PG_INFINITY, PG_PLUS_INFINITY -> plus
+        PG_MINUS_INFINITY -> minus
+        else -> parser(s)
     }
 
-    /**
-     * Converts PostgreSQL INTERVAL to Kotlin Duration using PostgreSQL's conversion rules.
-     *
-     * PostgreSQL uses fixed conversion rules for INTERVAL values **without a specific date anchor point**.
-     * These rules normalize date-based units (years, months, days) into seconds for Duration representation:
-     *
-     * | Unit | Conversion Rule |
-     * |------|----------------|
-     * | 1 day | 86,400 seconds |
-     * | 1 month | 30 days (= 2,592,000 seconds) |
-     * | 1 year | 365.25 days (= 31,557,600 seconds) |
-     * | 1 year | 12 months |
-     *
-     * **Important Notes:**
-     * - These are **approximate conversions** used when no specific date context is available
-     * - The year uses 365.25 days (accounting for leap years on average)
-     * - The month uses exactly 30 days (not calendar month length)
-     * - For calendar-accurate date arithmetic, use PostgreSQL's date functions directly in SQL
-     *
-     * **Example:**
-     * ```
-     * PostgreSQL: '1 year 2 months 5 days 3:30:15'
-     * Converted to:
-     *   - Years:   1 * 365.25 * 86400 = 31,557,600 seconds
-     *   - Months:  2 * 30 * 86400     =  5,184,000 seconds
-     *   - Days:    5 * 86400           =    432,000 seconds
-     *   - Hours:   3 * 3600            =     10,800 seconds
-     *   - Minutes: 30 * 60             =      1,800 seconds
-     *   - Seconds: 15                  =         15 seconds
-     *   Total: 37,186,215 seconds (≈ 1.18 years as duration)
-     * ```
-     *
-     * @param pgInterval The PostgreSQL interval value from PGInterval
-     * @return A Kotlin Duration representing the total time span in seconds
-     * @see PGInterval
-     */
     private fun pgIntervalToDuration(pgInterval: PGInterval): Duration {
-        val totalDaysFromDate = (pgInterval.years * 365.25) + (pgInterval.months * 30.0) + pgInterval.days
-
-        val totalSeconds = (totalDaysFromDate * 86400.0) +
-                (pgInterval.hours * 3600.0) +
-                (pgInterval.minutes * 60.0) +
-                pgInterval.seconds
-
+        val totalDays = (pgInterval.years * 365.25) + (pgInterval.months * 30.0) + pgInterval.days
+        val totalSeconds =
+            (totalDays * 86400.0) + (pgInterval.hours * 3600.0) + (pgInterval.minutes * 60.0) + pgInterval.seconds
         return totalSeconds.toDuration(DurationUnit.SECONDS)
     }
 
-    // ---------------------------------------- Byte array ----------------------------------------------------
     private fun hexStringToByteArray(hex: String): ByteArray {
         val len = hex.length
         require(len % 2 == 0) { "Hex string must have an even number of characters" }
-        val data = ByteArray(len / 2)
-        var i = 0
-        while (i < len) {
-            data[i / 2] = ((Character.digit(hex[i], 16) shl 4) +
-                    Character.digit(hex[i + 1], 16)).toByte()
-            i += 2
+        return ByteArray(len / 2) { i ->
+            ((Character.digit(hex[i * 2], 16) shl 4) + Character.digit(hex[i * 2 + 1], 16)).toByte()
         }
-        return data
+    }
+
+    private fun byteArrayToHexString(bytes: ByteArray): String {
+        val hexChars = "0123456789ABCDEF"
+        val result = StringBuilder(bytes.size * 2 + 2).append("\\x")
+        for (b in bytes) {
+            val i = b.toInt() and 0xFF
+            result.append(hexChars[i shr 4]).append(hexChars[i and 0x0F])
+        }
+        return result.toString()
     }
 
     fun getHandler(pgTypeName: String): StandardTypeHandler? = mappings[pgTypeName]
-
+    fun getHandlerByClass(kClass: KClass<*>): StandardTypeHandler? = kotlinClassToHandler[kClass]
     fun getAllTypeNames(): Set<String> = mappings.keys
 
-    // JDBC quirks:
-    // 1. For primitive types (int, bool, double).
-    // Calls getter, then checks wasNull().
     private inline fun <reified T : Any> primitive(
-        kClass: KClass<T>,
-        crossinline getter: ResultSet.(Int) -> T,
-        noinline parser: (String) -> T
+        pgTypeName: String, kClass: KClass<T>, crossinline getter: ResultSet.(Int) -> T,
+        noinline toPgString: ((Any) -> String)? = null, noinline parser: (String) -> T
     ) = StandardTypeHandler(
-        kotlinClass = kClass,
-        fromResultSet = { rs, i ->
-            val v = rs.getter(i)
-            if (rs.wasNull()) null else v
-        },
-        fromString = parser
-    )
-    // 2. For standard types (without conversions returning nulls).
-    private inline fun <reified T : Any> standard(
-        kClass: KClass<T>,
-        crossinline getter: ResultSet.(Int) -> T?,
-        noinline parser: (String) -> T
-    ) = StandardTypeHandler(
-        kotlinClass = kClass,
-        fromResultSet = { rs, i -> rs.getter(i) },
-        fromString = parser
-    )
+        pgTypeName,
+        kClass,
+        { rs, i -> val v = rs.getter(i); if (rs.wasNull()) null else v },
+        parser,
+        { it },
+        toPgString ?: { it.toString() })
 
-    // 3. For types requiring conversion (e.g., Timestamp -> Kotlin Instant).
-    // Protects against NullPointerException in mapper.
+    private inline fun <reified T : Any> standard(
+        pgTypeName: String, kClass: KClass<T>, crossinline getter: ResultSet.(Int) -> T?,
+        noinline toPgString: ((Any) -> String)? = null, noinline parser: (String) -> T
+    ) = StandardTypeHandler(
+        pgTypeName,
+        kClass,
+        { rs, i -> rs.getter(i) },
+        parser,
+        { it },
+        toPgString ?: { it.toString() })
+
     private inline fun <SRC : Any, reified T : Any> mapped(
+        pgTypeName: String,
         kClass: KClass<T>,
-        crossinline getter: ResultSet.(Int) -> SRC?, // JDBC getter
-        crossinline mapper: (SRC) -> T,              // Object conversion
-        noinline parser: (String) -> T               // String conversion
-    ) = StandardTypeHandler(
-        kotlinClass = kClass,
-        fromResultSet = { rs, i -> rs.getter(i)?.let(mapper) }, // Safe call (?.) handles it
-        fromString = parser
-    )
-    // 4. For types without a faster path than String reading
+        crossinline getter: ResultSet.(Int) -> SRC?,
+        crossinline mapper: (SRC) -> T,
+        noinline parser: (String) -> T,
+        noinline toJdbc: (Any) -> Any,
+        noinline toPgString: (Any) -> String
+    ) = StandardTypeHandler(pgTypeName, kClass, { rs, i -> rs.getter(i)?.let(mapper) }, parser, toJdbc, toPgString)
+
     private inline fun <reified T : Any> fromStringOnly(
-        kClass: KClass<T>,
-        noinline parser: (String) -> T
-    ) = StandardTypeHandler(
-        kotlinClass = kClass,
-        fromResultSet = null,
-        fromString = parser
-    )
+        pgTypeName: String, kClass: KClass<T>, noinline toJdbc: (Any) -> Any = { it },
+        noinline toPgString: (Any) -> String = { it.toString() }, noinline parser: (String) -> T
+    ) = StandardTypeHandler(pgTypeName, kClass, null, parser, toJdbc, toPgString)
 }
