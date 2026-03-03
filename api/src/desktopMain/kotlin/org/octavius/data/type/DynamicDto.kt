@@ -12,6 +12,11 @@ import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
 
 /**
+ * DynamicDto Postgres type name
+ */
+const val DYNAMIC_DTO = "dynamic_dto"
+
+/**
  * Represents a polymorphic object ready for database storage.
  *
  * This class is a public API and "transport container" that unambiguously
@@ -33,7 +38,7 @@ import kotlin.reflect.full.findAnnotation
  * @see DynamicallyMappable
  */
 @ConsistentCopyVisibility
-@PgComposite(name = "dynamic_dto")
+@PgComposite(name = DYNAMIC_DTO)
 data class DynamicDto private constructor(
     val typeName: String,
     val dataPayload: JsonElement

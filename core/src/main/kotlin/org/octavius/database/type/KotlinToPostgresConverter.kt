@@ -7,6 +7,7 @@ import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
 import org.octavius.data.toMap
+import org.octavius.data.type.DYNAMIC_DTO
 import org.octavius.data.type.DynamicDto
 import org.octavius.data.type.PgTyped
 import org.octavius.database.config.DynamicDtoSerializationStrategy
@@ -129,12 +130,14 @@ internal class KotlinToPostgresConverter(
         if (value is PgTyped) return value.pgType
         return when (value) {
             is List<*> -> "${value.firstOrNull { it != null }?.let { resolveSqlType(it) } ?: "text"}[]"
-            is Enum<*> -> try { typeRegistry.getPgTypeNameForClass(value::class) } catch (e: Exception) { "text" }
             else -> {
-                if (dynamicDtoStrategy != DynamicDtoSerializationStrategy.EXPLICIT_ONLY && !typeRegistry.isPgType(value::class)) {
-                    typeRegistry.getDynamicTypeNameForClass(value::class)?.let { return it }
-                }
-                try { if (typeRegistry.isPgType(value::class)) return typeRegistry.getPgTypeNameForClass(value::class) } catch (e: Exception) {}
+                if ((dynamicDtoStrategy == DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS && !typeRegistry.isPgType(
+                        value::class
+                    ) || dynamicDtoStrategy == DynamicDtoSerializationStrategy.PREFER_DYNAMIC_DTO) && typeRegistry.getDynamicTypeNameForClass(
+                        value::class
+                    ) != null
+                ) return DYNAMIC_DTO
+                 if (typeRegistry.isPgType(value::class)) return typeRegistry.getPgTypeNameForClass(value::class)
                 StandardTypeMappingRegistry.getHandlerByClass(value::class)?.pgTypeName ?: "text"
             }
         }
@@ -184,11 +187,10 @@ internal class KotlinToPostgresConverter(
             StandardTypeMappingRegistry.getHandlerByClass(current::class)?.let { return it.toPgString(current) }
 
             // 2. Try Dynamic DTO
-            if (!wasPgTyped && !skipDynamicDto && current !is Enum<*> && current !is JsonElement) {
+            if (!wasPgTyped && !skipDynamicDto && current !is DynamicDto) {
                 if (dynamicDtoStrategy != DynamicDtoSerializationStrategy.EXPLICIT_ONLY && !typeRegistry.isPgType(current::class)) {
                     typeRegistry.getDynamicTypeNameForClass(current::class)?.let { typeName ->
-                        val dto = DynamicDto.from(current, typeName, typeRegistry.getDynamicSerializer(typeName))
-                        current = if (dto is PgTyped) dto.value ?: "NULL" else dto.toString()
+                        current = DynamicDto.from(current, typeName, typeRegistry.getDynamicSerializer(typeName))
                     }
                 }
             }
