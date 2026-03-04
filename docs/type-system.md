@@ -2,26 +2,38 @@
 
 Octavius Database provides automatic bidirectional mapping between PostgreSQL and Kotlin types. This includes support for:
 
-- **Standard types** - primitives, dates, JSON, arrays
-- **Custom types** - ENUMs, COMPOSITE types
-- **Dynamic types** - polymorphic storage via `dynamic_dto`
+- **Standard types** - primitives, dates, JSON, arrays.
+- **Custom types** - statically mapped ENUMs and COMPOSITE types.
+- **Dynamic types** - polymorphic storage and JSONB serialization via `dynamic_dto`.
+- **High-performance collections** - automatic parameter flattening to bypass JDBC limits.
+
+---
 
 ## Table of Contents
 
-- [Standard Type Mapping](#standard-type-mapping)
-- [@PgEnum](#pgenum)
-- [@PgComposite](#pgcomposite)
-- [@DynamicallyMappable](#dynamicallymappable)
-- [PgTyped - Explicit Type Casts](#pgtyped---explicit-type-casts)
-- [@MapKey & Object Conversion Utilities](#mapkey--object-conversion-utilities)
-- [Enum Serialization in dynamic_dto](#enum-serialization-in-dynamic_dto)
-- [Helper Serializers](#helper-serializers)
+1. [Standard Type Mapping](#standard-type-mapping)
+    - [Arrays](#arrays)
+    - [Infinity Values for Date/Time](#infinity-values-for-datetime)
+    - [Duration and Interval Rules](#duration-and-interval-rules)
+2. [Collections & Parameter Flattening](#collections--parameter-flattening)
+    - [List vs Array](#list-vs-array)
+3. [Type Inference & Safety](#type-inference--safety)
+    - [Default Type Resolution](#default-type-resolution)
+    - [Explicit Type Casts (PgTyped)](#explicit-type-casts-pgtyped)
+4. [Static Custom Types](#static-custom-types)
+    - [@PgEnum](#pgenum)
+    - [@PgComposite](#pgcomposite)
+5. [Dynamic Types (dynamic_dto)](#dynamic-types-dynamic_dto)
+    - [@DynamicallyMappable](#dynamicallymappable)
+    - [Enum Serialization in dynamic_dto](#enum-serialization-in-dynamic_dto)
+    - [Helper Serializers](#helper-serializers)
+6. [Object Conversion Utilities](#object-conversion-utilities)
 
 ---
 
 ## Standard Type Mapping
 
-Automatic conversion between PostgreSQL and Kotlin types:
+Automatic conversion works out-of-the-box for the following types. Note that if a Kotlin type maps to multiple PostgreSQL types, Octavius uses a **priority-based inference** (see [Type Inference](#type-inference--safety)).
 
 | PostgreSQL                | Kotlin          | Notes                                            |
 |---------------------------|-----------------|--------------------------------------------------|
@@ -35,7 +47,7 @@ Automatic conversion between PostgreSQL and Kotlin types:
 | `bool`                    | `Boolean`       |                                                  |
 | `uuid`                    | `UUID`          | `java.util.UUID`                                 |
 | `bytea`                   | `ByteArray`     |                                                  |
-| `json`, `jsonb`           | `JsonElement`   | `kotlinx.serialization.json`                     |
+| `jsonb`, `json`           | `JsonElement`   | `kotlinx.serialization.json`                     |
 | `void`                    | `Unit`          | Return type of void functions (e.g. `pg_notify`) |
 | `date`                    | `LocalDate`     | `kotlinx.datetime` <sup>1</sup>                  |
 | `time`                    | `LocalTime`     | `kotlinx.datetime`                               |
@@ -46,7 +58,7 @@ Automatic conversion between PostgreSQL and Kotlin types:
 
 ### Arrays
 
-Arrays of all standard types are supported and map to `List<T>`:
+Arrays of all standard types are supported and naturally map to `List<T>`:
 
 | PostgreSQL | Kotlin         |
 |------------|----------------|
@@ -55,9 +67,9 @@ Arrays of all standard types are supported and map to `List<T>`:
 | `uuid[]`   | `List<UUID>`   |
 | etc.       | `List<T>`      |
 
-### Infinity Values for Date/Time Types
+### Infinity Values for Date/Time
 
-<sup>1</sup> **PostgreSQL special values** (`infinity`, `-infinity`) are supported for date and timestamp types:
+<sup>1</sup> **PostgreSQL special values** (`infinity`, `-infinity`) are fully supported for date and timestamp types using provided constants:
 
 | PostgreSQL Type | Special Values          | Kotlin Constants                                             |
 |-----------------|-------------------------|--------------------------------------------------------------|
@@ -65,99 +77,34 @@ Arrays of all standard types are supported and map to `List<T>`:
 | `timestamp`     | `infinity`, `-infinity` | `LocalDateTime.DISTANT_FUTURE`, `LocalDateTime.DISTANT_PAST` |
 | `timestamptz`   | `infinity`, `-infinity` | `Instant.DISTANT_FUTURE`, `Instant.DISTANT_PAST`             |
 
-**Usage example:**
+**Usage Example:**
 
 ```kotlin
-data class Contract(val startDate: LocalDate, val endDate: LocalDate)
+import org.octavius.data.type.DISTANT_FUTURE
 
-// Inserting a contract with no end date (infinite)
 dataAccess.insertInto("contracts")
     .values(listOf("start_date", "end_date"))
     .execute(
         "start_date" to LocalDate.parse("2024-01-01"),
-        "end_date" to LocalDate.DISTANT_FUTURE  // Stored as 'infinity' in PostgreSQL
+        "end_date" to LocalDate.DISTANT_FUTURE  // Stored as 'infinity'
     )
-
-// Reading back
-val contract = dataAccess.select("start_date", "end_date")
-    .from("contracts")
-    .toSingleOf<Contract>()
-    .getOrThrow()!!
-
-// contract.endDate == LocalDate.DISTANT_FUTURE
 ```
 
-**Constants provided by Octavius:**
+### Duration and Interval Rules
 
-```kotlin
-import org.octavius.data.type.DISTANT_PAST
-import org.octavius.data.type.DISTANT_FUTURE
+<sup>2</sup> **PostgreSQL `INTERVAL` type** maps to Kotlin's `Duration`.
 
-LocalDate.DISTANT_PAST      // java.time.LocalDate.MIN → '-infinity'
-LocalDate.DISTANT_FUTURE    // java.time.LocalDate.MAX → 'infinity'
+**Infinity Values:**
+- `Duration.INFINITE` → `'infinity'`
+- `-Duration.INFINITE` → `'-infinity'`
 
-LocalDateTime.DISTANT_PAST      // java.time.LocalDateTime.MIN → '-infinity'
-LocalDateTime.DISTANT_FUTURE    // java.time.LocalDateTime.MAX → 'infinity'
+**Conversion Logic:**
+PostgreSQL `INTERVAL` values (without a specific date anchor point) are converted to Kotlin `Duration` (seconds) using these fixed rules:
+- 1 year = 365.25 days (= 31,557,600 seconds)
+- 1 month = 30 days (= 2,592,000 seconds)
+- 1 day = 86,400 seconds
 
-Instant.DISTANT_PAST      // java.time.Instant.MIN → '-infinity'
-Instant.DISTANT_FUTURE    // java.time.Instant.MAX → 'infinity'
-```
-
-### Duration and Interval Conversion Rules
-
-<sup>2</sup> **PostgreSQL `INTERVAL` type** maps to Kotlin's `Duration` with full support for infinity values and precise conversion rules:
-
-**Infinity values:**
-
-```kotlin
-Duration.INFINITE        // Stored as 'infinity' in PostgreSQL
--Duration.INFINITE       // Stored as '-infinity' in PostgreSQL
-```
-
-**Conversion rules from PostgreSQL to Kotlin:**
-
-PostgreSQL `INTERVAL` values without specific date context follow these conversion rules:
-
-| Unit    | Conversion Rule                    |
-|---------|------------------------------------|
-| 1 day   | 86,400 seconds                     |
-| 1 month | 30 days (= 2,592,000 seconds)      |
-| 1 year  | 365.25 days (= 31,557,600 seconds) |
-| 1 year  | 12 months                          |
-
-**Example conversions:**
-
-```sql
--- PostgreSQL INTERVAL
-'1 year 2 months 5 days 3 hours 30 minutes 15 seconds'
-```
-
-Converts to Kotlin `Duration`:
-- Years: `1 * 365.25 * 86400 = 31,557,600 seconds`
-- Months: `2 * 30 * 86400 = 5,184,000 seconds`
-- Days: `5 * 86400 = 432,000 seconds`
-- Hours: `3 * 3600 = 10,800 seconds`
-- Minutes: `30 * 60 = 1,800 seconds`
-- Seconds: `15 seconds`
-- **Total: 37,186,215 seconds** (≈ 1.18 years as a duration)
-
-```kotlin
-// Using Duration values
-data class Task(val estimatedDuration: Duration, val actualDuration: Duration?)
-
-dataAccess.insertInto("tasks")
-    .values(listOf("estimated_duration", "actual_duration"))
-    .execute(
-        "estimated_duration" to 5.hours + 30.minutes,
-        "actual_duration" to null
-    )
-
-// Infinite duration example
-dataAccess.update("subscriptions")
-    .setValue("valid_until")
-    .where("id = :id")
-    .execute("valid_until" to Duration.INFINITE, "id" to subscriptionId)
-```
+*Example:* `'1 year 2 months 5 days'` is converted to exactly `37,173,600` seconds.
 
 **Important notes:**
 - These conversion rules apply when converting PostgreSQL intervals **without a specific date anchor point**
@@ -166,202 +113,121 @@ dataAccess.update("subscriptions")
 
 ---
 
-## @PgEnum
+## Collections & Parameter Flattening
 
-Maps a Kotlin `enum class` to a PostgreSQL `ENUM` type.
+When collections, arrays, or composite types are passed as named parameters (`:param`), Octavius **serializes** them into a single PostgreSQL text-format literal. This is sent as a **single JDBC parameter**.
 
-### Annotation Parameters
+| Kotlin value                             | SQL fragment    | JDBC params consumed |
+|------------------------------------------|-----------------|----------------------|
+| `"hello"` (scalar)                       | `?::text`       | **1**                |
+| `Address("Main St", "NYC")`              | `?::address`    | **1**                |
+| `listOf(1, 2, 3)`                        | `?::int4[]`     | **1**                |
+| `listOf(addr1, addr2)` (composite array) | `?::address[]`  | **1**                |
+| `arrayOf("a", "b", "c")` (typed array)   | `?`             | **1**                |
 
-| Parameter          | Type             | Default            | Description                                    |
-|--------------------|------------------|--------------------|------------------------------------------------|
-| `name`             | `String`         | `""`               | PostgreSQL type name (auto-generated if empty) |
-| `pgConvention`     | `CaseConvention` | `SNAKE_CASE_UPPER` | How values are stored in PostgreSQL            |
-| `kotlinConvention` | `CaseConvention` | `PASCAL_CASE`      | How values are defined in Kotlin               |
+### List vs Array
 
-### Case Conventions
+- **`List<T>` (Recommended):** Uses Octavius serialization (text literal like `(value1,value2)` or `{1,2,3}`). Supports **all types**, including custom `@PgComposite` and `@PgEnum`.
+- **`Array<T>` (Native):** Uses native PgJDBC array protocol. Slightly faster for large collections of primitive types, but **does not support custom types**.
 
-| Convention         | Example    |
-|--------------------|------------|
-| `SNAKE_CASE_UPPER` | `MY_VALUE` |
-| `SNAKE_CASE_LOWER` | `my_value` |
-| `PASCAL_CASE`      | `MyValue`  |
-| `CAMEL_CASE`       | `myValue`  |
+---
 
-### Basic Usage
+## Type Inference & Safety
+
+### Default Type Resolution
+
+When mapping a Kotlin value to a PostgreSQL type, Octavius defaults to the **first matching entry** in the internal registry:
+- `JsonElement` → Defaults to **`jsonb`** (not `json`).
+- `String` → Defaults to **`text`** (not `varchar` or `char`).
+
+For `List<T>`, Octavius infers the type by inspecting the **first non-null element**. If the list is empty or contains only nulls, it defaults to `text[]`.
+
+### Explicit Type Casts (PgTyped)
+
+For ambiguous cases (like empty lists) or to optimize query plans, use `.withPgType()` to force a specific cast.
 
 ```kotlin
-// Kotlin enum
-@PgEnum
-enum class OrderStatus { Pending, Processing, Shipped, Delivered }
+// Force JSON instead of the default JSONB
+val data = jsonElement.withPgType(PgStandardType.JSON)
 
-// PostgreSQL type (create this in your migration)
-CREATE TYPE order_status AS ENUM ('PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED');
+// Prevent inference issues with empty/null lists
+val ids = listOf<Int?>(null).withPgType(PgStandardType.INT4_ARRAY)
+
+// Safe usage in queries
+dataAccess.rawQuery("SELECT * FROM users WHERE id = ANY(:ids)")
+    .toListOf<User>("ids" to listOf(1, 2, 3).withPgType(PgStandardType.INT4_ARRAY))
 ```
 
-**Naming rules:**
-- Class name `OrderStatus` → PostgreSQL type `order_status` (CamelCase → snake_case)
-- Enum value `Pending` → PostgreSQL value `'PENDING'` (PascalCase → SNAKE_CASE_UPPER)
+### Type Resolution Priority
 
-### Custom Naming
+If a class has multiple annotations, explicit wrappers dictate the serialization path:
 
+| Wrapper Used               | Behavior                                                                      |
+|----------------------------|-------------------------------------------------------------------------------|
+| `value.withPgType("type")` | Forces `@PgComposite` / `@PgEnum` path (`ROW(...)::type` or `PGobject`)       |
+| `DynamicDto.from(value)`   | Forces `@DynamicallyMappable` path (`dynamic_dto(...)`)                       |
+| None (raw value)           | Follows `DynamicDtoSerializationStrategy` configuration.                      |
+
+---
+
+## Static Custom Types
+
+### @PgEnum
+
+Maps a Kotlin `enum class` to a PostgreSQL `ENUM`.
+
+**Annotation Parameters:**
+| Parameter          | Default            | Description                                    |
+|--------------------|--------------------|------------------------------------------------|
+| `name`             | `""`               | PostgreSQL type name (auto-generated if empty) |
+| `pgConvention`     | `SNAKE_CASE_UPPER` | How values are stored in PostgreSQL            |
+| `kotlinConvention` | `PASCAL_CASE`      | How values are defined in Kotlin               |
+
+**Example:**
 ```kotlin
-// Different PostgreSQL type name
-@PgEnum(name = "payment_type_enum")
-enum class PaymentMethod { CreditCard, BankTransfer, Cash }
-
-// Different value conventions
 @PgEnum(
     pgConvention = CaseConvention.SNAKE_CASE_LOWER,  // stored as 'credit_card'
     kotlinConvention = CaseConvention.PASCAL_CASE    // defined as CreditCard
-)
+) // name defaults to transaction_type
 enum class TransactionType { CreditCard, BankTransfer }
 
-// PostgreSQL:
-CREATE TYPE transaction_type AS ENUM ('credit_card', 'bank_transfer');
+// PostgreSQL Migration: 
+// CREATE TYPE transaction_type AS ENUM ('credit_card', 'bank_transfer');
 ```
 
-### Usage in Queries
-
-```kotlin
-// In data classes
-data class Order(val id: Int, val status: OrderStatus)
-
-// Automatic conversion
-val orders = dataAccess.select("id", "status")
-    .from("orders")
-    .toListOf<Order>()
-
-// As parameter
-dataAccess.update("orders")
-    .setValue("status")
-    .where("id = :id")
-    .execute("status" to OrderStatus.Shipped, "id" to orderId)
-```
-
----
-
-## @PgComposite
+### @PgComposite
 
 Maps a Kotlin `data class` to a PostgreSQL `COMPOSITE` type.
 
-### Annotation Parameters
-
-| Parameter | Type     | Default | Description                                    |
-|-----------|----------|---------|------------------------------------------------|
-| `name`    | `String` | `""`    | PostgreSQL type name (auto-generated if empty) |
-
-### Basic Usage
-
+**Example:**
 ```kotlin
-// Kotlin data class
-@PgComposite
-data class Address(
-    val street: String,
-    val city: String,
-    val zipCode: String
-)
+@PgComposite(name = "address_type") // explicit name
+data class Address(val street: String, val city: String)
 
-// PostgreSQL type (create this in your migration)
-CREATE TYPE address AS (
-    street TEXT,
-    city TEXT,
-    zip_code TEXT  -- Note: snake_case in PostgreSQL
-);
+// PostgreSQL Migration: 
+// CREATE TYPE address AS (street TEXT, city TEXT);
 ```
 
-### Custom Type Name
-
+Composites fully support nesting and arrays:
 ```kotlin
-@PgComposite(name = "shipping_address_type")
-data class ShippingAddress(
-    val street: String,
-    val city: String,
-    val country: String
-)
-```
+@PgComposite // name defaults to geo_location
+data class GeoLocation(val lat: Double, val lng: Double)
 
-### Usage in Queries
+@PgComposite // name defaults to address_wtih_geo
+data class AddressWithGeo(val street: String, val location: GeoLocation)
 
-```kotlin
-// In data classes
-data class User(val id: Int, val name: String, val address: Address)
-
-// Reading composite types
-val users = dataAccess.select("id", "name", "address")
-    .from("users")
-    .toListOf<User>()
-
-// Inserting composite types
-dataAccess.insertInto("users")
-    .values(listOf("name", "address"))
-    .execute(
-        "name" to "John",
-        "address" to Address("123 Main St", "NYC", "10001")
-    )
-```
-
-### Parameter Expansion (Flattening)
-
-When a composite or array is passed as a named parameter (`:param`), Octavius **expands** it into individual JDBC positional placeholders before execution:
-
-| Kotlin value                             | Expanded SQL fragment                                 | JDBC params consumed |
-|------------------------------------------|-------------------------------------------------------|----------------------|
-| `"hello"` (scalar)                       | `?`                                                   | 1                    |
-| `Address("Main St", "NYC", "10001")`     | `ROW(?, ?, ?)::address`                               | 3                    |
-| `listOf(1, 2, 3)`                        | `ARRAY[?, ?, ?]`                                      | 3                    |
-| `listOf(addr1, addr2)` (composite array) | `ARRAY[ROW(?, ?, ?)::address, ROW(?, ?, ?)::address]` | 6                    |
-| `arrayOf("a", "b", "c")` (typed array)   | `?`                                                   | **1**                |
-
-This means a single named parameter can expand into many JDBC bind slots. **PostgreSQL has a limit of 65535 parameters per query** — keep this in mind when passing large lists or many composites in a single query.
-
-
-**`List<T>` vs `Array<T>`:** Lists are expanded element-by-element into `ARRAY[?, ?, …]` — each element is a separate JDBC bind. Typed Kotlin arrays (`Array<String>`, `Array<Int>`, etc.) are passed as a **single JDBC parameter** via PgJDBC's native array protocol. This makes `Array<T>` much more efficient for large collections of simple types. However, typed arrays only support standard types — composites and enums must use `List<T>`.
-
-
-### Nested Composites
-
-```kotlin
-@PgComposite
-data class GeoLocation(val latitude: Double, val longitude: Double)
-
-@PgComposite
-data class AddressWithGeo(
-    val street: String,
-    val city: String,
-    val location: GeoLocation  // Nested composite
-)
-```
-
-### Arrays of Composites
-
-```kotlin
-// PostgreSQL: addresses address[]
-data class Company(val id: Int, val addresses: List<Address>)
+data class Company(val id: Int, val branches: List<AddressWithGeo>)
 ```
 
 ---
 
-## @DynamicallyMappable
+## Dynamic Types (dynamic_dto)
 
-Enables dynamic type mapping via the `dynamic_dto` PostgreSQL type. This allows:
+Enables dynamic type mapping via the `dynamic_dto` PostgreSQL type. This allows polymorphic storage (different types in one column) and ad-hoc mapping without defining COMPOSITE types in your schema.
 
-1. **Polymorphic storage** - Different types in one column/array
-2. **Ad-hoc mapping** - Construct Kotlin objects in SQL without defining COMPOSITE types
+### @DynamicallyMappable
 
-### Annotation Parameters
-
-| Parameter  | Type     | Description                                  |
-|------------|----------|----------------------------------------------|
-| `typeName` | `String` | Unique key used in `dynamic_dto('key', ...)` |
-
-### Requirements
-
-- Class must also have `@Serializable` annotation (kotlinx.serialization)
-- Works with `data class`, `enum class`, and `value class`
-
-### Polymorphic Storage
-
-Store different types in a single column:
+Annotated classes must also be `@Serializable` (`kotlinx.serialization`).
 
 ```kotlin
 @DynamicallyMappable(typeName = "text_note")
@@ -370,275 +236,76 @@ data class TextNote(val content: String)
 
 @DynamicallyMappable(typeName = "image_note")
 @Serializable
-data class ImageNote(val url: String, val caption: String?)
-
-@DynamicallyMappable(typeName = "checklist_note")
-@Serializable
-data class ChecklistNote(val items: List<String>, val checked: List<Boolean>)
+data class ImageNote(val url: String)
 ```
 
+**Polymorphic Storage Example:**
 ```sql
--- Table with polymorphic column
+-- PostgreSQL Table
 CREATE TABLE notebooks (
     id SERIAL PRIMARY KEY,
-    notes dynamic_dto[]  -- Can contain TextNote, ImageNote, ChecklistNote
-);
-
--- Insert different types
-INSERT INTO notebooks (notes) VALUES (
-    ARRAY[
-        dynamic_dto('text_note', '{"content": "Hello"}'),
-        dynamic_dto('image_note', '{"url": "https://...", "caption": null}')
-    ]
+    notes dynamic_dto[]  -- Can contain BOTH TextNote and ImageNote
 );
 ```
-
 ```kotlin
 // Read back with automatic deserialization
 data class Notebook(val id: Int, val notes: List<Any>)
 
 val notebook = dataAccess.select("id", "notes")
     .from("notebooks")
-    .where("id = 1")
     .toSingleOf<Notebook>()
-
-// notes contains [TextNote("Hello"), ImageNote("https://...", null)]
+// notes contains: [TextNote("Hello"), ImageNote("https://...")]
 ```
 
-### Ad-hoc Object Mapping
+### Enum Serialization in dynamic_dto
 
-Construct Kotlin objects directly in SQL without COMPOSITE types:
-
-```kotlin
-@DynamicallyMappable(typeName = "user_profile")
-@Serializable
-data class UserProfile(val role: String, val permissions: List<String>)
-
-data class UserWithProfile(val id: Int, val name: String, val profile: UserProfile)
-```
+When using enums inside `@DynamicallyMappable` classes, `kotlinx.serialization` defaults to outputting the exact Kotlin enum name. To match PostgreSQL conventions inside the JSON payload, you **must** use `DynamicDtoEnumSerializer`.
 
 ```kotlin
-val users = dataAccess.rawQuery("""
-    SELECT
-        u.id,
-        u.name,
-        dynamic_dto(
-            'user_profile',
-            jsonb_build_object(
-                'role', p.role,
-                'permissions', p.permissions
-            )
-        ) AS profile
-    FROM users u
-    JOIN profiles p ON p.user_id = u.id
-""").toListOf<UserWithProfile>()
-```
-
-### dynamic_dto PostgreSQL Type
-
-Octavius automatically creates the `dynamic_dto` composite type and helper functions on startup. See [Configuration — Core Type Initialization](configuration.md#core-type-initialization) for the full SQL definition and setup options.
-
----
-
-## PgTyped - Explicit Type Casts
-
-When PostgreSQL can't infer the type, use `PgTyped` to add explicit casts.
-
-### Usage
-
-```kotlin
-// Using PgStandardType enum (type-safe)
-val ids = listOf(1, 2, 3).withPgType(PgStandardType.INT4_ARRAY)
-
-// Using string type name (for custom types)
-val data = jsonObject.withPgType("jsonb")
-```
-
-### When Needed
-
-1. **Arrays with type ambiguity:**
-
-```kotlin
-// Without PgTyped - might fail
-dataAccess.rawQuery("SELECT * FROM users WHERE id = ANY(:ids)")
-    .toListOf<User>("ids" to listOf(1, 2, 3))
-
-// With PgTyped - explicit type
-dataAccess.rawQuery("SELECT * FROM users WHERE id = ANY(:ids)")
-    .toListOf<User>("ids" to listOf(1, 2, 3).withPgType(PgStandardType.INT4_ARRAY))
-```
-
-2. **JSON parameters:**
-
-```kotlin
-dataAccess.insertInto("events")
-    .values(listOf("data"))
-    .execute("data" to jsonElement.withPgType(PgStandardType.JSONB))
-```
-
-### PgStandardType Values
-
-```kotlin
-enum class PgStandardType(val typeName: String) {
-    // Integers
-    INT2("int2"), INT4("int4"), INT8("int8"),
-    SMALLSERIAL("smallserial"), SERIAL("serial"), BIGSERIAL("bigserial"),
-
-    // Floats
-    FLOAT4("float4"), FLOAT8("float8"), NUMERIC("numeric"),
-
-    // Text
-    TEXT("text"), VARCHAR("varchar"), CHAR("char"),
-
-    // Date/Time
-    DATE("date"), TIME("time"), TIMETZ("timetz"),
-    TIMESTAMP("timestamp"), TIMESTAMPTZ("timestamptz"), INTERVAL("interval"),
-
-    // JSON
-    JSON("json"), JSONB("jsonb"),
-
-    // Other
-    BOOL("bool"), UUID("uuid"), BYTEA("bytea"),
-
-    // Arrays (all standard types)
-    INT4_ARRAY("_int4"), TEXT_ARRAY("_text"), UUID_ARRAY("_uuid"), // etc.
-}
-```
-
-### Type Resolution Priority
-
-When a Kotlin type has multiple annotations (e.g., both `@PgComposite` and `@DynamicallyMappable`), use explicit wrappers to control the path:
-
-| Wrapper Used               | Behavior                                                                                                               |
-|----------------------------|------------------------------------------------------------------------------------------------------------------------|
-| `value.withPgType("type")` | Forces `@PgComposite` / `@PgEnum` path — converts to `ROW(...)::type` or `PGobject`                                    |
-| `DynamicDto.from(value)`   | Forces `@DynamicallyMappable` path — converts to `dynamic_dto(...)`                                                    |
-| None (raw value)           | Depends on `DynamicDtoSerializationStrategy` (see [Configuration](configuration.md#dynamicdto-serialization-strategy)) |
-
----
-
-## @MapKey & Object Conversion Utilities
-
-`@MapKey` overrides the default snake_case ↔ camelCase mapping for individual properties. `toDataObject()` and `toMap()` convert between data classes and maps.
-
-See [Data Mapping](data-mapping.md) for full documentation, examples, and CRUD patterns.
-
----
-
-## Enum Serialization in dynamic_dto
-
-When using enums inside `@DynamicallyMappable` classes, you need a custom serializer to handle naming conventions.
-
-### DynamicDtoEnumSerializer
-
-```kotlin
-// 1. Define your enum with @PgEnum
-@Serializable(with = OrderStatusSerializer::class)
-@PgEnum(
-    pgConvention = CaseConvention.SNAKE_CASE_UPPER,
-    kotlinConvention = CaseConvention.PASCAL_CASE
-)
-enum class OrderStatus { Pending, InProgress, Completed }
-
-// 2. Create a serializer for dynamic_dto usage
+// 1. Create a serializer
 object OrderStatusSerializer : DynamicDtoEnumSerializer<OrderStatus>(
     serialName = "OrderStatus",
     entries = OrderStatus.entries,
-    pgConvention = CaseConvention.SNAKE_CASE_UPPER,
-    kotlinConvention = CaseConvention.PASCAL_CASE
+    pgConvention = CaseConvention.SNAKE_CASE_UPPER
 )
 
-// 3. Use in @DynamicallyMappable classes
+// 2. Attach it to your Enum
+@Serializable(with = OrderStatusSerializer::class)
+@PgEnum(pgConvention = CaseConvention.SNAKE_CASE_UPPER)
+enum class OrderStatus { Pending, InProgress }
+
+// 3. Use in DTO
 @DynamicallyMappable(typeName = "order_update")
 @Serializable
-data class OrderUpdate(
-    val orderId: Int,
-    val newStatus: OrderStatus  // Uses OrderStatusSerializer
-)
+data class OrderUpdate(val newStatus: OrderStatus)
+// JSON Output: {"newStatus": "IN_PROGRESS"} (instead of "InProgress")
 ```
-
-### Why Is This Necessary?
+#### Why Is This Necessary?
 
 This serializer is required because of how kotlinx.serialization works. When you have an enum property inside a `@Serializable` class, the compiler plugin generates a serializer for that class at compile time. For enum properties, **it uses the default enum serializer** which simply outputs the Kotlin enum name (e.g., `"InProgress"`).
 
 The library cannot intercept or modify this behavior internally — the serializer is already baked into the generated code. The only way to change how the enum is serialized is to explicitly specify a custom serializer using `@Serializable(with = ...)` on the enum class itself.
 
-**The problem:**
+### Helper Serializers
 
-```kotlin
-@DynamicallyMappable(typeName = "order_update")
-@Serializable
-data class OrderUpdate(val status: OrderStatus)
-
-// Generated serializer uses default enum serialization:
-// {"status": "InProgress"}  ← Kotlin name, not PostgreSQL convention!
-```
-
-**The solution:**
-
-```kotlin
-@Serializable(with = OrderStatusSerializer::class)  // Override default
-@PgEnum(pgConvention = CaseConvention.SNAKE_CASE_UPPER)
-enum class OrderStatus { Pending, InProgress, Completed }
-
-// Now serializes as:
-// {"status": "IN_PROGRESS"}  ← Matches PostgreSQL convention
-```
-
-Without this, the JSON payload stored in `dynamic_dto` would contain Kotlin enum names, but PostgreSQL ENUM values use different conventions — leading to mismatches when data is read back or queried directly in SQL.
-
-### Parameters
-
-| Parameter          | Description                                  |
-|--------------------|----------------------------------------------|
-| `serialName`       | Name for serialization descriptor            |
-| `entries`          | `YourEnum.entries` - list of all enum values |
-| `pgConvention`     | Must match `@PgEnum.pgConvention`            |
-| `kotlinConvention` | Must match `@PgEnum.kotlinConvention`        |
-
----
-
-## Helper Serializers
-
-Octavius provides helper serializers for kotlinx.serialization to handle common types that don't have built-in support.
-
-### BigDecimalAsNumberSerializer
-
-Serializes `java.math.BigDecimal` as an unquoted JSON number literal, preserving full numeric precision.
-
-**Why needed?** By default, kotlinx.serialization doesn't support `BigDecimal`. If you need to store `BigDecimal` values in `@DynamicallyMappable` classes (serialized to JSONB), this serializer ensures:
-
-1. The value is stored as a JSON number (not a string)
-2. Full precision is preserved (no floating-point rounding)
-3. PostgreSQL's JSONB correctly interprets it as a numeric type
-
-**Usage:**
+Octavius provides `BigDecimalAsNumberSerializer` to serialize `java.math.BigDecimal` as an unquoted JSON number literal, preserving full numeric precision in JSONB.
 
 ```kotlin
 import org.octavius.data.helper.BigDecimalAsNumberSerializer
-import java.math.BigDecimal
 
 @DynamicallyMappable(typeName = "price_data")
 @Serializable
 data class PriceData(
-    val productId: Int,
-
     @Serializable(with = BigDecimalAsNumberSerializer::class)
-    val price: BigDecimal,
-
-    @Serializable(with = BigDecimalAsNumberSerializer::class)
-    val tax: BigDecimal
+    val price: BigDecimal
 )
+// JSONB Output: {"price": 199.99} (number, not string)
 ```
 
-**Result in JSONB:**
+---
 
-```json
-{
-  "productId": 123,
-  "price": 199.99,
-  "tax": 15.9992
-}
-```
+## Object Conversion Utilities
 
-Without this serializer, you would get a compilation error or need to convert `BigDecimal` to `String`/`Double` manually (losing precision or type information).
+For overriding the default `snake_case` ↔ `camelCase` mapping for individual properties, use the `@MapKey` annotation.
+
+Utilities like `toDataObject()` and `toMap()` are available to convert between data classes and maps. See [Data Mapping](data-mapping.md) documentation for full details and CRUD patterns.

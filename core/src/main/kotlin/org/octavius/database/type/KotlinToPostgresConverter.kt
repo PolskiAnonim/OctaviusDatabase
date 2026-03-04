@@ -1,58 +1,28 @@
 package org.octavius.database.type
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.datetime.*
 import kotlinx.serialization.json.JsonElement
 import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
 import org.octavius.data.toMap
-import org.octavius.data.type.DISTANT_FUTURE
-import org.octavius.data.type.DISTANT_PAST
+import org.octavius.data.type.DYNAMIC_DTO
 import org.octavius.data.type.DynamicDto
 import org.octavius.data.type.PgTyped
-import org.octavius.data.util.clean
 import org.octavius.database.config.DynamicDtoSerializationStrategy
 import org.octavius.database.type.registry.TypeRegistry
 import org.postgresql.util.PGobject
 import kotlin.reflect.KClass
-import kotlin.time.Duration
-import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
-import kotlin.time.toJavaInstant
 
 /**
- * Result of query expansion to JDBC positional format.
- * @param sql Query with '?' placeholders instead of named parameters.
- * @param params Ordered list of parameters for use in `PreparedStatement`.
+ * Result of parameter expansion: SQL with positional markers and the converted values.
  */
-data class PositionalQuery(
-    val sql: String,
-    val params: List<Any?>
-)
+data class PositionalQuery(val sql: String, val params: List<Any?>)
 
 /**
- * Converts complex Kotlin types to appropriate SQL constructs for PostgreSQL.
- *
- * Enables using advanced types in queries without manual conversion.
- *
- * **Supported transformations:**
- * - `List<T>` → `ARRAY[...]`
- * - `data class` → `ROW(...)::type_name` (if registered as `@PgComposite`) or `dynamic_dto(...)` (if `@DynamicallyMappable`)
- * - `Enum` → `PGobject` (if registered as `@PgEnum`) or `dynamic_dto(...)` (if `@DynamicallyMappable`)
- * - `value class` → `dynamic_dto(...)` (must have `@DynamicallyMappable`, otherwise exception)
- * - `JsonElement` → `JSONB`
- * - `PgTyped<T>` → wraps value and adds explicit `::type_name` cast (highest priority)
- * - Date/time types → `java.sql.*` equivalents
- * - `Duration` → PostgreSQL `interval`
- *
- * **Dynamic DTO Strategy:**
- * Controls automatic conversion to `dynamic_dto` for `@DynamicallyMappable` types:
- * - `EXPLICIT_ONLY`: Only explicit `DynamicDto` wrappers are serialized as `dynamic_dto`
- * - `AUTOMATIC_WHEN_UNAMBIGUOUS` (default): Automatically converts to `dynamic_dto` if type is NOT registered
- *   as a formal PostgreSQL type (`@PgComposite`/`@PgEnum`). Avoids conflicts between formal and dynamic types.
- *
+ * Orchestrates conversion of Kotlin objects to PostgreSQL JDBC parameters.
+ * Delegates standard type handling to [StandardTypeMappingRegistry].
  */
 internal class KotlinToPostgresConverter(
     private val typeRegistry: TypeRegistry,
@@ -62,308 +32,206 @@ internal class KotlinToPostgresConverter(
         private val logger = KotlinLogging.logger {}
     }
 
-    /**
-     * Maps Kotlin types to their PostgreSQL representations for JDBC.
-     *
-     * This map handles standard type conversions including special support for PostgreSQL infinity values:
-     * - **DATE**: [LocalDate.DISTANT_FUTURE]/[LocalDate.DISTANT_PAST] → 'infinity'/'-infinity'
-     * - **TIMESTAMP**: [LocalDateTime.DISTANT_FUTURE]/[LocalDateTime.DISTANT_PAST] → 'infinity'/'-infinity'
-     * - **TIMESTAMPTZ**: [Instant.DISTANT_FUTURE]/[Instant.DISTANT_PAST] → 'infinity'/'-infinity'
-     * - **INTERVAL**: [Duration.INFINITE]/[-Duration.INFINITE][Duration.INFINITE] → 'infinity'/'-infinity'
-     *
-     * For finite values, standard conversions apply:
-     * - kotlinx.datetime types → java.sql types
-     * - Duration → ISO 8601 interval string format
-     */
-    @OptIn(ExperimentalTime::class)
-    private val KOTLIN_TO_JDBC_CONVERTERS: Map<KClass<*>, (Any) -> Any> = mapOf(
-        LocalDate::class to { v ->
-            when (val date = v as LocalDate) {
-                LocalDate.DISTANT_FUTURE -> PGobject().apply { type = "date"; value = "infinity" }
-                LocalDate.DISTANT_PAST -> PGobject().apply { type = "date"; value = "-infinity" }
-                else -> java.sql.Date.valueOf(date.toJavaLocalDate())
-            }
-        },
-        LocalDateTime::class to { v ->
-            when (val dateTime = v as LocalDateTime) {
-                LocalDateTime.DISTANT_FUTURE -> PGobject().apply { type = "timestamp"; value = "infinity" }
-                LocalDateTime.DISTANT_PAST -> PGobject().apply { type = "timestamp"; value = "-infinity" }
-                else -> java.sql.Timestamp.valueOf(dateTime.toJavaLocalDateTime())
-            }
-        },
-        LocalTime::class to { v -> java.sql.Time.valueOf((v as LocalTime).toJavaLocalTime()) },
-        Instant::class to { v ->
-            when (val instant = v as Instant) {
-                Instant.DISTANT_FUTURE -> PGobject().apply { type = "timestamptz"; value = "infinity" }
-                Instant.DISTANT_PAST -> PGobject().apply { type = "timestamptz"; value = "-infinity" }
-                else -> java.sql.Timestamp.from(instant.toJavaInstant())
-            }
-        },
-        Duration::class to { v ->
-            val duration = v as Duration
-            PGobject().apply {
-                type = "interval"
-                value = when (duration) {
-                    Duration.INFINITE -> "infinity"
-                    -Duration.INFINITE -> "-infinity"
-                    else -> duration.toIsoString()
-                }
-            }
-        }
-    )
+    private val serializer = PgTextSerializer(typeRegistry, dynamicDtoStrategy)
 
-
-    /**
-     * Processes SQL query, expanding complex parameters into PostgreSQL constructs.
-     *
-     * Handles types as described in class KDoc
-     *
-     * @param sql Query with named parameters (e.g., `:param`).
-     * @param params Parameter map for expansion, may contain complex Kotlin types.
-     * @return `PositionalQuery` with processed SQL and flattened parameters.
-     */
     fun expandParametersInQuery(sql: String, params: Map<String, Any?>): PositionalQuery {
-        logger.debug { "Expanding parameters to positional query. Original params count: ${params.size}" }
-        logger.trace { "Original SQL: $sql" }
-
         val parsedParameters = PostgresNamedParameterParser.parse(sql)
+        if (parsedParameters.isEmpty()) return PositionalQuery(sql, emptyList())
 
-        if (parsedParameters.isEmpty()) {
-            logger.debug { "No named parameters found, returning original query." }
-            // Return empty parameter list since none were used
-            return PositionalQuery(sql, emptyList())
-        }
-
-        val expandedSqlBuilder = StringBuilder(sql.length)
-        val expandedParamsList = mutableListOf<Any?>()
+        val sb = StringBuilder(sql.length + 256)
+        val finalParams = ArrayList<Any?>(parsedParameters.size)
         var lastIndex = 0
 
-        parsedParameters.forEach { parsedParam ->
+        for (parsedParam in parsedParameters) {
             val paramName = parsedParam.name
+            val paramValue = if (params.containsKey(paramName)) params[paramName] else 
+                throw IllegalArgumentException("Missing value for parameter: $paramName")
 
-            if (!params.containsKey(paramName)) {
-                throw IllegalArgumentException("Missing value for required SQL parameter: $paramName")
-            }
-
-            val paramValue = params[paramName]
-
-            val (newPlaceholder, newParams) = expandParameter(paramValue)
-
-            expandedSqlBuilder.append(sql, lastIndex, parsedParam.startIndex)
-            expandedSqlBuilder.append(newPlaceholder)
-
-            expandedParamsList.addAll(newParams)
-
+            val (placeholder, value) = expandParameter(paramValue, appendTypeCast = true)
+            sb.append(sql, lastIndex, parsedParam.startIndex).append(placeholder)
+            finalParams.add(value)
             lastIndex = parsedParam.endIndex
         }
-
-        expandedSqlBuilder.append(sql, lastIndex, sql.length)
-
-        logger.debug { "Parameter expansion completed. Positional params count: ${expandedParamsList.size}" }
-        logger.trace { "Expanded SQL: $expandedSqlBuilder" }
-
-        return PositionalQuery(expandedSqlBuilder.toString(), expandedParamsList)
+        return PositionalQuery(sb.append(sql, lastIndex, sql.length).toString(), finalParams)
     }
 
-    /**
-     * Expands a single parameter into the appropriate SQL construct.
-     * @param paramValue Parameter value to convert.
-     * @param appendTypeCast Whether to append type cast (e.g., `::type_name`).
-     * @return Pair: SQL placeholder (with `?`) and list of flattened parameters.
-     */
-    private fun expandParameter(
-        paramValue: Any?,
-        appendTypeCast: Boolean = true
-    ): Pair<String, List<Any?>> {
-        if (paramValue == null) {
-            return "?" to listOf(null)
+    private fun expandParameter(value: Any?, appendTypeCast: Boolean, skipDynamicDto: Boolean = false): Pair<String, Any?> {
+        if (value == null) return "?" to null
+
+        var current = value
+        var outermostPgType: String? = null
+        var currentSkipDynamicDto = skipDynamicDto
+
+        // 1. Unpack explicit type wrapping
+        while (current is PgTyped) {
+            if (outermostPgType == null) outermostPgType = current.pgType
+            current = current.value ?: return (if (appendTypeCast) "?::$outermostPgType" else "?") to null
+            currentSkipDynamicDto = true
         }
 
-        if (paramValue is PgTyped) {
-            val (innerPlaceholder, innerParams) = expandParameter(
-                paramValue.value,
-                appendTypeCast = false
-            )
-            val finalPlaceholder = innerPlaceholder + "::" + paramValue.pgType
-            return finalPlaceholder to innerParams
+        // 2. Try Dynamic DTO conversion (if not forced to composite/standard via PgTyped)
+        if (!currentSkipDynamicDto) {
+            tryExpandAsDynamicDto(current, appendTypeCast)?.let { return it }
         }
 
-        KOTLIN_TO_JDBC_CONVERTERS[paramValue::class]?.let { converter ->
-            return "?" to listOf(converter(paramValue))
+        // 3. Delegate standard types to registry (handles String, Number, Boolean, Instant, JsonElement, etc.)
+        StandardTypeMappingRegistry.getHandlerByClass(current::class)?.let { handler ->
+            val placeholder = if (appendTypeCast) "?::${outermostPgType ?: handler.pgTypeName}" else "?"
+            return placeholder to handler.toJdbc(current)
         }
 
-        return when {
-            paramValue is JsonElement -> {
-                val pgObject = PGobject().apply {
-                    type = "jsonb"
-                    value = paramValue.toString()
-                }
-                "?" to listOf(pgObject)
+        // 4. Handle specialized types
+        val resolvedType = outermostPgType ?: if (appendTypeCast) resolveSqlType(current) else "text"
+        val pgValue = when (current) {
+            is Array<*> -> return validateTypedArrayParameter(current) // Arrays are passed directly via JDBC
+            is List<*> -> {
+                val elementPgType = outermostPgType?.let { StandardTypeMappingRegistry.resolveBaseTypeName(it) }
+                PGobject().apply { type = "text"; this.value = serializer.serializeList(current, currentSkipDynamicDto, elementPgType) }
             }
-            isDataClass(paramValue) -> {
-                if (appendTypeCast) {
-                    tryExpandAsDynamicDto(paramValue) ?: expandRowParameter(paramValue, true)
+            is Enum<*> -> {
+                val typeName = outermostPgType ?: typeRegistry.getPgTypeNameForClass(current::class)
+                val typeInfo = typeRegistry.getEnumDefinition(typeName)
+                PGobject().apply { type = typeName; this.value = typeInfo.enumToValueMap[current] ?: current.name }
+            }
+            else -> {
+                if (current::class.isData) {
+                    PGobject().apply { type = "text"; this.value = serializer.serializeComposite(current, currentSkipDynamicDto, outermostPgType) }
+                } else if (current::class.isValue) {
+                    throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, current::class.qualifiedName)
                 } else {
-                    expandRowParameter(paramValue, false)
+                    current
                 }
             }
-            paramValue is Array<*> -> validateTypedArrayParameter(paramValue)
-            paramValue is List<*> -> expandArrayParameter(paramValue)
-            paramValue is Enum<*> -> {
-                if (appendTypeCast) {
-                    tryExpandAsDynamicDto(paramValue) ?: createEnumParameter(paramValue)
-                } else {
-                    createEnumParameter(paramValue)
-                }
-            }
-            isValueClass(paramValue) -> tryExpandAsDynamicDto(paramValue)
-                ?: throw TypeRegistryException(
-                    messageEnum = TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED,
-                    typeName = paramValue::class.qualifiedName,
-                    cause = IllegalStateException("Value class must be annotated with @DynamicallyMappable.")
-                )
-            paramValue is String -> "?" to listOf(paramValue.clean())
-            else -> "?" to listOf(paramValue)
         }
+
+        return (if (appendTypeCast) "?::$resolvedType" else "?") to pgValue
     }
 
-    /**
-     * Attempts to convert the given value to a `DynamicDto` wrapper, if allowed
-     * by configuration and if the class is annotated with @DynamicallyMappable.
-     *
-     * **Strategy behavior:**
-     * - `EXPLICIT_ONLY`: Always returns null (only explicit DynamicDto wrappers allowed)
-     * - `AUTOMATIC_WHEN_UNAMBIGUOUS`: Returns null if type is already registered as formal PostgreSQL type
-     *   (`@PgComposite`/`@PgEnum`), otherwise attempts dynamic conversion
-     *
-     * @return Expansion result as `Pair` or `null` if conversion is not possible/allowed.
-     */
-    private fun tryExpandAsDynamicDto(
-        paramValue: Any
-    ): Pair<String, List<Any?>>? {
-        if (dynamicDtoStrategy == DynamicDtoSerializationStrategy.EXPLICIT_ONLY) return null
+    private fun tryExpandAsDynamicDto(paramValue: Any, appendTypeCast: Boolean): Pair<String, Any?>? {
+        if (dynamicDtoStrategy == DynamicDtoSerializationStrategy.EXPLICIT_ONLY && paramValue !is DynamicDto) return null
         if (dynamicDtoStrategy == DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS && typeRegistry.isPgType(paramValue::class)) return null
 
         val dynamicTypeName = typeRegistry.getDynamicTypeNameForClass(paramValue::class) ?: return null
-        val serializer = typeRegistry.getDynamicSerializer(dynamicTypeName)
-        logger.trace { "Dynamically converting ${paramValue::class.simpleName} to dynamic_dto '$dynamicTypeName'" }
+        val dtSerializer = typeRegistry.getDynamicSerializer(dynamicTypeName)
 
-        val dynamicDtoWrapper = try {
-            DynamicDto.from(paramValue, dynamicTypeName, serializer)
-        } catch (ex: Exception) {
-            logger.error(ex) { ex }; throw ex
-        }
-        return expandParameter(dynamicDtoWrapper)
+        val dynamicDtoWrapper = DynamicDto.from(paramValue, dynamicTypeName, dtSerializer)
+        return expandParameter(dynamicDtoWrapper, appendTypeCast)
     }
 
-    /**
-     * Validates a typed array (`Array<*>`) intended for direct JDBC passing.
-     * Throws exception if element type is not a simple type.
-     */
-    private fun validateTypedArrayParameter(arrayValue: Array<*>): Pair<String, List<Any?>> {
+    private fun validateTypedArrayParameter(arrayValue: Array<*>): Pair<String, Any?> {
         val componentType = arrayValue::class.java.componentType!!.kotlin
-        if (isComplexComponentType(componentType)) {
-            throw ConversionException(
-                ConversionExceptionMessage.UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY,
-                arrayValue,
-                targetType = componentType.qualifiedName ?: "unknown"
-            )
+        if (componentType.isData || componentType == Map::class || componentType == List::class) {
+            throw ConversionException(ConversionExceptionMessage.UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY, arrayValue, componentType.qualifiedName)
         }
-        return "?" to listOf(arrayValue)
+        return "?" to arrayValue
+    }
+
+    private fun resolveSqlType(value: Any): String {
+        if (value is PgTyped) return value.pgType
+        return when (value) {
+            is List<*> -> "${value.firstOrNull { it != null }?.let { resolveSqlType(it) } ?: "text"}[]"
+            else -> {
+                if ((dynamicDtoStrategy == DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS && !typeRegistry.isPgType(
+                        value::class
+                    ) || dynamicDtoStrategy == DynamicDtoSerializationStrategy.PREFER_DYNAMIC_DTO) && typeRegistry.getDynamicTypeNameForClass(
+                        value::class
+                    ) != null
+                ) return DYNAMIC_DTO
+                 if (typeRegistry.isPgType(value::class)) return typeRegistry.getPgTypeNameForClass(value::class)
+                StandardTypeMappingRegistry.getHandlerByClass(value::class)?.pgTypeName ?: "text"
+            }
+        }
     }
 
     /**
-     * Checks whether KClass represents a complex type (e.g., data class)
-     * that cannot be used in a typed JDBC array.
+     * Serializes complex objects into PostgreSQL text protocol literals.
      */
-    private fun isComplexComponentType(kClass: KClass<*>): Boolean {
-        return kClass.isData || kClass == Map::class || kClass == List::class
-    }
-
-    /** Creates parameter for enum, mapping naming case for type and value. */
-    private fun createEnumParameter(enumValue: Enum<*>): Pair<String, List<Any?>> {
-        val dbTypeName = typeRegistry.getPgTypeNameForClass(enumValue::class)
-        val typeInfo = typeRegistry.getEnumDefinition(dbTypeName)
-        val finalDbValue = typeInfo.enumToValueMap[enumValue]
-        val pgObject = PGobject().apply {
-            value = finalDbValue; type = dbTypeName
-        }
-        return "?" to listOf(pgObject)
-    }
-
-    /**
-     * Expands list into PostgreSQL ARRAY[...] construct.
-     *
-     * Recursively processes list elements, handling nested structures.
-     * Empty list is converted to '{}' (empty PostgreSQL array).
-     *
-     * @param arrayValue List to convert.
-     * @return Pair: ARRAY[...] placeholder and list of element parameters.
-     */
-    private fun expandArrayParameter(arrayValue: List<*>): Pair<String, List<Any?>> {
-        if (arrayValue.isEmpty()) {
-            return "'{}'" to emptyList()
+    private class PgTextSerializer(
+        private val typeRegistry: TypeRegistry,
+        private val dynamicDtoStrategy: DynamicDtoSerializationStrategy
+    ) {
+        fun serializeList(list: List<*>, skipDynamicDto: Boolean, explicitElementType: String?): String {
+            if (list.isEmpty()) return "{}"
+            return list.joinToString(prefix = "{", postfix = "}", separator = ",") { item ->
+                if (item == null) "NULL" else {
+                    val literal = serializeValue(item, skipDynamicDto, explicitElementType)
+                    if (shouldQuote(item)) escapeAndQuote(literal) else literal
+                }
+            }
         }
 
-        val expandedParams = mutableListOf<Any?>()
-        val placeholders = arrayValue.map { value ->
-            val (placeholder, params) = expandParameter(value)
-            expandedParams.addAll(params)
-            placeholder
+        fun serializeComposite(obj: Any, skipDynamicDto: Boolean, explicitType: String?): String {
+            val typeName = explicitType ?: typeRegistry.getPgTypeNameForClass(obj::class)
+            val typeInfo = typeRegistry.getCompositeDefinition(typeName)
+            val valueMap = obj.toMap()
+
+            return typeInfo.attributes.keys.joinToString(prefix = "(", postfix = ")", separator = ",") { key ->
+                val value = valueMap[key]
+                if (value == null) "" else {
+                    val literal = serializeValue(value, skipDynamicDto, null)
+                    if (shouldQuote(value)) escapeAndQuote(literal) else literal
+                }
+            }
         }
 
-        val arrayPlaceholder = "ARRAY[${placeholders.joinToString(", ")}]"
-        return arrayPlaceholder to expandedParams
-    }
+        private fun serializeValue(value: Any, skipDynamicDto: Boolean, explicitType: String?): String {
+            var current = value
+            var wasPgTyped = false
 
-    /**
-     * Expands data class into PostgreSQL ROW(...)::type_name construct.
-     *
-     * Maps data class fields to composite type attributes in order
-     * specified by TypeRegistry. Recursively processes nested fields.
-     *
-     * @param compositeValue Data class instance to convert.
-     * @param appendTypeCast Whether to append type cast (e.g., `::type_name`).
-     * @return Pair: ROW(...)::type_name placeholder and list of field parameters.
-     * @throws TypeRegistryException if class is not registered.
-     */
-    private fun expandRowParameter(
-        compositeValue: Any,
-        appendTypeCast: Boolean = true
-    ): Pair<String, List<Any?>> {
-        val kClass = compositeValue::class
-        val dbTypeName = typeRegistry.getPgTypeNameForClass(kClass)
-        val typeInfo = typeRegistry.getCompositeDefinition(dbTypeName)
-        val valueMap = compositeValue.toMap()
-        val expandedParams = mutableListOf<Any?>()
+            while (current is PgTyped) {
+                wasPgTyped = true
+                current = current.value ?: return "NULL"
+            }
 
-        val placeholders = typeInfo.attributes.keys.map { dbAttributeName ->
-            val value = valueMap[dbAttributeName]
-            val (placeholder, params) = expandParameter(value)
-            expandedParams.addAll(params)
-            placeholder
+            // 1. Try registry first (handles built-ins including String, Number, Boolean, JSON)
+            StandardTypeMappingRegistry.getHandlerByClass(current::class)?.let { return it.toPgString(current) }
+
+            // 2. Try Dynamic DTO
+            if (!wasPgTyped && !skipDynamicDto && current !is DynamicDto) {
+                if (dynamicDtoStrategy != DynamicDtoSerializationStrategy.EXPLICIT_ONLY && !typeRegistry.isPgType(current::class)) {
+                    typeRegistry.getDynamicTypeNameForClass(current::class)?.let { typeName ->
+                        current = DynamicDto.from(current, typeName, typeRegistry.getDynamicSerializer(typeName))
+                    }
+                }
+            }
+
+            // 3. Handle recursive/complex types
+            return when (current) {
+                is Enum<*> -> {
+                    val typeName = explicitType ?: typeRegistry.getPgTypeNameForClass(current::class)
+                    typeRegistry.getEnumDefinition(typeName).enumToValueMap[current] ?: current.name
+                }
+                is List<*> -> serializeList(current, skipDynamicDto || wasPgTyped, explicitType?.let { StandardTypeMappingRegistry.resolveBaseTypeName(it) })
+                else -> {
+                    if (current::class.isData) serializeComposite(current, skipDynamicDto || wasPgTyped, explicitType)
+                    else if (current::class.isValue) throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, current::class.qualifiedName)
+                    else current.toString()
+                }
+            }
         }
 
-        val rowPlaceholder = if (appendTypeCast) {
-            "ROW(${placeholders.joinToString(", ")})::$dbTypeName"
-        } else {
-            "ROW(${placeholders.joinToString(", ")})"
+        private fun shouldQuote(item: Any): Boolean {
+            var curr = item
+            while (curr is PgTyped) curr = curr.value ?: return false
+            // Registry types know if they are numeric/boolean
+            StandardTypeMappingRegistry.getHandlerByClass(curr::class)?.let { handler ->
+                return handler.pgTypeName !in setOf("bool", "int2", "int4", "int8", "float4", "float8", "numeric")
+            }
+            return true
         }
 
-        return rowPlaceholder to expandedParams
-    }
-
-    /**
-     * Checks whether an object is an instance of a data class.
-     */
-    private fun isDataClass(obj: Any): Boolean {
-        return obj::class.isData
-    }
-
-    /**
-     * Checks whether an object is an instance of a value class.
-     */
-    private fun isValueClass(obj: Any): Boolean {
-        return obj::class.isValue
+        private fun escapeAndQuote(s: String): String {
+            val sb = StringBuilder(s.length + 2)
+            sb.append('"')
+            for (c in s) {
+                when (c) {
+                    '\\' -> sb.append("\\\\")
+                    '"' -> sb.append("\\\"")
+                    else -> sb.append(c)
+                }
+            }
+            sb.append('"')
+            return sb.toString()
+        }
     }
 }

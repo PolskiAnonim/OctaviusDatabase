@@ -79,10 +79,10 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Standard Type Mapping](type-system.md#standard-type-mapping) - PostgreSQL ↔ Kotlin conversions
 - [@PgEnum](type-system.md#pgenum) - Map Kotlin enums to PostgreSQL ENUMs
 - [@PgComposite](type-system.md#pgcomposite) - Map data classes to COMPOSITE types
-- [Parameter Expansion (Flattening)](type-system.md#parameter-expansion-flattening) - How composites/arrays expand into SQL placeholders
+- [Collections & Parameter Flattening](type-system.md#collections--parameter-flattening) - How composites/arrays are serialized into SQL
 - [@DynamicallyMappable](type-system.md#dynamicallymappable) - Polymorphic storage with dynamic_dto
 - [Enum Serialization in dynamic_dto](type-system.md#enum-serialization-in-dynamic_dto) - `DynamicDtoEnumSerializer` for enum fields
-- [PgTyped](type-system.md#pgtyped---explicit-type-casts) - Explicit type casts, type resolution priority
+- [PgTyped](type-system.md#explicit-type-casts-pgtyped) - Explicit type casts, type resolution priority
 - [Helper Serializers](type-system.md#helper-serializers) - `BigDecimalAsNumberSerializer`, `DynamicDtoEnumSerializer`
 
 ### Configuration

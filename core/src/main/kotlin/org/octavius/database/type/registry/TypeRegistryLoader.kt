@@ -6,6 +6,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
+import org.octavius.data.type.DYNAMIC_DTO
 import org.octavius.data.type.PgStandardType
 import org.octavius.data.util.CaseConverter
 import org.springframework.jdbc.core.JdbcTemplate
@@ -183,7 +184,7 @@ internal class TypeRegistryLoader(
         enums.forEach { map[it] = TypeCategory.ENUM }
         composites.forEach {
             // "dynamic_dto" is treated specially during deserialization
-            map[it] = if (it == "dynamic_dto") TypeCategory.DYNAMIC else TypeCategory.COMPOSITE
+            map[it] = if (it == DYNAMIC_DTO) TypeCategory.DYNAMIC else TypeCategory.COMPOSITE
         }
         arrays.forEach { map[it] = TypeCategory.ARRAY }
         standard.forEach { map[it] = TypeCategory.STANDARD }

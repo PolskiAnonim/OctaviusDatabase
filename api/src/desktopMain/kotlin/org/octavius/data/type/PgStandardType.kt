@@ -8,20 +8,23 @@ package org.octavius.data.type
 enum class PgStandardType(val typeName: String, val isArray: Boolean = false) {
     // --- Simple types ---
     // Fixed-point types
-    INT2("int2"),
     SMALLSERIAL("smallserial"),
-    INT4("int4"),
+    INT2("int2"),
     SERIAL("serial"),
-    INT8("int8"),
+    INT4("int4"),
     BIGSERIAL("bigserial"),
+    INT8("int8"),
+
     // Floating-point types
     FLOAT4("float4"),
     FLOAT8("float8"),
     NUMERIC("numeric"),
+
     // Text types
-    TEXT("text"),
     VARCHAR("varchar"),
-    CHAR("char"),
+    BPHAR("bpchar"),
+    TEXT("text"),
+
     // Date and time
     DATE("date"),
     TIMESTAMP("timestamp"),
@@ -29,27 +32,29 @@ enum class PgStandardType(val typeName: String, val isArray: Boolean = false) {
     TIME("time"),
     TIMETZ("timetz"),
     INTERVAL("interval"),
+
     // Json
     JSON("json"),
     JSONB("jsonb"),
+
     // Other
     BOOL("bool"),
     UUID("uuid"),
     BYTEA("bytea"),
 
     // --- Array types (generated automatically) ---
-    INT2_ARRAY("_int2", true),
     SMALLSERIAL_ARRAY("_smallserial", true),
-    INT4_ARRAY("_int4", true),
+    INT2_ARRAY("_int2", true),
     SERIAL_ARRAY("_serial", true),
-    INT8_ARRAY("_int8", true),
+    INT4_ARRAY("_int4", true),
     BIGSERIAL_ARRAY("_bigserial", true),
+    INT8_ARRAY("_int8", true),
     FLOAT4_ARRAY("_float4", true),
     FLOAT8_ARRAY("_float8", true),
     NUMERIC_ARRAY("_numeric", true),
-    TEXT_ARRAY("_text", true),
     VARCHAR_ARRAY("_varchar", true),
-    CHAR_ARRAY("_char", true),
+    BPCHAR_ARRAY("_bpchar", true),
+    TEXT_ARRAY("_text", true),
     DATE_ARRAY("_date", true),
     TIMESTAMP_ARRAY("_timestamp", true),
     TIMESTAMPTZ_ARRAY("_timestamptz", true),
