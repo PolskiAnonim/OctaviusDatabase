@@ -346,7 +346,12 @@ internal object StandardTypeMappingRegistry {
     }
 
     fun getHandler(pgTypeName: String): StandardTypeHandler? = mappings[pgTypeName]
-    fun getHandlerByClass(kClass: KClass<*>): StandardTypeHandler? = kotlinClassToHandler[kClass]
+    fun getHandlerByClass(kClass: KClass<*>): StandardTypeHandler? {
+        kotlinClassToHandler[kClass]?.let { return it }
+        // Fallback to searching for a superclass match (important for JsonObject, etc.)
+        return kotlinClassToHandler.values.firstOrNull { it.kotlinClass.isInstance(kClass) ||
+     		it.kotlinClass.java.isAssignableFrom(kClass.java) }  
+    }
     fun getAllTypeNames(): Set<String> = mappings.keys
 
     private inline fun <reified T : Any> primitive(

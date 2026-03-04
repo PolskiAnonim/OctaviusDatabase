@@ -29,8 +29,8 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.expandParametersInQuery(sql, params)
 
-            // Oczekujemy, że nazwane parametry zostaną zastąpione przez '?'
-            assertThat(result.sql).isEqualTo("SELECT * FROM users WHERE id = ? AND name = ? AND profile IS ?")
+            // Oczekujemy, że nazwane parametry zostaną zastąpione przez '?' z castami (poza null)
+            assertThat(result.sql).isEqualTo("SELECT * FROM users WHERE id = ?::int4 AND name = ?::text AND profile IS ?")
 
             // Oczekujemy listy wartości w kolejności występowania w SQL
             assertThat(result.params).containsExactly(123, "John", null)
@@ -43,7 +43,7 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.expandParametersInQuery(sql, params)
 
-            assertThat(result.sql).isEqualTo("SELECT * FROM tasks WHERE category = ?")
+            assertThat(result.sql).isEqualTo("SELECT * FROM tasks WHERE category = ?::test_category")
             assertThat(result.params).hasSize(1)
 
             val pgObject = result.params[0] as PGobject
@@ -59,7 +59,7 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.expandParametersInQuery(sql, params)
 
-            assertThat(result.sql).isEqualTo("UPDATE documents SET data = ? WHERE id = 1")
+            assertThat(result.sql).isEqualTo("UPDATE documents SET data = ?::jsonb WHERE id = 1")
             assertThat(result.params).hasSize(1)
 
             val pgObject = result.params[0] as PGobject
@@ -78,9 +78,12 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.expandParametersInQuery(sql, params)
 
-            // Oczekujemy ARRAY[?, ?, ?]
-            assertThat(result.sql).isEqualTo("SELECT * FROM users WHERE id = ANY(ARRAY[?, ?, ?])")
-            assertThat(result.params).containsExactly(10, 20, 30)
+            // Oczekujemy ?::int4[] i PGobject z "{10,20,30}"
+            assertThat(result.sql).isEqualTo("SELECT * FROM users WHERE id = ANY(?::int4[])")
+            assertThat(result.params).hasSize(1)
+            val pgObject = result.params[0] as PGobject
+            assertThat(pgObject.type).isEqualTo("text")
+            assertThat(pgObject.value).isEqualTo("{10,20,30}")
         }
 
         @Test
@@ -90,9 +93,12 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.expandParametersInQuery(sql, params)
 
-            // Pusta tablica to '{}' string
-            assertThat(result.sql).isEqualTo("SELECT * FROM users WHERE tags && '{}'")
-            assertThat(result.params).isEmpty()
+            // Teraz pusta tablica też jest parametrem
+            assertThat(result.sql).isEqualTo("SELECT * FROM users WHERE tags && ?::text[]")
+            assertThat(result.params).hasSize(1)
+            val pgObject = result.params[0] as PGobject
+            assertThat(pgObject.type).isEqualTo("text")
+            assertThat(pgObject.value).isEqualTo("{}")
         }
 
         @Test
@@ -102,16 +108,12 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.expandParametersInQuery(sql, params)
 
-            assertThat(result.sql).isEqualTo("SELECT * FROM tasks WHERE status = ANY(ARRAY[?, ?])")
-            assertThat(result.params).hasSize(2)
+            assertThat(result.sql).isEqualTo("SELECT * FROM tasks WHERE status = ANY(?::test_status[])")
+            assertThat(result.params).hasSize(1)
 
-            val status1 = result.params[0] as PGobject
-            assertThat(status1.type).isEqualTo("test_status")
-            assertThat(status1.value).isEqualTo("active")
-
-            val status2 = result.params[1] as PGobject
-            assertThat(status2.type).isEqualTo("test_status")
-            assertThat(status2.value).isEqualTo("pending")
+            val pgObject = result.params[0] as PGobject
+            assertThat(pgObject.type).isEqualTo("text")
+            assertThat(pgObject.value).isEqualTo("""{"active","pending"}""")
         }
     }
 
@@ -126,17 +128,14 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.expandParametersInQuery(sql, params)
 
-            // ROW(?, ?, ?, ?, ARRAY[?, ?])::test_person
-            assertThat(result.sql).isEqualTo("INSERT INTO employees (person) VALUES (ROW(?, ?, ?, ?, ARRAY[?, ?])::test_person)")
+            // Oczekujemy ?::test_person i zserializowany literal
+            assertThat(result.sql).isEqualTo("INSERT INTO employees (person) VALUES (?::test_person)")
 
-            assertThat(result.params).containsExactly(
-                "John Doe",
-                35,
-                "john.doe@example.com",
-                true,
-                "developer",
-                "team-lead"
-            )
+            assertThat(result.params).hasSize(1)
+            val pgObject = result.params[0] as PGobject
+            assertThat(pgObject.type).isEqualTo("text")
+            // ( "John Doe", 35, "john.doe@example.com", t, "{"developer","team-lead"}" )
+            assertThat(pgObject.value).isEqualTo("""("John Doe",35,"john.doe@example.com",t,"{\"developer\",\"team-lead\"}")""")
         }
 
         @Test
@@ -150,17 +149,16 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.expandParametersInQuery(sql, params)
 
-            // ARRAY[ROW(...)::type, ROW(...)::type]
-            val rowStructure = "ROW(?, ?, ?, ?, ARRAY[?])::test_person"
-            val rowStructure2 = "ROW(?, ?, ?, ?, ARRAY[?, ?])::test_person"
-            assertThat(result.sql).isEqualTo("SELECT process_team(ARRAY[$rowStructure, $rowStructure2])")
+            // Oczekujemy ?::test_person[]
+            assertThat(result.sql).isEqualTo("SELECT process_team(?::test_person[])")
 
-            assertThat(result.params).containsExactly(
-                // Alice
-                "Alice", 28, "a@a.com", true, "frontend",
-                // Bob
-                "Bob", 42, "b@b.com", false, "backend", "dba"
-            )
+            assertThat(result.params).hasSize(1)
+            val pgObject = result.params[0] as PGobject
+            assertThat(pgObject.type).isEqualTo("text")
+            
+            // Oczekujemy zakwotowanych kompozytów z potrójnie ucieczkowanymi cudzysłowami dla zagnieżdżonej listy
+            val expectedValue = """{"(\"Alice\",28,\"a@a.com\",t,\"{\\\"frontend\\\"}\")","(\"Bob\",42,\"b@b.com\",f,\"{\\\"backend\\\",\\\"dba\\\"}\")"}"""
+            assertThat(pgObject.value).isEqualTo(expectedValue)
         }
     }
 
@@ -204,32 +202,24 @@ class KotlinToPostgresConverterTest {
                 ),
                 budget = BigDecimal("250000.75")
             )
-            // Uproszczony obiekt do testu struktury, żeby nie pisać 50 asercji
             val params = mapOf("project_data" to project)
 
             val result = converter.expandParametersInQuery(sql, params)
 
             // Weryfikacja struktury SQL
-            assertThat(result.sql).startsWith("SELECT update_project(ROW(")
-            assertThat(result.sql).contains("ROW(", "ARRAY[", "::test_project", "::test_person")
+            assertThat(result.sql).isEqualTo("SELECT update_project(?::test_project)")
 
-            // Weryfikacja czy parametry trafiły na listę (sprawdzamy wybrane, charakterystyczne wartości)
-            assertThat(result.params).contains(
-                "Enterprise \"Fusion\" Project", // nazwa projektu
-                BigDecimal("250000.75"), // budżet
-                BigDecimal("16.5") // godziny zadania
-            )
+            // Weryfikacja parametrów
+            assertThat(result.params).hasSize(1)
+            val pgObject = result.params[0] as PGobject
+            assertThat(pgObject.type).isEqualTo("text")
 
-            // Weryfikacja czy Enumy są obiektami PGobject
-            val pgObjects = result.params.filterIsInstance<PGobject>()
-            assertThat(pgObjects).anySatisfy {
-                assertThat(it.type).isEqualTo("test_status")
-                assertThat(it.value).isEqualTo("active")
-            }
-            assertThat(pgObjects).anySatisfy {
-                assertThat(it.type).isEqualTo("test_priority")
-                assertThat(it.value).isEqualTo("high")
-            }
+            val value = pgObject.value!!
+            assertThat(value).contains("Enterprise \\\"Fusion\\\" Project")
+            assertThat(value).contains("250000.75")
+            assertThat(value).contains("16.5")
+            assertThat(value).contains("active")
+            assertThat(value).contains("high")
         }
     }
 }

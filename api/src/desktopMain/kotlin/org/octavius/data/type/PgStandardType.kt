@@ -34,8 +34,8 @@ enum class PgStandardType(val typeName: String, val isArray: Boolean = false) {
     INTERVAL("interval"),
 
     // Json
-    JSONB("jsonb"),
     JSON("json"),
+    JSONB("jsonb"),
 
     // Other
     BOOL("bool"),
