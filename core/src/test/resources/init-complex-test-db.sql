@@ -85,6 +85,8 @@ CREATE TABLE complex_test_data (
     text_array text[],
     number_array integer[],
     nested_text_array text[][],
+    json_array jsonb[],
+    text_array_special text[],
     
     -- Kompozyty
     single_person test_person,
@@ -117,6 +119,8 @@ INSERT INTO complex_test_data (
     text_array,
     number_array,
     nested_text_array,
+    json_array,
+    text_array_special,
     
     single_person,
     person_array,
@@ -146,6 +150,8 @@ INSERT INTO complex_test_data (
     ARRAY['first', 'second', 'third with "quotes"', 'fourth with ąćę'],
     ARRAY[1, 2, 3, 4, 5],
     ARRAY[ARRAY['a', 'b'], ARRAY['c', 'd'], ARRAY['e with "quotes"', 'f']],
+    ARRAY['{"id": 1}'::jsonb, '{"id": 2}'::jsonb],
+    ARRAY['{starts with brace', 'normal text'],
 
     -- Kompozyty
     ROW(

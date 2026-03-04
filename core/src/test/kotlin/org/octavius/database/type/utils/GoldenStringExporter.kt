@@ -70,6 +70,8 @@ class GoldenStringExporter {
             "text_array",
             "number_array",
             "nested_text_array",
+            "json_array",
+            "text_array_special",
             "single_person",
             "person_array",
             "project_data",

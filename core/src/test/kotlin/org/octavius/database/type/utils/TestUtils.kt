@@ -82,6 +82,7 @@ internal fun createFakeTypeRegistry(): TypeRegistry {
     // 2. Tablice standardowe (używane w testach)
     registerArray("text")
     registerArray("int4")
+    registerArray("jsonb")
 
     // 3. Enumy
     registerEnum("test_status", TestStatus::class)

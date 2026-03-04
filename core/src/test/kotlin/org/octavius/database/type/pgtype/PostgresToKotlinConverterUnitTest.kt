@@ -42,6 +42,8 @@ class PostgresToKotlinConverterUnitTest {
         const val GOLDEN_STRING_TEXT_ARRAY = "{first,second,\"third with \\\"quotes\\\"\",\"fourth with ąćę\"}"
         const val GOLDEN_STRING_NUMBER_ARRAY = "{1,2,3,4,5}"
         const val GOLDEN_STRING_NESTED_TEXT_ARRAY = "{{a,b},{c,d},{\"e with \\\"quotes\\\"\",f}}"
+        const val GOLDEN_STRING_JSON_ARRAY = "{\"{\\\"id\\\": 1}\",\"{\\\"id\\\": 2}\"}"
+        const val GOLDEN_STRING_TEXT_ARRAY_SPECIAL = "{\"{starts with brace\",\"normal text\"}"
         const val GOLDEN_STRING_SINGLE_PERSON = "(\"John \"\"The Developer\"\" Doe\",30,john@example.com,t,\"{admin,developer,team-lead}\")"
         const val GOLDEN_STRING_PERSON_ARRAY = "{\"(\\\"Alice Smith\\\",25,alice@example.com,t,\\\"{developer,frontend}\\\")\",\"(\\\"Bob \\\"\\\"Database\\\"\\\" Johnson\\\",35,bob@example.com,f,\\\"{dba,backend}\\\")\",\"(\\\"Carol \\\"\\\"The Tester\\\"\\\" Williams\\\",28,carol@example.com,t,\\\"{qa,automation}\\\")\"}"
         const val GOLDEN_STRING_PROJECT_DATA = "(\"Complex \"\"Enterprise\"\" Project\",\"A very complex project with all possible data types and \"\"special characters\"\"\",active,\"{\"\"(\\\\\"\"Project Manager\\\\\"\",40,pm@example.com,t,\\\\\"\"{manager,stakeholder}\\\\\"\")\"\",\"\"(\\\\\"\"Senior Dev \\\\\"\"\\\\\"\"The Architect\\\\\"\"\\\\\"\"\\\\\"\",35,senior@example.com,t,\\\\\"\"{architect,senior-dev}\\\\\"\")\"\",\"\"(\\\\\"\"Junior Dev\\\\\"\",24,junior@example.com,t,\\\\\"\"{junior-dev,learner}\\\\\"\")\"\",\"\"(,30,\\\\\"\"\\\\\"\",t,{user})\"\"}\",\"{\"\"(1,\\\\\"\"Setup \\\\\"\"\\\\\"\"Development\\\\\"\"\\\\\"\" Environment\\\\\"\",\\\\\"\"Configure all development tools and \\\\\"\"\\\\\"\"databases\\\\\"\"\\\\\"\"\\\\\"\",active,high,enhancement,\\\\\"\"(\\\\\"\"\\\\\"\"DevOps Guy\\\\\"\"\\\\\"\",32,devops@example.com,t,\\\\\"\"\\\\\"\"{devops,infrastructure}\\\\\"\"\\\\\"\")\\\\\"\",\\\\\"\"(\\\\\"\"\\\\\"\"2024-01-01 09:00:00\\\\\"\"\\\\\"\",\\\\\"\"\\\\\"\"2024-01-15 14:30:00\\\\\"\"\\\\\"\",1,\\\\\"\"\\\\\"\"{setup,infrastructure,priority}\\\\\"\"\\\\\"\")\\\\\"\",\\\\\"\"{\\\\\"\"\\\\\"\"install docker\\\\\"\"\\\\\"\",\\\\\"\"\\\\\"\"setup database\\\\\"\"\\\\\"\",\\\\\"\"\\\\\"\"configure \\\\\\\\\\\\\\\\\\\\\"\"\\\\\"\"CI/CD\\\\\\\\\\\\\\\\\\\\\"\"\\\\\"\"\\\\\"\"\\\\\"\"}\\\\\"\",16.5)\"\",\"\"(2,\\\\\"\"Implement \\\\\"\"\\\\\"\"Core\\\\\"\"\\\\\"\" Features\\\\\"\",\\\\\"\"Build the main functionality with proper \\\\\"\"\\\\\"\"error handling\\\\\"\"\\\\\"\"\\\\\"\",pending,critical,feature,\\\\\"\"(\\\\\"\"\\\\\"\"Lead Developer\\\\\"\"\\\\\"\",38,lead@example.com,t,\\\\\"\"\\\\\"\"{lead,full-stack}\\\\\"\"\\\\\"\")\\\\\"\",\\\\\"\"(\\\\\"\"\\\\\"\"2024-01-10 10:00:00\\\\\"\"\\\\\"\",\\\\\"\"\\\\\"\"2024-01-20 16:00:00\\\\\"\"\\\\\"\",2,\\\\\"\"\\\\\"\"{core,critical,feature}\\\\\"\"\\\\\"\")\\\\\"\",\\\\\"\"{\\\\\"\"\\\\\"\"design API\\\\\"\"\\\\\"\",\\\\\"\"\\\\\"\"implement \\\\\\\\\\\\\\\\\\\\\"\"\\\\\"\"business logic\\\\\\\\\\\\\\\\\\\\\"\"\\\\\"\"\\\\\"\"\\\\\"\",\\\\\"\"\\\\\"\"add tests\\\\\"\"\\\\\"\",\\\\\"\"\\\\\"\"write \\\\\\\\\\\\\\\\\\\\\"\"\\\\\"\"documentation\\\\\\\\\\\\\\\\\\\\\"\"\\\\\"\"\\\\\"\"\\\\\"\"}\\\\\"\",40.0)\"\"}\",\"(\"\"2024-01-01 08:00:00\"\",\"\"2024-01-15 14:30:00\"\",3,\"\"{enterprise,complex,multi-team,high-priority}\"\")\",150000.50)"
@@ -83,6 +85,16 @@ class PostgresToKotlinConverterUnitTest {
         assertThat(converter.convert(GOLDEN_STRING_TEXT_ARRAY, "_text")).isEqualTo(listOf("first", "second", "third with \"quotes\"", "fourth with ąćę"))
         assertThat(converter.convert(GOLDEN_STRING_NUMBER_ARRAY, "_int4")).isEqualTo(listOf(1, 2, 3, 4, 5))
         assertThat(converter.convert(GOLDEN_STRING_NESTED_TEXT_ARRAY, "_text")).isEqualTo(listOf(listOf("a", "b"), listOf("c", "d"), listOf("e with \"quotes\"", "f")))
+
+        // JSON array
+        val expectedJsonArray = listOf(
+            Json.parseToJsonElement("{\"id\": 1}"),
+            Json.parseToJsonElement("{\"id\": 2}")
+        )
+        assertThat(converter.convert(GOLDEN_STRING_JSON_ARRAY, "_jsonb")).isEqualTo(expectedJsonArray)
+
+        // Special text array (starts with {)
+        assertThat(converter.convert(GOLDEN_STRING_TEXT_ARRAY_SPECIAL, "_text")).isEqualTo(listOf("{starts with brace", "normal text"))
     }
 
     @Test
