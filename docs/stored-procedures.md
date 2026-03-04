@@ -101,11 +101,11 @@ Octavius scans `pg_proc` at startup to discover procedure signatures (parameter 
 
 The CALL statement is constructed as follows:
 
-| Parameter Mode | SQL Fragment                     | Binding                                                                       |
-|----------------|----------------------------------|-------------------------------------------------------------------------------|
-| **IN**         | Named placeholder (`:paramName`) | Expanded by `rawQuery` (composites → `ROW(?,…)::type`, arrays → `ARRAY[?,…]`) |
-| **OUT**        | `NULL::typeName` literal         | No bind — PostgreSQL requires the slot but ignores the value                  |
-| **INOUT**      | Named placeholder (`:paramName`) | Same expansion as IN                                                          |
+| Parameter Mode | SQL Fragment                     | Binding                                                                 |
+|----------------|----------------------------------|-------------------------------------------------------------------------|
+| **IN**         | Named placeholder (`:paramName`) | Expanded by `rawQuery` (composites → `?::type`, arrays → `?::type[]`)   |
+| **OUT**        | `NULL::typeName` literal         | No bind — PostgreSQL requires the slot but ignores the value            |
+| **INOUT**      | Named placeholder (`:paramName`) | Same expansion as IN                                                    |
 
 - **No OUT params:** delegates to `rawQuery(...).execute()` → returns empty map
 - **Has OUT params:** delegates to `rawQuery(...).toSingle()` → returns OUT/INOUT values as `Map<String, Any?>`
