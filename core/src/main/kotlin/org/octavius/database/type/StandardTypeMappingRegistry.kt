@@ -12,6 +12,7 @@ import org.postgresql.util.PGobject
 import java.math.BigDecimal
 import java.sql.ResultSet
 import java.time.OffsetTime
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
@@ -47,6 +48,10 @@ internal data class StandardTypeHandler<T: Any>(
  */
 @OptIn(ExperimentalTime::class)
 internal object StandardTypeMappingRegistry {
+
+    private const val PG_INFINITY = "infinity"
+    private const val PG_PLUS_INFINITY = "+infinity"
+    private const val PG_MINUS_INFINITY = "-infinity"
 
     private val POSTGRES_TIMETZ_FORMATTER: DateTimeFormatter = DateTimeFormatterBuilder()
         .appendValue(ChronoField.HOUR_OF_DAY, 2)
@@ -134,15 +139,15 @@ internal object StandardTypeMappingRegistry {
                     },
                     toJdbc = { v ->
                         when (v) {
-                            LocalDate.DISTANT_FUTURE -> pgObject("date", "infinity")
-                            LocalDate.DISTANT_PAST -> pgObject("date", "-infinity")
-                            else -> java.sql.Date.valueOf(v.toJavaLocalDate())
+                            LocalDate.DISTANT_FUTURE -> pgObject("date", PG_INFINITY)
+                            LocalDate.DISTANT_PAST -> pgObject("date", PG_MINUS_INFINITY)
+                            else -> v.toJavaLocalDate()
                         }
                     },
                     toPgString = { v ->
                         when (v) {
-                            LocalDate.DISTANT_FUTURE -> "infinity"
-                            LocalDate.DISTANT_PAST -> "-infinity"
+                            LocalDate.DISTANT_FUTURE -> PG_INFINITY
+                            LocalDate.DISTANT_PAST -> PG_MINUS_INFINITY
                             else -> v.toString()
                         }
                     }
@@ -162,15 +167,15 @@ internal object StandardTypeMappingRegistry {
                     },
                     toJdbc = { v ->
                         when (v) {
-                            LocalDateTime.DISTANT_FUTURE -> pgObject("timestamp", "infinity")
-                            LocalDateTime.DISTANT_PAST -> pgObject("timestamp", "-infinity")
-                            else -> java.sql.Timestamp.valueOf(v.toJavaLocalDateTime())
+                            LocalDateTime.DISTANT_FUTURE -> pgObject("timestamp", PG_INFINITY)
+                            LocalDateTime.DISTANT_PAST -> pgObject("timestamp", PG_MINUS_INFINITY)
+                            else -> v.toJavaLocalDateTime()
                         }
                     },
                     toPgString = { v ->
                         when (v) {
-                            LocalDateTime.DISTANT_FUTURE -> "infinity"
-                            LocalDateTime.DISTANT_PAST -> "-infinity"
+                            LocalDateTime.DISTANT_FUTURE -> PG_INFINITY
+                            LocalDateTime.DISTANT_PAST -> PG_MINUS_INFINITY
                             else -> v.toString()
                         }
                     }
@@ -190,15 +195,15 @@ internal object StandardTypeMappingRegistry {
                     },
                     toJdbc = { v ->
                         when (v) {
-                            Instant.DISTANT_FUTURE -> pgObject("timestamptz", "infinity")
-                            Instant.DISTANT_PAST -> pgObject("timestamptz", "-infinity")
-                            else -> java.sql.Timestamp.from(v.toJavaInstant())
+                            Instant.DISTANT_FUTURE -> pgObject("timestamptz", PG_INFINITY)
+                            Instant.DISTANT_PAST -> pgObject("timestamptz", PG_MINUS_INFINITY)
+                            else -> v.toJavaInstant().atOffset(ZoneOffset.UTC)
                         }
                     },
                     toPgString = { v ->
                         when (v) {
-                            Instant.DISTANT_FUTURE -> "infinity"
-                            Instant.DISTANT_PAST -> "-infinity"
+                            Instant.DISTANT_FUTURE -> PG_INFINITY
+                            Instant.DISTANT_PAST -> PG_MINUS_INFINITY
                             else -> v.toString()
                         }
                     }
@@ -210,7 +215,7 @@ internal object StandardTypeMappingRegistry {
                     { getObject(it, JLocalTime::class.java) },
                     { it.toKotlinLocalTime() },
                     { LocalTime.parse(it) },
-                    toJdbc = { java.sql.Time.valueOf(it.toJavaLocalTime()) },
+                    toJdbc = { it.toJavaLocalTime() },
                     toPgString = { it.toString() }
                 )
 
@@ -227,16 +232,16 @@ internal object StandardTypeMappingRegistry {
                     toJdbc = { v ->
                         pgObject(
                             "interval", when (v) {
-                                Duration.INFINITE -> "infinity"
-                                -Duration.INFINITE -> "-infinity"
+                                Duration.INFINITE -> PG_INFINITY
+                                -Duration.INFINITE -> PG_MINUS_INFINITY
                                 else -> v.toIsoString()
                             }
                         )
                     },
                     toPgString = { v ->
                         when (v) {
-                            Duration.INFINITE -> "infinity"
-                            -Duration.INFINITE -> "-infinity"
+                            Duration.INFINITE -> PG_INFINITY
+                            -Duration.INFINITE -> PG_MINUS_INFINITY
                             else -> v.toIsoString()
                         }
                     }
@@ -305,9 +310,7 @@ internal object StandardTypeMappingRegistry {
         this.value = value
     }
 
-    private const val PG_INFINITY = "infinity"
-    private const val PG_PLUS_INFINITY = "+infinity"
-    private const val PG_MINUS_INFINITY = "-infinity"
+
 
     private fun <T> parseWithInfinity(s: String, plus: T, minus: T, parser: (String) -> T): T = when (s.lowercase()) {
         PG_INFINITY, PG_PLUS_INFINITY -> plus
