@@ -12,11 +12,17 @@ import org.octavius.data.type.PgTyped
 import org.octavius.database.config.DynamicDtoSerializationStrategy
 import org.octavius.database.type.registry.TypeRegistry
 import org.postgresql.util.PGobject
+import kotlin.reflect.KClass
 
 /**
  * Result of parameter expansion: SQL with positional markers and the converted values.
  */
 data class PositionalQuery(val sql: String, val params: List<Any?>)
+
+/**
+ * Result of a single parameter conversion.
+ */
+private data class ParameterConversion(val placeholder: String, val value: Any?)
 
 /**
  * Orchestrates conversion of Kotlin objects to PostgreSQL JDBC parameters.
@@ -28,127 +34,155 @@ internal class KotlinToPostgresConverter(
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
+        private val NUMERIC_BOOLEAN_TYPES = setOf("bool", "int2", "int4", "int8", "float4", "float8", "numeric")
     }
 
-    private val serializer = PgTextSerializer(typeRegistry, dynamicDtoStrategy)
+    private val serializer = PgTextSerializer()
 
     fun toPositionalQuery(sql: String, params: Map<String, Any?>): PositionalQuery {
         val parsedParameters = PostgresNamedParameterParser.parse(sql)
         if (parsedParameters.isEmpty()) return PositionalQuery(sql, emptyList())
 
-        val sb = StringBuilder(sql.length + 256)
         val finalParams = ArrayList<Any?>(parsedParameters.size)
-        var lastIndex = 0
+        val transformedSql = buildString(sql.length + 256) {
+            var lastIndex = 0
+            for (parsedParam in parsedParameters) {
+                val paramName = parsedParam.name
+                require(params.containsKey(paramName)) { "Missing value for parameter: $paramName" }
+                val paramValue = params[paramName]
 
-        for (parsedParam in parsedParameters) {
-            val paramName = parsedParam.name
-            val paramValue = if (params.containsKey(paramName)) params[paramName] else 
-                throw IllegalArgumentException("Missing value for parameter: $paramName")
-
-            val (placeholder, value) = convertParameter(paramValue, appendTypeCast = true)
-            sb.append(sql, lastIndex, parsedParam.startIndex).append(placeholder)
-            finalParams.add(value)
-            lastIndex = parsedParam.endIndex
+                val conversion = convertParameter(paramValue, appendTypeCast = true)
+                append(sql, lastIndex, parsedParam.startIndex).append(conversion.placeholder)
+                finalParams.add(conversion.value)
+                lastIndex = parsedParam.endIndex
+            }
+            append(sql, lastIndex, sql.length)
         }
-        return PositionalQuery(sb.append(sql, lastIndex, sql.length).toString(), finalParams)
+
+        return PositionalQuery(transformedSql, finalParams)
     }
 
-    private fun convertParameter(value: Any?, appendTypeCast: Boolean, skipDynamicDto: Boolean = false): Pair<String, Any?> {
-        if (value == null) return "?" to null
+    private fun convertParameter(
+        value: Any?,
+        appendTypeCast: Boolean,
+        skipDynamicDto: Boolean = false
+    ): ParameterConversion {
+        if (value == null) return ParameterConversion("?", null)
 
-        var current = value
-        var outermostPgType: String? = null
-        var currentSkipDynamicDto = skipDynamicDto
-
-        // 1. Unpack explicit type wrapping
-        while (current is PgTyped) {
-            if (outermostPgType == null) outermostPgType = current.pgType
-            current = current.value ?: return (if (appendTypeCast) "?::$outermostPgType" else "?") to null
-            currentSkipDynamicDto = true
+        val (unwrappedValue, pgType, updatedSkipDynamicDto) = unpackPgTyped(value, skipDynamicDto)
+        if (unwrappedValue == null) {
+            return ParameterConversion(if (appendTypeCast && pgType != null) "?::$pgType" else "?", null)
         }
 
-        // 2. Try Dynamic DTO conversion (if not forced to composite/standard via PgTyped)
-        if (!currentSkipDynamicDto) {
-            tryConvertAsDynamicDto(current, appendTypeCast)?.let { return it }
+        // 1. Try Dynamic DTO conversion
+        if (!updatedSkipDynamicDto) {
+            tryConvertAsDynamicDto(unwrappedValue, appendTypeCast)?.let { return it }
         }
 
-        // 3. Delegate standard types to registry (handles String, Number, Boolean, Instant, JsonElement, etc.)
-        StandardTypeMappingRegistry.getHandlerByClass(current::class)?.let { handler  ->
-            val placeholder = if (appendTypeCast) "?::${outermostPgType ?: handler.pgTypeName}" else "?"
+        // 2. Delegate standard types to registry
+        StandardTypeMappingRegistry.getHandlerByClass(unwrappedValue::class)?.let { handler ->
+            val placeholder = if (appendTypeCast) "?::${pgType ?: handler.pgTypeName}" else "?"
             @Suppress("UNCHECKED_CAST")
-            return placeholder to (handler as StandardTypeHandler<Any>).toJdbc(current)
+            return ParameterConversion(placeholder, (handler as StandardTypeHandler<Any>).toJdbc(unwrappedValue))
         }
 
-        // 4. Handle specialized types
-        val resolvedType = outermostPgType ?: if (appendTypeCast) resolveSqlType(current) else "text"
-        val pgValue = when (current) {
-            is Array<*> -> return validateTypedArrayParameter(current) // Arrays are passed directly via JDBC
-            is List<*> -> {
-                val elementPgType = outermostPgType?.let { StandardTypeMappingRegistry.resolveBaseTypeName(it) }
-                PGobject().apply { type = "text"; this.value = serializer.serializeList(current, currentSkipDynamicDto, elementPgType) }
-            }
-            is Enum<*> -> {
-                val typeName = outermostPgType ?: typeRegistry.getPgTypeNameForClass(current::class)
-                val typeInfo = typeRegistry.getEnumDefinition(typeName)
-                PGobject().apply { type = typeName; this.value = typeInfo.enumToValueMap[current] ?: current.name }
-            }
+        // 3. Handle specialized types
+        val resolvedType = pgType ?: if (appendTypeCast) resolveSqlType(unwrappedValue) else "text"
+        val jdbcValue = when (unwrappedValue) {
+            is Array<*> -> return handleArray(unwrappedValue)
+            is List<*> -> handleList(unwrappedValue, pgType, updatedSkipDynamicDto)
+            is Enum<*> -> handleEnum(unwrappedValue, pgType)
             else -> {
-                if (current::class.isData) {
-                    PGobject().apply { type = "text"; this.value = serializer.serializeComposite(current, currentSkipDynamicDto, outermostPgType) }
-                } else if (current::class.isValue) {
-                    throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, current::class.qualifiedName)
-                } else {
-                    current
+                when {
+                    value::class.isData -> pgObject("text", serializer.serializeComposite(value, skipDynamicDto, pgType))
+                    value::class.isValue -> throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, value::class.qualifiedName)
+                    else -> value
                 }
             }
         }
 
-        return (if (appendTypeCast) "?::$resolvedType" else "?") to pgValue
+        return ParameterConversion(if (appendTypeCast) "?::$resolvedType" else "?", jdbcValue)
     }
 
-    private fun tryConvertAsDynamicDto(paramValue: Any, appendTypeCast: Boolean): Pair<String, Any?>? {
-        if (dynamicDtoStrategy == DynamicDtoSerializationStrategy.EXPLICIT_ONLY && paramValue !is DynamicDto) return null
-        if (dynamicDtoStrategy == DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS && typeRegistry.isPgType(paramValue::class)) return null
+    private fun unpackPgTyped(value: Any, initialSkip: Boolean): Triple<Any?, String?, Boolean> {
+        var current = value
+        var pgType: String? = null
+        var skipDynamicDto = initialSkip
 
-        val dynamicTypeName = typeRegistry.getDynamicTypeNameForClass(paramValue::class) ?: return null
+        while (current is PgTyped) {
+            if (pgType == null) pgType = current.pgType
+            val nextValue = current.value ?: return Triple(null, pgType, true)
+            current = nextValue
+            skipDynamicDto = true
+        }
+        return Triple(current, pgType, skipDynamicDto)
+    }
+
+    private fun tryConvertAsDynamicDto(value: Any, appendTypeCast: Boolean): ParameterConversion? {
+        if (dynamicDtoStrategy == DynamicDtoSerializationStrategy.EXPLICIT_ONLY && value !is DynamicDto) return null
+        if (dynamicDtoStrategy == DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS && typeRegistry.isPgType(value::class)) return null
+
+        val dynamicTypeName = typeRegistry.getDynamicTypeNameForClass(value::class) ?: return null
         val dtSerializer = typeRegistry.getDynamicSerializer(dynamicTypeName)
 
-        val dynamicDtoWrapper = DynamicDto.from(paramValue, dynamicTypeName, dtSerializer)
-        return convertParameter(dynamicDtoWrapper, appendTypeCast)
+        val dynamicDto = DynamicDto.from(value, dynamicTypeName, dtSerializer)
+        return convertParameter(dynamicDto, appendTypeCast)
     }
 
-    private fun validateTypedArrayParameter(arrayValue: Array<*>): Pair<String, Any?> {
-        val componentType = arrayValue::class.java.componentType!!.kotlin
+    private fun handleArray(array: Array<*>): ParameterConversion {
+        val componentType = array::class.java.componentType!!.kotlin
         if (componentType.isData || componentType == Map::class || componentType == List::class) {
-            throw ConversionException(ConversionExceptionMessage.UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY, arrayValue, componentType.qualifiedName)
+            throw ConversionException(ConversionExceptionMessage.UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY, array, componentType.qualifiedName)
         }
-        return "?" to arrayValue
+        return ParameterConversion("?", array)
+    }
+
+    private fun handleList(list: List<*>, pgType: String?, skipDynamicDto: Boolean): PGobject {
+        val elementPgType = pgType?.let { StandardTypeMappingRegistry.resolveBaseTypeName(it) }
+        return pgObject("text", serializer.serializeList(list, skipDynamicDto, elementPgType))
+    }
+
+    private fun handleEnum(enum: Enum<*>, pgType: String?): PGobject {
+        val typeName = pgType ?: typeRegistry.getPgTypeNameForClass(enum::class)
+        val typeInfo = typeRegistry.getEnumDefinition(typeName)
+        return pgObject(typeName, typeInfo.enumToValueMap[enum] ?: enum.name)
+    }
+
+    private fun pgObject(type: String, value: String?) = PGobject().apply {
+        this.type = type
+        this.value = value
     }
 
     private fun resolveSqlType(value: Any): String {
-        if (value is PgTyped) return value.pgType
         return when (value) {
-            is List<*> -> "${value.firstOrNull { it != null }?.let { resolveSqlType(it) } ?: "text"}[]"
-            else -> {
-                if ((dynamicDtoStrategy == DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS && !typeRegistry.isPgType(
-                        value::class
-                    ) || dynamicDtoStrategy == DynamicDtoSerializationStrategy.PREFER_DYNAMIC_DTO) && typeRegistry.getDynamicTypeNameForClass(
-                        value::class
-                    ) != null
-                ) return DYNAMIC_DTO
-                 if (typeRegistry.isPgType(value::class)) return typeRegistry.getPgTypeNameForClass(value::class)
-                StandardTypeMappingRegistry.getHandlerByClass(value::class)?.pgTypeName ?: "text"
+            is List<*> -> {
+                val firstNonNull = value.firstOrNull { it != null }
+                if (firstNonNull != null) "${resolveSqlType(firstNonNull)}[]" else "text[]"
             }
+            else -> {
+                val kClass = value::class
+                when {
+                    shouldUseDynamicDto(kClass) -> DYNAMIC_DTO
+                    typeRegistry.isPgType(kClass) -> typeRegistry.getPgTypeNameForClass(kClass)
+                    else -> StandardTypeMappingRegistry.getHandlerByClass(kClass)?.pgTypeName ?: "text"
+                }
+            }
+        }
+    }
+
+    private fun shouldUseDynamicDto(kClass: KClass<*>): Boolean {
+        if (typeRegistry.getDynamicTypeNameForClass(kClass) == null) return false
+        return when (dynamicDtoStrategy) {
+            DynamicDtoSerializationStrategy.PREFER_DYNAMIC_DTO -> true
+            DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS -> !typeRegistry.isPgType(kClass)
+            else -> false
         }
     }
 
     /**
      * Serializes complex objects into PostgreSQL text protocol literals.
      */
-    private class PgTextSerializer(
-        private val typeRegistry: TypeRegistry,
-        private val dynamicDtoStrategy: DynamicDtoSerializationStrategy
-    ) {
+    private inner class PgTextSerializer {
         fun serializeList(list: List<*>, skipDynamicDto: Boolean, explicitElementType: String?): String {
             if (list.isEmpty()) return "{}"
             return list.joinToString(prefix = "{", postfix = "}", separator = ",") { item ->
@@ -182,21 +216,19 @@ internal class KotlinToPostgresConverter(
                 current = current.value ?: return "NULL"
             }
 
-            // 1. Try registry first (handles built-ins including String, Number, Boolean, JSON)
+            // 1. Try registry first
             StandardTypeMappingRegistry.getHandlerByClass(current::class)?.let {
                 @Suppress("UNCHECKED_CAST")
                 return (it as StandardTypeHandler<Any>).toPgString(current)
             }
 
             // 2. Try Dynamic DTO
-            if (!wasPgTyped && !skipDynamicDto && current !is DynamicDto
-                && (dynamicDtoStrategy == DynamicDtoSerializationStrategy.PREFER_DYNAMIC_DTO
-                        || dynamicDtoStrategy == DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS && !typeRegistry.isPgType(
-                    current::class
-                ))
-            ) {
-                typeRegistry.getDynamicTypeNameForClass(current::class)?.let { typeName ->
-                    current = DynamicDto.from(current, typeName, typeRegistry.getDynamicSerializer(typeName))
+            if (!wasPgTyped && !skipDynamicDto && current !is DynamicDto) {
+                val kClass = current::class
+                if (shouldUseDynamicDto(kClass)) {
+                    typeRegistry.getDynamicTypeNameForClass(kClass)?.let { typeName ->
+                        current = DynamicDto.from(current, typeName, typeRegistry.getDynamicSerializer(typeName))
+                    }
                 }
             }
 
@@ -208,9 +240,12 @@ internal class KotlinToPostgresConverter(
                 }
                 is List<*> -> serializeList(current, skipDynamicDto || wasPgTyped, explicitType?.let { StandardTypeMappingRegistry.resolveBaseTypeName(it) })
                 else -> {
-                    if (current::class.isData) serializeComposite(current, skipDynamicDto || wasPgTyped, explicitType)
-                    else if (current::class.isValue) throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, current::class.qualifiedName)
-                    else current.toString()
+                    val kClass = current::class
+                    when {
+                        kClass.isData -> serializeComposite(current, skipDynamicDto || wasPgTyped, explicitType)
+                        kClass.isValue -> throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, kClass.qualifiedName)
+                        else -> current.toString()
+                    }
                 }
             }
         }
@@ -218,25 +253,23 @@ internal class KotlinToPostgresConverter(
         private fun shouldQuote(item: Any): Boolean {
             var curr = item
             while (curr is PgTyped) curr = curr.value ?: return false
-            // Registry types know if they are numeric/boolean
+            
             StandardTypeMappingRegistry.getHandlerByClass(curr::class)?.let { handler ->
-                return handler.pgTypeName !in setOf("bool", "int2", "int4", "int8", "float4", "float8", "numeric")
+                return handler.pgTypeName !in NUMERIC_BOOLEAN_TYPES
             }
             return true
         }
 
-        private fun escapeAndQuote(s: String): String {
-            val sb = StringBuilder(s.length + 2)
-            sb.append('"')
+        private fun escapeAndQuote(s: String): String = buildString(s.length + 2) {
+            append('"')
             for (c in s) {
                 when (c) {
-                    '\\' -> sb.append("\\\\")
-                    '"' -> sb.append("\\\"")
-                    else -> sb.append(c)
+                    '\\' -> append("\\\\")
+                    '"' -> append("\\\"")
+                    else -> append(c)
                 }
             }
-            sb.append('"')
-            return sb.toString()
+            append('"')
         }
     }
 }

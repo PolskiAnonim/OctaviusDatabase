@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
 import java.util.*
 import kotlin.reflect.KClass
+import kotlin.reflect.full.isSubclassOf
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
 import kotlin.time.ExperimentalTime
@@ -346,9 +347,11 @@ internal object StandardTypeMappingRegistry {
     fun getHandler(pgTypeName: String): StandardTypeHandler<*>? = mappings[pgTypeName]
     fun getHandlerByClass(kClass: KClass<*>): StandardTypeHandler<*>? {
         kotlinClassToHandler[kClass]?.let { return it }
-        // Fallback to searching for a superclass match (important for JsonObject, etc.)
-        return kotlinClassToHandler.values.firstOrNull { it.kotlinClass.isInstance(kClass) ||
-     		it.kotlinClass.java.isAssignableFrom(kClass.java) }  
+        // Json Element - it is superclass
+        if (kClass.isSubclassOf(JsonElement::class)) {
+            return kotlinClassToHandler[JsonElement::class]
+        }
+        return null
     }
     fun getAllTypeNames(): Set<String> = mappings.keys
 
