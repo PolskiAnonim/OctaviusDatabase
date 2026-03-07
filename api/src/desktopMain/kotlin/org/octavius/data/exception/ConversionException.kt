@@ -1,5 +1,7 @@
 package org.octavius.data.exception
 
+import org.octavius.data.exception.ExecutionContext
+
 enum class ConversionExceptionMessage {
     /** General standard type conversion error */
     VALUE_CONVERSION_FAILED,

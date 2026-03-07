@@ -24,11 +24,16 @@ enum class TypeRegistryExceptionMessage {
 class TypeRegistryException(
     val messageEnum: TypeRegistryExceptionMessage,
     val typeName: String? = null,
-    cause: Throwable? = null
-) : DatabaseException(messageEnum.name, cause) {
+    cause: Throwable? = null,
+    executionContext: ExecutionContext? = null
+) : DatabaseException(messageEnum.name, cause, executionContext) {
 
     override fun toString(): String {
+        val contextStr = executionContext?.toString() ?: ""
+        
         return """
+$contextStr
+
         -------------------------------
         |     TYPE REGISTRY FAILED     
         | Reason: ${messageEnum.name}

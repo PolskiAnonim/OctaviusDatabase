@@ -1,12 +1,18 @@
 package org.octavius.data.exception
 
+import org.octavius.data.exception.ExecutionContext
+
 /**
  * Base sealed exception for all data layer errors.
  *
  * All database access related exceptions inherit from this class,
  * enabling easy catching and handling of errors at different application levels.
  */
-sealed class DatabaseException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+sealed class DatabaseException(
+    message: String,
+    cause: Throwable? = null,
+    val executionContext: ExecutionContext? = null
+) : RuntimeException(message, cause)
 
 /**
  * Errors during SQL query execution.
@@ -23,46 +29,26 @@ class QueryExecutionException(
     val expandedSql: String? = null,
     val expandedParams: List<Any?>? = null,
     message: String? = null,
-    cause: Throwable? = null
-) : DatabaseException(message ?: "Error during query execution", cause) {
+    cause: Throwable? = null,
+    executionContext: ExecutionContext? = null
+) : DatabaseException(
+    message ?: "Error during query execution",
+    cause,
+    executionContext ?: ExecutionContext(sql, params, expandedSql, expandedParams)
+) {
 
     override fun toString(): String {
         val nestedError = cause?.toString()?.prependIndent("|   ") ?: "|   No cause available"
 
-        // Formatowanie parametrów, żeby nie zalały logów
-        val formattedExpandedParams = expandedParams?.mapIndexed { index, value ->
-            "\n|    [$index] -> $value"
-        }?.joinToString("") ?: "null"
-
-        val formattedOriginalParams = params.entries.joinToString(
-            prefix = "\n| ",
-            separator = "\n| "
-        ) { (k, v) -> "$k = $v" }
-
-        val executionDetails = if (expandedSql != null) {
-            """
-            |
-            |---[ Execution Details (Low Level) ]---
-            | expandedSql: $expandedSql
-            | expandedParams ($expandedParams?.size): $formattedExpandedParams
-            """.trimMargin()
-        } else ""
-
         return """
         
-        ------------------------------------------------------------
-        |  QUERY EXECUTION FAILED
-        ------------------------------------------------------------
-        | Message: $message
-        |
-        |---[ Original Query ]---
-        | SQL: $sql
-        | Params: $formattedOriginalParams
-        $executionDetails
-        ------------------------------------------------------------
-        | Error Cause:
-        $nestedError
-        ------------------------------------------------------------
+$executionContext
+
+------------------------------------------------------------
+| ERROR CAUSE:
+------------------------------------------------------------
+$nestedError
+------------------------------------------------------------
         """.trimIndent()
     }
 }
@@ -75,18 +61,24 @@ class QueryExecutionException(
  *
  * @param stepIndex Index (0-based) of the step that failed.
  * @param cause Original exception that caused the error.
+ * @param executionContext Context of the execution, if available.
  */
 class TransactionStepExecutionException(
     val stepIndex: Int,
-    override val cause: Throwable
+    override val cause: Throwable,
+    executionContext: ExecutionContext? = null
 ) : DatabaseException(
     "Execution of transaction step $stepIndex failed",
-    cause
+    cause,
+    executionContext
 ) {
     override fun toString(): String {
         val nestedError = cause.toString().prependIndent("|   ")
+        val contextStr = executionContext?.toString() ?: ""
 
         return """
+
+$contextStr
 
 -------------------------------------
 | TRANSACTION STEP $stepIndex FAILED
@@ -104,17 +96,23 @@ $nestedError
  * Wraps the original exception (e.g., ConcurrencyFailureException)
  *
  * @param cause Original exception that caused the error.
+ * @param executionContext Context of the execution, if available.
  */
 class TransactionException(
-    override val cause: Throwable
+    override val cause: Throwable,
+    executionContext: ExecutionContext? = null
 ) : DatabaseException(
     "Execution of transaction failed",
-    cause
+    cause,
+    executionContext
 ) {
     override fun toString(): String {
         val nestedError = cause.toString().prependIndent("|   ")
+        val contextStr = executionContext?.toString() ?: ""
 
         return """
+
+$contextStr
 
 -------------------------------------
 | TRANSACTION FAILED
