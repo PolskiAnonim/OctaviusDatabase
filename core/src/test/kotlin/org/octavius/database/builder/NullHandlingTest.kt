@@ -44,10 +44,8 @@ class NullHandlingTest {
     private fun assertConversionFailure(result: DataResult<*>, expectedMessage: ConversionExceptionMessage) {
         assertThat(result).isInstanceOf(DataResult.Failure::class.java)
         val failure = result as DataResult.Failure
-        assertThat(failure.error).isInstanceOf(QueryExecutionException::class.java)
-        val cause = failure.error.cause
-        assertThat(cause).isInstanceOf(ConversionException::class.java)
-        assertThat((cause as ConversionException).messageEnum).isEqualTo(expectedMessage)
+        assertThat(failure.error).isInstanceOf(ConversionException::class.java)
+        assertThat((failure.error as ConversionException).messageEnum).isEqualTo(expectedMessage)
     }
 
     private fun assertUnexpectedNullFailure(result: DataResult<*>) {
@@ -80,7 +78,7 @@ class NullHandlingTest {
         fun `toField with nullable type and 0 rows should return Success(null)`() {
             val nullMapper = RowMapper<Any?> { _, _ -> null }
             every { mockMappers.SingleValueMapper(any()) } returns nullMapper
-            every { mockJdbcTemplate.query(any<String>(), any<RowMapper<Any?>>(), *anyVararg()) } returns emptyList<Any?>()
+            every { mockJdbcTemplate.query(any<String>(), any<RowMapper<Any?>>(), *anyVararg()) } returns emptyList()
 
             val result: DataResult<Int?> = builder.toField<Int?>()
 

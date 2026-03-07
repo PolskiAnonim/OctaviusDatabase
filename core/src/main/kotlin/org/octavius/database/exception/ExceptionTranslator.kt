@@ -11,6 +11,7 @@ object ExceptionTranslator {
         return when (ex) {
             // CodeExecutionException (RuntimeTypeRegistryException and ConversionException) must be given context
             is CodeExecutionException -> ex.withContext(queryContext)
+            is StepDependencyException -> ex // Context added inside TransactionPlanExecutor
             // StepDependencyException!!!
             is OctaviusDatabaseException -> ex
             is DataAccessException -> translateSpringException(ex, queryContext)
