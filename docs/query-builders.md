@@ -33,17 +33,17 @@ Builds SQL SELECT queries with full support for all standard clauses.
 
 ### Methods
 
-| Method                          | Description                                         |
-|---------------------------------|-----------------------------------------------------|
-| `from(source)`                  | FROM clause - table name, alias, or JOIN expression |
-| `fromSubquery(subquery, alias)` | FROM with a subquery (auto-wrapped in parentheses)  |
-| `where(condition)`              | WHERE clause (nullable - pass null to skip)         |
-| `groupBy(columns)`              | GROUP BY clause                                     |
-| `having(condition)`             | HAVING clause (requires GROUP BY)                   |
-| `orderBy(ordering)`             | ORDER BY clause                                     |
-| `limit(count)`                  | LIMIT clause                                        |
-| `offset(position)`              | OFFSET clause                                       |
-| `page(page, size)`              | Pagination helper (zero-indexed pages)              |
+| Method                          | Description                                                                        |
+|---------------------------------|------------------------------------------------------------------------------------|
+| `from(source)`                  | FROM clause - table name, alias, or JOIN expression                                |
+| `fromSubquery(subquery, alias)` | FROM with a subquery (auto-wrapped in parentheses)                                 |
+| `where(condition)`              | WHERE clause (nullable - pass null to skip)                                        |
+| `groupBy(columns)`              | GROUP BY clause                                                                    |
+| `having(condition)`             | HAVING clause (requires GROUP BY)                                                  |
+| `orderBy(ordering)`             | ORDER BY clause                                                                    |
+| `limit(count)`                  | LIMIT clause                                                                       |
+| `offset(position)`              | OFFSET clause                                                                      |
+| `page(page, size)`              | Pagination helper (zero-indexed pages)                                             |
 | `forUpdate(of?, mode?)`         | FOR UPDATE locking clause (see [Row-Level Locking](#row-level-locking-for-update)) |
 
 ### Examples
@@ -274,6 +274,19 @@ data class QueryFragment(
 )
 ```
 
+**Syntax Sugar:**
+To keep your code readable, the library provides handy `infix` functions for creating fragments:
+```kotlin
+// Single parameter
+val f1 = "age = :age" withParam ("age" to 18)
+
+// Multiple parameters
+val f2 = "age BETWEEN :min AND :max" withParams mapOf("min" to 18, "max" to 65)
+
+// No parameters
+val f3 = QueryFragment("updated_at = NOW()") 
+```
+
 ### Joining Fragments
 
 You can combine a list of fragments using the `.join()` extension method. This is powerful because it:
@@ -290,9 +303,9 @@ fun searchUsers(name: String?, minAge: Int?, active: Boolean?): List<User> {
     
     // 1. Build list of fragments based on non-null inputs
     val fragments = listOfNotNull(
-        name?.let { QueryFragment("name LIKE :name", mapOf("name" to "%$it%")) },
-        minAge?.let { QueryFragment("age >= :minAge", mapOf("minAge" to it)) },
-        active?.let { QueryFragment("active = :active", mapOf("active" to it)) }
+        name?.let { "name LIKE :name" withParam ("name" to "%$it%") },
+        minAge?.let { "age >= :minAge" withParam ("minAge" to it) },
+        active?.let { "active = :active" withParam ("active" to it) }
     )
 
     // 2. Join them
@@ -315,14 +328,14 @@ fun searchUsers(name: String?, minAge: Int?, active: Boolean?): List<User> {
 
 ```kotlin
 val updates = listOfNotNull(
-    newStatus?.let { QueryFragment("status = :status", mapOf("status" to it)) },
-    newRole?.let { QueryFragment("role = :role", mapOf("role" to it)) },
+    newStatus?.let { "status = :status" withParam ("status" to it) },
+    newRole?.let { "role = :role" withParam ("role" to it) },
     QueryFragment("updated_at = NOW()") // Always update timestamp
 )
 
 val setClause = updates.join(
     separator = ", ", 
-    prefix = "SET ",    // Prepend "SET " to the result
+    prefix = "SET ",        // Prepend "SET " to the result
     addParenthesis = false // Don't wrap SET assignments in ()
 )
 
@@ -503,7 +516,7 @@ Controls what happens if another transaction already holds a lock on one of the 
 | Value         | Behavior                                                       |
 |---------------|----------------------------------------------------------------|
 | *(none)*      | Wait until the lock is available (default PostgreSQL behavior) |
-| `NOWAIT`      | Return `Failure` immediately instead of waiting               |
+| `NOWAIT`      | Return `Failure` immediately instead of waiting                |
 | `SKIP_LOCKED` | Silently skip rows that are currently locked                   |
 
 ### Examples

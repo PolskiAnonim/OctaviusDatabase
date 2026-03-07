@@ -15,6 +15,12 @@ data class QueryFragment(
     val params: Map<String, Any?> = emptyMap()
 )
 
+/** Creates [QueryFragment] from this SQL in String and params map */
+infix fun String.withParams(params: Map<String, Any?>) = QueryFragment(this, params)
+
+/** Creates [QueryFragment] from this SQL in String and param */
+infix fun String.withParam(param: Pair<String, Any?>) = QueryFragment(this, mapOf(param))
+
 /**
  * Joins a list of fragments into one, working analogously to standard [joinToString],
  * but with parameter merging support.

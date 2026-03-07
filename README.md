@@ -103,15 +103,11 @@ Composites expand to `ROW(?,…)::type`, arrays to `ARRAY[?,…]`, enums to type
 Build complex `WHERE` clauses without SQL injection risks:
 
 ```kotlin
-fun buildFilters(name: String?, minPrice: Int?, category: Category?): QueryFragment {
-    val fragments = mutableListOf<QueryFragment>()
-
-    name?.let { fragments += QueryFragment("name ILIKE :name", mapOf("name" to "%$it%")) }
-    minPrice?.let { fragments += QueryFragment("price >= :minPrice", mapOf("minPrice" to it)) }
-    category?.let { fragments += QueryFragment("category = :cat", mapOf("cat" to it)) }
-
-    return fragments.join(" AND ")
-}
+fun buildFilters(name: String?, minPrice: Int?, category: Category?) = listOfNotNull(
+    name?.let { "name ILIKE :name" withParam ("name" to "%$it%") },
+    minPrice?.let { "price >= :minPrice" withParam ("minPrice" to it) },
+    category?.let { "category = :cat" withParam ("cat" to it) }
+).join(" AND ")
 
 val filter = buildFilters(name = "Pro", minPrice = 100, category = null)
 val products = dataAccess.select("*")
