@@ -4,8 +4,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.Json
 import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
-import org.octavius.data.exception.RuntimeTypeRegistryException
-import org.octavius.data.exception.RuntimeTypeRegistryExceptionMessage
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
 import org.octavius.data.toDataObject
@@ -32,7 +30,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      * @param value Value from database as `String` (can be `null`).
      * @param pgTypeName Type name in PostgreSQL (e.g., "int4", "my_enum", "dynamic_dto").
      * @return Converted value or `null` if `value` was `null`.
-     * @throws RuntimeTypeRegistryException if type is unknown.
+     * @throws TypeRegistryException if type is unknown.
      * @throws ConversionException if conversion fails.
      */
     fun convert(value: String?, pgTypeName: String): Any? {
@@ -115,7 +113,6 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      * @param value Enum value from database.
      * @param typeInfo Enum type information from TypeRegistry.
      * @return Kotlin enum instance.
-     * @throws TypeRegistryException if enum class not found.
      * @throws ConversionException if conversion fails.
      */
     private fun convertEnum(value: String, typeInfo: PgEnumDefinition): Any { // null handled in convert method
@@ -169,8 +166,8 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
 
         parseNestedStructure(value) { elementValue, _ ->
             if (index >= dbAttributes.size) {
-                throw RuntimeTypeRegistryException(
-                    RuntimeTypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
+                throw TypeRegistryException(
+                    TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
                     typeName = typeInfo.typeName
                 )
             }
@@ -181,8 +178,8 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
         }
 
         if (index != dbAttributes.size) {
-            throw RuntimeTypeRegistryException(
-                RuntimeTypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
+            throw TypeRegistryException(
+                TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
                 typeName = typeInfo.typeName
             )
         }
@@ -226,8 +223,8 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
             count++
         }
 
-        if (count != 2) throw RuntimeTypeRegistryException(
-            RuntimeTypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
+        if (count != 2) throw TypeRegistryException(
+            TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
             typeName = "dynamic_dto"
         )
         if (typeName == null || jsonDataString == null) throw ConversionException(

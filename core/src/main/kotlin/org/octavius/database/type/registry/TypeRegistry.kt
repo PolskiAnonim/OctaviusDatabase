@@ -1,8 +1,8 @@
 package org.octavius.database.type.registry
 
 import kotlinx.serialization.KSerializer
-import org.octavius.data.exception.RuntimeTypeRegistryException
-import org.octavius.data.exception.RuntimeTypeRegistryExceptionMessage
+import org.octavius.data.exception.TypeRegistryException
+import org.octavius.data.exception.TypeRegistryExceptionMessage
 import kotlin.reflect.KClass
 
 /**
@@ -37,44 +37,44 @@ internal class TypeRegistry(
     // --- READ Section (DB -> Kotlin) ---
 
     fun getCategory(pgTypeName: String): TypeCategory {
-        return categoryMap[pgTypeName] ?: throw RuntimeTypeRegistryException(
-            RuntimeTypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+        return categoryMap[pgTypeName] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
             typeName = pgTypeName
         )
     }
 
     fun getEnumDefinition(pgTypeName: String): PgEnumDefinition {
-        return enums[pgTypeName] ?: throw RuntimeTypeRegistryException(
-            RuntimeTypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+        return enums[pgTypeName] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
             typeName = "$pgTypeName (expected ENUM)"
         )
     }
 
     fun getCompositeDefinition(pgTypeName: String): PgCompositeDefinition {
-        return composites[pgTypeName] ?: throw RuntimeTypeRegistryException(
-            RuntimeTypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+        return composites[pgTypeName] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
             typeName = "$pgTypeName (expected COMPOSITE)"
         )
     }
 
     fun getArrayDefinition(pgTypeName: String): PgArrayDefinition {
-        return arrays[pgTypeName] ?: throw RuntimeTypeRegistryException(
-            RuntimeTypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+        return arrays[pgTypeName] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
             typeName = "$pgTypeName (expected ARRAY)"
         )
     }
 
     fun getProcedureDefinition(procedureName: String): PgProcedureDefinition {
-        return procedures[procedureName] ?: throw RuntimeTypeRegistryException(
-            RuntimeTypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+        return procedures[procedureName] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
             typeName = "$procedureName (expected PROCEDURE)"
         )
     }
 
     // For DYNAMIC type we need to find the serializer
     fun getDynamicSerializer(dynamicTypeName: String): KSerializer<Any> {
-        return dynamicSerializers[dynamicTypeName] ?: throw RuntimeTypeRegistryException(
-            RuntimeTypeRegistryExceptionMessage.DYNAMIC_TYPE_NOT_FOUND,
+        return dynamicSerializers[dynamicTypeName] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.DYNAMIC_TYPE_NOT_FOUND,
             typeName = dynamicTypeName
         )
     }
@@ -83,8 +83,8 @@ internal class TypeRegistry(
 
     fun getPgTypeNameForClass(clazz: KClass<*>): String {
         // Direct retrieval from map by class object
-        return classToPgNameMap[clazz] ?: throw RuntimeTypeRegistryException(
-            RuntimeTypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED,
+        return classToPgNameMap[clazz] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED,
             typeName = clazz.qualifiedName ?: clazz.simpleName ?: "unknown"
         )
     }

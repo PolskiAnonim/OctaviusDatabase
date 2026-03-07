@@ -1,8 +1,8 @@
 package org.octavius.database.type.registry
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.octavius.data.exception.TypeRegistryException
-import org.octavius.data.exception.TypeRegistryExceptionMessage
+import org.octavius.data.exception.InitializationException
+import org.octavius.data.exception.InitializationExceptionMessage
 import org.springframework.jdbc.core.JdbcTemplate
 
 /**
@@ -37,7 +37,7 @@ internal class DatabaseTypeScanner(
                 }
             }, schemas, schemas)
         } catch (e: Exception) {
-            throw TypeRegistryException(TypeRegistryExceptionMessage.DB_QUERY_FAILED, cause = e)
+            throw InitializationException(InitializationExceptionMessage.DB_QUERY_FAILED, cause = e)
         }
 
         val procedures = scanProcedures()
@@ -72,7 +72,7 @@ internal class DatabaseTypeScanner(
                 }
             }, schemas, schemas)
         } catch (e: Exception) {
-            throw TypeRegistryException(TypeRegistryExceptionMessage.DB_QUERY_FAILED, cause = e)
+            throw InitializationException(InitializationExceptionMessage.DB_QUERY_FAILED, cause = e)
         }
 
         // Group by name and detect overloads

@@ -11,8 +11,8 @@ import org.octavius.data.annotation.DynamicallyMappable
 import org.octavius.data.annotation.PgComposite
 import org.octavius.data.annotation.PgCompositeMapper
 import org.octavius.data.annotation.PgEnum
-import org.octavius.data.exception.TypeRegistryException
-import org.octavius.data.exception.TypeRegistryExceptionMessage
+import org.octavius.data.exception.InitializationException
+import org.octavius.data.exception.InitializationExceptionMessage
 import org.octavius.data.util.CaseConvention
 import org.octavius.data.util.toSnakeCase
 import kotlin.reflect.KClass
@@ -50,10 +50,10 @@ internal class ClasspathTypeScanner(
                     processComposites(result, compositeInfos, seenPgNames)
                     processDynamicTypes(result, dynamicSerializers, dynamicReverseMap)
                 }
-        } catch (e: TypeRegistryException) {
+        } catch (e: InitializationException) {
             throw e
         } catch (e: Exception) {
-            throw TypeRegistryException(TypeRegistryExceptionMessage.CLASSPATH_SCAN_FAILED, cause = e)
+            throw InitializationException(InitializationExceptionMessage.CLASSPATH_SCAN_FAILED, cause = e)
         }
 
         return ClasspathScanResult(enumInfos, compositeInfos, dynamicSerializers, dynamicReverseMap)
@@ -66,8 +66,8 @@ internal class ClasspathTypeScanner(
     ) {
         scanResult.getClassesWithAnnotation(PgEnum::class.java).forEach { classInfo ->
             if (!classInfo.isEnum) {
-                throw TypeRegistryException(
-                    TypeRegistryExceptionMessage.INITIALIZATION_FAILED,
+                throw InitializationException(
+                    InitializationExceptionMessage.INITIALIZATION_FAILED,
                     typeName = classInfo.name,
                     cause = IllegalStateException("@PgEnum not on enum")
                 )
@@ -78,8 +78,8 @@ internal class ClasspathTypeScanner(
                 .ifBlank { classInfo.simpleName.toSnakeCase() }
 
             if (!seenNames.add(name)) {
-                throw TypeRegistryException(
-                    messageEnum = TypeRegistryExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION,
+                throw InitializationException(
+                    messageEnum = InitializationExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION,
                     typeName = name,
                     cause = IllegalStateException("Duplicate PostgreSQL type name detected: '$name'. Found on ${classInfo.name}")
                 )
@@ -102,8 +102,8 @@ internal class ClasspathTypeScanner(
     ) {
         scanResult.getClassesWithAnnotation(PgComposite::class.java).forEach { classInfo ->
             if (classInfo.isEnum) {
-                throw TypeRegistryException(
-                    TypeRegistryExceptionMessage.INITIALIZATION_FAILED,
+                throw InitializationException(
+                    InitializationExceptionMessage.INITIALIZATION_FAILED,
                     typeName = classInfo.name,
                     cause = IllegalStateException("@PgComposite on enum")
                 )
@@ -114,8 +114,8 @@ internal class ClasspathTypeScanner(
                 .ifBlank { classInfo.simpleName.toSnakeCase() }
 
             if (!seenNames.add(name)) {
-                throw TypeRegistryException(
-                    messageEnum = TypeRegistryExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION,
+                throw InitializationException(
+                    messageEnum = InitializationExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION,
                     typeName = name,
                     cause = IllegalStateException("Duplicate PostgreSQL type name detected: '$name'. Found on ${classInfo.name}")
                 )
@@ -140,8 +140,8 @@ internal class ClasspathTypeScanner(
     ) {
         scanResult.getClassesWithAnnotation(DynamicallyMappable::class.java).forEach { classInfo ->
             if (!classInfo.hasAnnotation("kotlinx.serialization.Serializable")) {
-                throw TypeRegistryException(
-                    TypeRegistryExceptionMessage.INITIALIZATION_FAILED,
+                throw InitializationException(
+                    InitializationExceptionMessage.INITIALIZATION_FAILED,
                     typeName = classInfo.name,
                     cause = IllegalStateException("Missing @Serializable")
                 )
@@ -151,8 +151,8 @@ internal class ClasspathTypeScanner(
             val typeName = annotation.parameterValues.getValue("typeName") as String
 
             if (targetSerializers.containsKey(typeName)) {
-                throw TypeRegistryException(
-                    messageEnum = TypeRegistryExceptionMessage.DUPLICATE_DYNAMIC_TYPE_DEFINITION,
+                throw InitializationException(
+                    messageEnum = InitializationExceptionMessage.DUPLICATE_DYNAMIC_TYPE_DEFINITION,
                     typeName = typeName,
                     cause = IllegalStateException("Duplicate @DynamicallyMappable key: '$typeName'. Found on ${classInfo.name}")
                 )
@@ -168,8 +168,8 @@ internal class ClasspathTypeScanner(
 
                 logger.trace { "Registered DynamicDTO serializer for '$typeName' -> ${kClass.simpleName}" }
             } catch (e: Exception) {
-                throw TypeRegistryException(
-                    TypeRegistryExceptionMessage.INITIALIZATION_FAILED,
+                throw InitializationException(
+                    InitializationExceptionMessage.INITIALIZATION_FAILED,
                     typeName = typeName,
                     cause = IllegalStateException(
                         "Failed to obtain serializer for ${kClass.qualifiedName}. Ensure it is a valid @Serializable class/enum.",

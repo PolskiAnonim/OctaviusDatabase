@@ -12,7 +12,7 @@ object ExceptionTranslator {
             is StepDependencyException -> ex // Context added inside TransactionPlanExecutor
             // CodeExecutionException (RuntimeTypeRegistryException and ConversionException) must be given context
             is CodeExecutionException -> ex.withContext(queryContext)
-            // StepDependencyException!!!
+            // InitializationException -> impossible
             is DatabaseException -> ex
             is DataAccessException -> translateSpringException(ex, queryContext)
             // Probably possible inside listener

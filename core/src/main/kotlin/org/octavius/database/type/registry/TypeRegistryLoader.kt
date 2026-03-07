@@ -4,8 +4,8 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
-import org.octavius.data.exception.TypeRegistryException
-import org.octavius.data.exception.TypeRegistryExceptionMessage
+import org.octavius.data.exception.InitializationException
+import org.octavius.data.exception.InitializationExceptionMessage
 import org.octavius.data.annotation.PgCompositeMapper
 import org.octavius.data.type.DYNAMIC_DTO
 import org.octavius.data.type.PgStandardType
@@ -94,8 +94,8 @@ internal class TypeRegistryLoader(
         ktEnums.forEach { kt ->
             // Validate: enum must exist in database
             dbEnums[kt.pgName]
-                ?: throw TypeRegistryException(
-                    messageEnum = TypeRegistryExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
+                ?: throw InitializationException(
+                    messageEnum = InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
                     typeName = kt.pgName,
                     cause = IllegalStateException("Class '${kt.kClass.qualifiedName}' expects DB type '${kt.pgName}'")
                 )
@@ -138,8 +138,8 @@ internal class TypeRegistryLoader(
         ktComposites.forEach { kt ->
             // Validate: composite must exist in database
             val dbAttributes = dbComposites[kt.pgName]
-                ?: throw TypeRegistryException(
-                    messageEnum = TypeRegistryExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
+                ?: throw InitializationException(
+                    messageEnum = InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
                     typeName = kt.pgName,
                     cause = IllegalStateException("Class '${kt.kClass.qualifiedName}' expects DB type '${kt.pgName}'")
                 )
@@ -149,8 +149,8 @@ internal class TypeRegistryLoader(
                     // Try to get object instance first (for Kotlin objects)
                     (mapperKClass.objectInstance ?: mapperKClass.java.getDeclaredConstructor().newInstance()) as PgCompositeMapper<Any>
                 } catch (e: Exception) {
-                    throw TypeRegistryException(
-                        TypeRegistryExceptionMessage.INITIALIZATION_FAILED,
+                    throw InitializationException(
+                        InitializationExceptionMessage.INITIALIZATION_FAILED,
                         typeName = kt.pgName,
                         cause = IllegalStateException("Failed to instantiate mapper ${mapperKClass.qualifiedName}. Ensure it is an 'object' or has a public no-arg constructor.", e)
                     )
