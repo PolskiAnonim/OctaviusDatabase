@@ -57,13 +57,6 @@ $contextStr
         ---------------------------------
         """.trimIndent()
     }
-
-    override fun withContext(queryContext: QueryContext) = StepDependencyException(
-        messageEnum = this.messageEnum,
-        referencedStepIndex = this.referencedStepIndex,
-        args = this.args,
-        queryContext = queryContext
-    )
 }
 
 // Message for logs

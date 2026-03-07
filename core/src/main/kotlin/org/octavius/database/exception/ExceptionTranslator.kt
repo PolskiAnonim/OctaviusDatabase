@@ -7,15 +7,15 @@ import java.sql.SQLException
 
 object ExceptionTranslator {
 
-    fun translate(ex: Throwable, queryContext: QueryContext): OctaviusDatabaseException {
+    fun translate(ex: Throwable, queryContext: QueryContext): DatabaseException {
         return when (ex) {
             // CodeExecutionException (RuntimeTypeRegistryException and ConversionException) must be given context
             is CodeExecutionException -> ex.withContext(queryContext)
             is StepDependencyException -> ex // Context added inside TransactionPlanExecutor
             // StepDependencyException!!!
-            is OctaviusDatabaseException -> ex
+            is DatabaseException -> ex
             is DataAccessException -> translateSpringException(ex, queryContext)
-            else -> OctaviusDatabaseException.DatabaseExecutionException(
+            else -> DatabaseException.DatabaseExecutionException(
                 errorType = DbErrorType.UNKNOWN,
                 queryContext = queryContext,
                 cause = ex
@@ -23,25 +23,25 @@ object ExceptionTranslator {
         }
     }
 
-    private fun translateSpringException(ex: DataAccessException, queryContext: QueryContext): OctaviusDatabaseException {
+    private fun translateSpringException(ex: DataAccessException, queryContext: QueryContext): DatabaseException {
         return when (ex) {
-            is DuplicateKeyException -> OctaviusDatabaseException.DatabaseExecutionException(
+            is DuplicateKeyException -> DatabaseException.DatabaseExecutionException(
                 errorType = DbErrorType.UNIQUE_CONSTRAINT_VIOLATION,
                 constraintName = extractConstraintName(ex),
                 queryContext = queryContext,
                 cause = ex
             )
-            is QueryTimeoutException, is TransientDataAccessException -> OctaviusDatabaseException.ConcurrencyException(
+            is QueryTimeoutException, is TransientDataAccessException -> DatabaseException.ConcurrencyException(
                 errorType = ConcurrencyErrorType.TIMEOUT,
                 queryContext = queryContext,
                 cause = ex
             )
-            is PessimisticLockingFailureException -> OctaviusDatabaseException.ConcurrencyException(
+            is PessimisticLockingFailureException -> DatabaseException.ConcurrencyException(
                 errorType = ConcurrencyErrorType.DEADLOCK,
                 queryContext = queryContext,
                 cause = ex
             )
-            is BadSqlGrammarException -> OctaviusDatabaseException.DatabaseExecutionException(
+            is BadSqlGrammarException -> DatabaseException.DatabaseExecutionException(
                 errorType = DbErrorType.BAD_SQL_GRAMMAR,
                 queryContext = queryContext,
                 cause = ex
@@ -49,18 +49,18 @@ object ExceptionTranslator {
             is DataIntegrityViolationException -> {
                 val sqlException = findSqlException(ex)
                 val (type, constraint) = parsePostgresError(sqlException)
-                OctaviusDatabaseException.DatabaseExecutionException(
+                DatabaseException.DatabaseExecutionException(
                     errorType = type,
                     constraintName = constraint ?: extractConstraintName(ex),
                     queryContext = queryContext,
                     cause = ex
                 )
             }
-            is DataAccessResourceFailureException -> OctaviusDatabaseException.ConnectionException(
+            is DataAccessResourceFailureException -> DatabaseException.ConnectionException(
                 message = "Database connection failed",
                 cause = ex
             )
-            else -> OctaviusDatabaseException.DatabaseExecutionException(DbErrorType.UNKNOWN, null, queryContext, ex)
+            else -> DatabaseException.DatabaseExecutionException(DbErrorType.UNKNOWN, null, queryContext, ex)
         }
     }
 

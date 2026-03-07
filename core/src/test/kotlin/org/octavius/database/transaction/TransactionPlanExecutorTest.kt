@@ -12,7 +12,7 @@ import org.octavius.data.DataResult
 import org.octavius.data.builder.execute
 import org.octavius.data.builder.toColumn
 import org.octavius.data.builder.toField
-import org.octavius.data.exception.OctaviusDatabaseException
+import org.octavius.data.exception.DatabaseException
 import org.octavius.data.exception.StepDependencyException
 import org.octavius.data.transaction.TransactionPlan
 import org.octavius.database.OctaviusDatabase
@@ -169,8 +169,8 @@ class TransactionPlanExecutorTest {
         // Assert
         assertThat(result).isInstanceOf(DataResult.Failure::class.java)
         val failure = (result as DataResult.Failure).error
-        assertThat(failure).isInstanceOf(OctaviusDatabaseException.TransactionStepExecutionException::class.java)
-        assertThat((failure as OctaviusDatabaseException.TransactionStepExecutionException).stepIndex).isEqualTo(1) // Błąd w drugim kroku (indeks 1)
+        assertThat(failure).isInstanceOf(DatabaseException.TransactionStepExecutionException::class.java)
+        assertThat((failure as DatabaseException.TransactionStepExecutionException).stepIndex).isEqualTo(1) // Błąd w drugim kroku (indeks 1)
 
         // Kluczowa asercja: Sprawdzamy, czy Krok 1 został wycofany
         val logCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Long::class.java)
@@ -193,7 +193,7 @@ class TransactionPlanExecutorTest {
         // Assert
         assertThat(result).isInstanceOf(DataResult.Failure::class.java)
         val error = (result as DataResult.Failure).error
-        assertThat(error).isInstanceOf(OctaviusDatabaseException.TransactionStepExecutionException::class.java)
+        assertThat(error).isInstanceOf(DatabaseException.TransactionStepExecutionException::class.java)
         assertThat(error.cause).isInstanceOf(StepDependencyException::class.java)
         assertThat(error.cause?.message).contains("COLUMN_NOT_FOUND")
     }

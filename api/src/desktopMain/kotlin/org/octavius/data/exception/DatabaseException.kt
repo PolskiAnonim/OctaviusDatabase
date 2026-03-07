@@ -1,50 +1,111 @@
 package org.octavius.data.exception
 
 /**
- * Base sealed exception for all data layer errors.
- * 
- * NOTE: This class is being superseded by OctaviusDatabaseException.
- * Existing code should migrate to catching OctaviusDatabaseException.
+ * Base sealed exception for all Octavius Database errors.
  */
 sealed class DatabaseException(
     message: String,
-    cause: Throwable? = null,
-    val queryContext: QueryContext? = null
-) : RuntimeException(message, cause)
+    queryContext: QueryContext?,
+    cause: Throwable? = null
+): RuntimeException(message, cause) {
 
-/**
- * Errors during SQL query execution.
- * 
- * @deprecated Use OctaviusDatabaseException.DatabaseExecutionException instead.
- */
-@Deprecated("Use OctaviusDatabaseException.DatabaseExecutionException instead", 
-    replaceWith = ReplaceWith("OctaviusDatabaseException.DatabaseExecutionException"))
-class QueryExecutionException(
-    val sql: String,
-    val params: Map<String, Any?>,
-    val expandedSql: String? = null,
-    val expandedParams: List<Any?>? = null,
-    message: String? = null,
-    cause: Throwable? = null,
-    queryContext: QueryContext? = null
-) : DatabaseException(
-    message ?: "Error during query execution",
-    cause,
-    queryContext ?: QueryContext(sql, params, expandedSql, expandedParams)
-) {
+    private var _queryContext: QueryContext? = queryContext
+    val queryContext: QueryContext? get() = _queryContext
+
+    /**
+     * Enriches the exception with the transaction step index.
+     */
+    fun withStepIndex(index: Int): DatabaseException {
+        _queryContext = _queryContext?.withTransactionStep(index) 
+            ?: QueryContext(sql = "", parameters = emptyMap(), transactionStepIndex = index)
+        return this
+    }
+
+    /**
+     * Enriches the exception with a full query context.
+     */
+    fun withContext(context: QueryContext): DatabaseException {
+        _queryContext = context
+        return this
+    }
+
+    /**
+     * Errors during SQL execution in the database (e.g., constraint violations, syntax errors).
+     */
+    class DatabaseExecutionException(
+        val errorType: DbErrorType,
+        val constraintName: String? = null,
+        queryContext: QueryContext?,
+        cause: Throwable?
+    ) : DatabaseException("DB Execution failed: $errorType${constraintName?.let { " (Constraint: $it)" } ?: ""}", queryContext, cause)
+
+    /**
+     * Infrastructure and connectivity issues.
+     */
+    class ConnectionException(
+        message: String,
+        cause: Throwable?
+    ) : DatabaseException(message, null, cause)
+
+    /**
+     * Concurrency and transaction-related issues (e.g., deadlocks, timeouts).
+     */
+    class ConcurrencyException(
+        val errorType: ConcurrencyErrorType,
+        queryContext: QueryContext?,
+        cause: Throwable?
+    ) : DatabaseException("Concurrency error: $errorType", queryContext, cause)
+
+    /**
+     * Errors during transaction execution.
+     */
+    class TransactionException(
+        message: String,
+        cause: Throwable,
+        queryContext: QueryContext? = null
+    ) : DatabaseException(message, queryContext, cause)
+
+    /**
+     * Specific step failure within a transaction plan.
+     */
+    class TransactionStepExecutionException(
+        val stepIndex: Int,
+        cause: Throwable,
+        queryContext: QueryContext? = null
+    ) : DatabaseException("Execution of transaction step $stepIndex failed", queryContext, cause)
 
     override fun toString(): String {
+        val contextStr = queryContext?.toString() ?: ""
         val nestedError = cause?.toString()?.prependIndent("|   ") ?: "|   No cause available"
 
         return """
-        
-${this@QueryExecutionException.queryContext}
+$contextStr
 
 ------------------------------------------------------------
-| ERROR CAUSE:
+| ERROR: ${this::class.simpleName}
+| MESSAGE: $message
+------------------------------------------------------------
+| CAUSE:
 ------------------------------------------------------------
 $nestedError
 ------------------------------------------------------------
         """.trimIndent()
     }
+}
+
+enum class DbErrorType {
+    UNIQUE_CONSTRAINT_VIOLATION,
+    FOREIGN_KEY_VIOLATION,
+    NOT_NULL_VIOLATION,
+    CHECK_CONSTRAINT_VIOLATION,
+    BAD_SQL_GRAMMAR,
+    DATA_INTEGRITY,
+    UNKNOWN
+}
+
+enum class ConcurrencyErrorType {
+    TIMEOUT,
+    DEADLOCK,
+    OPTIMISTIC_LOCK,
+    CONCURRENT_MODIFICATION
 }

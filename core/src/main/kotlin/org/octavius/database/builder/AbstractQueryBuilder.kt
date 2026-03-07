@@ -10,7 +10,6 @@ import org.octavius.data.builder.StepBuilderMethods
 import org.octavius.data.builder.StreamingTerminalMethods
 import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
-import org.octavius.data.exception.OctaviusDatabaseException
 import org.octavius.data.exception.QueryContext
 import org.octavius.database.RowMappers
 import org.octavius.database.exception.ExceptionTranslator

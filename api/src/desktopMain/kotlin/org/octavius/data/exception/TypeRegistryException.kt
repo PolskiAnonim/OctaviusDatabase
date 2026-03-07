@@ -39,10 +39,6 @@ $contextStr
         -------------------------------
         """.trimIndent()
     }
-
-    override fun withContext(queryContext: QueryContext): CodeExecutionException {
-        TODO("Not yet implemented")
-    }
 }
 
 private fun generateDeveloperMessage(messageEnum: TypeRegistryExceptionMessage, typeName: String?): String {

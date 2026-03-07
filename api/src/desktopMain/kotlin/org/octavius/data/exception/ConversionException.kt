@@ -77,16 +77,6 @@ $contextStr
 ---------------------------------
 """
     }
-
-    override fun withContext(queryContext: QueryContext) = ConversionException(
-        messageEnum = this.messageEnum,
-        value = this.value,
-        targetType = this.targetType,
-        rowData = this.rowData,
-        propertyName = this.propertyName,
-        cause = this.cause,
-        queryContext = queryContext
-    )
 }
 
 

@@ -173,9 +173,9 @@ internal class TransactionPlanExecutor(
                 indexedResults[index] = stepResult.value
             }
             is DataResult.Failure -> {
-                // Throw error,  this error should have QueryContext filled
-                // TODO add step index
-                throw stepResult.error
+                val error = stepResult.error
+                error.withStepIndex(index)
+                throw error
             }
         }
     }
@@ -203,12 +203,14 @@ internal class TransactionPlanExecutor(
     }
 
     private fun handleTransactionError(error: Throwable): DataResult.Failure {
-        //TODO use ExceptionTranslator
-        val dbException = when (error) {
-            is OctaviusDatabaseException -> error
-            is DatabaseException -> error
-            else -> OctaviusDatabaseException.TransactionException("Execution of transaction failed", error)
+        val dbException = if (error is DatabaseException) {
+            error
+        } else {
+            // We use a dummy context here because we don't have the SQL context anymore
+            // at the highest level if it wasn't captured inside.
+            ExceptionTranslator.translate(error, QueryContext("", emptyMap()))
         }
+        
         logger.error(dbException) { "Transaction failed and was rolled back." }
         return DataResult.Failure(dbException)
     }
@@ -273,7 +275,7 @@ internal class TransactionPlanExecutor(
         indexedResults: Map<Int, Any?>,
         handleToIndexMap: Map<StepHandle<*>, Int>
     ): Any? {
-        val stepIndex = handleToIndexMap[value.handle]!! // Validated earlier
+        val stepIndex = handleToIndexMap.getValue(value.handle) // Validated earlier
         // The `execute` loop logic guarantees that if we reached this point,
         // step `stepIndex` has been executed and its result is in the map.
         val sourceResult = indexedResults[stepIndex] ?: return null // Step result can be null

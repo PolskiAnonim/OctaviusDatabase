@@ -8,7 +8,6 @@ import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.builder.execute
 import org.octavius.data.builder.toField
-import org.octavius.data.exception.QueryExecutionException
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
@@ -140,8 +139,8 @@ class DynamicDtoSerializationTest {
             // Jeśli doszło do błędu wewnątrz frameworka, będzie on opakowany w DataResult.Failure
             if (result is DataResult.Failure) {
                 val queryExecutionError = result.error
-                assertThat(queryExecutionError).isInstanceOf(QueryExecutionException::class.java)
-                throw queryExecutionError.cause!! //To powinien być TypeRegistryException
+                assertThat(queryExecutionError).isInstanceOf(TypeRegistryException::class.java)
+                throw queryExecutionError
             }
         }
     }

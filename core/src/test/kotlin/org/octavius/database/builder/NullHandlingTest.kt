@@ -13,7 +13,6 @@ import org.octavius.data.builder.toFieldStrict
 import org.octavius.data.builder.toSingleOf
 import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
-import org.octavius.data.exception.QueryExecutionException
 import org.octavius.database.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.octavius.database.type.PositionalQuery

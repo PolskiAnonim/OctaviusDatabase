@@ -32,13 +32,6 @@ $contextStr
 -------------------------------
 """
     }
-
-    override fun withContext(queryContext: QueryContext) = RuntimeTypeRegistryException(
-        messageEnum = this.messageEnum,
-        typeName = this.typeName,
-        cause = this.cause,
-        queryContext = queryContext
-    )
 }
 
 private fun generateDeveloperMessage(messageEnum: RuntimeTypeRegistryExceptionMessage, typeName: String?): String {
