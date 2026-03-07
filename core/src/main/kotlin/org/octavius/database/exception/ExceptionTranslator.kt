@@ -9,9 +9,9 @@ object ExceptionTranslator {
 
     fun translate(ex: Throwable, queryContext: QueryContext): DatabaseException {
         return when (ex) {
+            is StepDependencyException -> ex // Context added inside TransactionPlanExecutor
             // CodeExecutionException (RuntimeTypeRegistryException and ConversionException) must be given context
             is CodeExecutionException -> ex.withContext(queryContext)
-            is StepDependencyException -> ex // Context added inside TransactionPlanExecutor
             // StepDependencyException!!!
             is DatabaseException -> ex
             is DataAccessException -> translateSpringException(ex, queryContext)

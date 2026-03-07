@@ -65,15 +65,6 @@ sealed class DatabaseException(
         queryContext: QueryContext? = null
     ) : DatabaseException(message, queryContext, cause)
 
-    /**
-     * Specific step failure within a transaction plan.
-     */
-    class TransactionStepExecutionException(
-        val stepIndex: Int,
-        cause: Throwable,
-        queryContext: QueryContext? = null
-    ) : DatabaseException("Execution of transaction step $stepIndex failed", queryContext, cause)
-
     override fun toString(): String {
         val contextStr = queryContext?.toString() ?: ""
         val nestedError = cause?.toString()?.prependIndent("|   ") ?: "|   No cause available"

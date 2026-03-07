@@ -97,6 +97,7 @@ internal class TransactionPlanExecutor(
                 }
             } catch (e: StepDependencyException) {
                 //TODO Technically it can throw - throw exception that should not be handled? or should it - for single query it is not handled because it is programmer error (for example HAVING without GROUP BY)
+                // maybe it should be checked in validation? Technically it is additional string building but it shouldn't be extra taxing
                 //TODO toString on TransactionValue
                 val sql = (step.builder as AbstractQueryBuilder<*>).toSql()
                 throw e.withContext(
@@ -203,16 +204,24 @@ internal class TransactionPlanExecutor(
     }
 
     private fun handleTransactionError(error: Throwable): DataResult.Failure {
-        val dbException = if (error is DatabaseException) {
-            error
-        } else {
-            // We use a dummy context here because we don't have the SQL context anymore
-            // at the highest level if it wasn't captured inside.
-            ExceptionTranslator.translate(error, QueryContext("", emptyMap()))
+        return when (error) {
+            is StepDependencyException -> {
+                // StepDependencyException wasn't logged anywhere
+                logger.error(error) { "Transaction failed and was rolled back." }
+                DataResult.Failure(error)
+            }
+
+            is DatabaseException -> {
+                DataResult.Failure(error)
+            }
+
+            else -> {
+                //  TODO it is probably TransactionException from spring? Context doesn't exists because it is from commit or rollback
+                val ex = ExceptionTranslator.translate(error, QueryContext("", emptyMap()))
+                logger.error(ex) { "Transaction failed and was rolled back." }
+                DataResult.Failure(ex)
+            }
         }
-        
-        logger.error(dbException) { "Transaction failed and was rolled back." }
-        return DataResult.Failure(dbException)
     }
 
 
