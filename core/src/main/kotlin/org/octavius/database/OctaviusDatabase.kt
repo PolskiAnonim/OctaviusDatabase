@@ -5,6 +5,8 @@ import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.flywaydb.core.Flyway
 import org.octavius.data.DataAccess
+import org.octavius.data.exception.InitializationException
+import org.octavius.data.exception.InitializationExceptionMessage
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
 import org.octavius.database.type.KotlinToPostgresConverter
@@ -159,7 +161,11 @@ object OctaviusDatabase {
             }
         } catch (e: Exception) {
             logger.error(e) { "Migration failed!" }
-            throw e
+            throw InitializationException(
+                InitializationExceptionMessage.MIGRATION_FAILED,
+                details = e.message,
+                cause = e
+            )
         }
     }
 

@@ -1,5 +1,6 @@
 package org.octavius.database.type.registry
 
+import io.github.classgraph.AnnotationClassRef
 import io.github.classgraph.AnnotationEnumValue
 import io.github.classgraph.ClassGraph
 import io.github.classgraph.ScanResult
@@ -68,7 +69,7 @@ internal class ClasspathTypeScanner(
             if (!classInfo.isEnum) {
                 throw InitializationException(
                     InitializationExceptionMessage.INITIALIZATION_FAILED,
-                    typeName = classInfo.name,
+                    details = classInfo.name,
                     cause = IllegalStateException("@PgEnum not on enum")
                 )
             }
@@ -80,7 +81,7 @@ internal class ClasspathTypeScanner(
             if (!seenNames.add(name)) {
                 throw InitializationException(
                     messageEnum = InitializationExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION,
-                    typeName = name,
+                    details = name,
                     cause = IllegalStateException("Duplicate PostgreSQL type name detected: '$name'. Found on ${classInfo.name}")
                 )
             }
@@ -104,7 +105,7 @@ internal class ClasspathTypeScanner(
             if (classInfo.isEnum) {
                 throw InitializationException(
                     InitializationExceptionMessage.INITIALIZATION_FAILED,
-                    typeName = classInfo.name,
+                    details = classInfo.name,
                     cause = IllegalStateException("@PgComposite on enum")
                 )
             }
@@ -116,12 +117,12 @@ internal class ClasspathTypeScanner(
             if (!seenNames.add(name)) {
                 throw InitializationException(
                     messageEnum = InitializationExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION,
-                    typeName = name,
+                    details = name,
                     cause = IllegalStateException("Duplicate PostgreSQL type name detected: '$name'. Found on ${classInfo.name}")
                 )
             }
 
-            val mapperClassInfo = annotation.parameterValues.getValue("mapper") as io.github.classgraph.AnnotationClassRef
+            val mapperClassInfo = annotation.parameterValues.getValue("mapper") as AnnotationClassRef
             val mapperClass = if (mapperClassInfo.name != "org.octavius.data.annotation.DefaultPgCompositeMapper") {
                 @Suppress("UNCHECKED_CAST")
                 mapperClassInfo.loadClass().kotlin as KClass<out PgCompositeMapper<*>>
@@ -142,7 +143,7 @@ internal class ClasspathTypeScanner(
             if (!classInfo.hasAnnotation("kotlinx.serialization.Serializable")) {
                 throw InitializationException(
                     InitializationExceptionMessage.INITIALIZATION_FAILED,
-                    typeName = classInfo.name,
+                    details = classInfo.name,
                     cause = IllegalStateException("Missing @Serializable")
                 )
             }
@@ -153,7 +154,7 @@ internal class ClasspathTypeScanner(
             if (targetSerializers.containsKey(typeName)) {
                 throw InitializationException(
                     messageEnum = InitializationExceptionMessage.DUPLICATE_DYNAMIC_TYPE_DEFINITION,
-                    typeName = typeName,
+                    details = typeName,
                     cause = IllegalStateException("Duplicate @DynamicallyMappable key: '$typeName'. Found on ${classInfo.name}")
                 )
             }
@@ -170,7 +171,7 @@ internal class ClasspathTypeScanner(
             } catch (e: Exception) {
                 throw InitializationException(
                     InitializationExceptionMessage.INITIALIZATION_FAILED,
-                    typeName = typeName,
+                    details = typeName,
                     cause = IllegalStateException(
                         "Failed to obtain serializer for ${kClass.qualifiedName}. Ensure it is a valid @Serializable class/enum.",
                         e

@@ -21,9 +21,9 @@ import kotlin.reflect.KClass
  * to fetch PostgreSQL type definitions. Both scans run in parallel for performance.
  */
 internal class TypeRegistryLoader(
-    private val jdbcTemplate: JdbcTemplate,
-    private val packagesToScan: List<String>,
-    private val dbSchemas: List<String>
+    jdbcTemplate: JdbcTemplate,
+    packagesToScan: List<String>,
+    dbSchemas: List<String>
 ) {
     private val classpathScanner = ClasspathTypeScanner(packagesToScan)
     private val databaseScanner = DatabaseTypeScanner(jdbcTemplate, dbSchemas)
@@ -96,7 +96,7 @@ internal class TypeRegistryLoader(
             dbEnums[kt.pgName]
                 ?: throw InitializationException(
                     messageEnum = InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
-                    typeName = kt.pgName,
+                    details = kt.pgName,
                     cause = IllegalStateException("Class '${kt.kClass.qualifiedName}' expects DB type '${kt.pgName}'")
                 )
 
@@ -140,7 +140,7 @@ internal class TypeRegistryLoader(
             val dbAttributes = dbComposites[kt.pgName]
                 ?: throw InitializationException(
                     messageEnum = InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
-                    typeName = kt.pgName,
+                    details = kt.pgName,
                     cause = IllegalStateException("Class '${kt.kClass.qualifiedName}' expects DB type '${kt.pgName}'")
                 )
 
@@ -151,7 +151,7 @@ internal class TypeRegistryLoader(
                 } catch (e: Exception) {
                     throw InitializationException(
                         InitializationExceptionMessage.INITIALIZATION_FAILED,
-                        typeName = kt.pgName,
+                        details = kt.pgName,
                         cause = IllegalStateException("Failed to instantiate mapper ${mapperKClass.qualifiedName}. Ensure it is an 'object' or has a public no-arg constructor.", e)
                     )
                 }
