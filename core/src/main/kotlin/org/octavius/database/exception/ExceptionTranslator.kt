@@ -16,7 +16,7 @@ object ExceptionTranslator {
             is DatabaseException -> ex
             is DataAccessException -> translateSpringException(ex, queryContext)
             // Probably possible inside listener
-            else -> DatabaseException.DatabaseExecutionException(
+            else -> DatabaseExecutionException(
                 errorType = DbErrorType.UNKNOWN,
                 queryContext = queryContext,
                 cause = ex
@@ -26,18 +26,18 @@ object ExceptionTranslator {
 
     private fun translateSpringException(ex: DataAccessException, queryContext: QueryContext): DatabaseException {
         return when (ex) {
-            is DuplicateKeyException -> DatabaseException.DatabaseExecutionException(
+            is DuplicateKeyException -> DatabaseExecutionException(
                 errorType = DbErrorType.UNIQUE_CONSTRAINT_VIOLATION,
                 constraintName = extractConstraintName(ex),
                 queryContext = queryContext,
                 cause = ex
             )
-            is PessimisticLockingFailureException -> DatabaseException.ConcurrencyException(
+            is PessimisticLockingFailureException -> ConcurrencyException(
                 errorType = ConcurrencyErrorType.DEADLOCK,
                 queryContext = queryContext,
                 cause = ex
             )
-            is BadSqlGrammarException -> DatabaseException.DatabaseExecutionException(
+            is BadSqlGrammarException -> DatabaseExecutionException(
                 errorType = DbErrorType.BAD_SQL_GRAMMAR,
                 queryContext = queryContext,
                 cause = ex
@@ -45,23 +45,23 @@ object ExceptionTranslator {
             is DataIntegrityViolationException -> {
                 val sqlException = findSqlException(ex)
                 val (type, constraint) = parsePostgresError(sqlException)
-                DatabaseException.DatabaseExecutionException(
+                DatabaseExecutionException(
                     errorType = type,
                     constraintName = constraint ?: extractConstraintName(ex),
                     queryContext = queryContext,
                     cause = ex
                 )
             }
-            is QueryTimeoutException, is TransientDataAccessException -> DatabaseException.ConcurrencyException(
+            is QueryTimeoutException, is TransientDataAccessException -> ConcurrencyException(
                 errorType = ConcurrencyErrorType.TIMEOUT,
                 queryContext = queryContext,
                 cause = ex
             )
-            is DataAccessResourceFailureException -> DatabaseException.ConnectionException(
+            is DataAccessResourceFailureException -> ConnectionException(
                 message = "Database connection failed",
                 cause = ex
             )
-            else -> DatabaseException.DatabaseExecutionException(DbErrorType.UNKNOWN, null, queryContext, ex)
+            else -> DatabaseExecutionException(DbErrorType.UNKNOWN, null, queryContext, ex)
         }
     }
 

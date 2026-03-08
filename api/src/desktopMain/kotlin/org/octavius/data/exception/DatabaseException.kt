@@ -29,33 +29,6 @@ sealed class DatabaseException(
         return this
     }
 
-    /**
-     * Errors during SQL execution in the database (e.g., constraint violations, syntax errors).
-     */
-    class DatabaseExecutionException(
-        val errorType: DbErrorType,
-        val constraintName: String? = null,
-        queryContext: QueryContext?,
-        cause: Throwable?
-    ) : DatabaseException("DB Execution failed: $errorType${constraintName?.let { " (Constraint: $it)" } ?: ""}", queryContext, cause)
-
-    /**
-     * Infrastructure and connectivity issues.
-     */
-    class ConnectionException(
-        message: String,
-        cause: Throwable?
-    ) : DatabaseException(message, null, cause)
-
-    /**
-     * Concurrency and transaction-related issues (e.g., deadlocks, timeouts).
-     */
-    class ConcurrencyException(
-        val errorType: ConcurrencyErrorType,
-        queryContext: QueryContext?,
-        cause: Throwable?
-    ) : DatabaseException("Concurrency error: $errorType", queryContext, cause)
-
     override fun toString(): String {
         val contextStr = queryContext?.toString() ?: ""
         val nestedError = cause?.toString()?.prependIndent("|   ") ?: "|   No cause available"
@@ -84,6 +57,33 @@ sealed class CodeExecutionException(
     queryContext: QueryContext?,
     cause: Throwable?
 ) : DatabaseException(details, queryContext, cause)
+
+/**
+ * Errors during SQL execution in the database (e.g., constraint violations, syntax errors).
+ */
+class DatabaseExecutionException(
+    val errorType: DbErrorType,
+    val constraintName: String? = null,
+    queryContext: QueryContext?,
+    cause: Throwable?
+) : DatabaseException("DB Execution failed: $errorType${constraintName?.let { " (Constraint: $it)" } ?: ""}", queryContext, cause)
+
+/**
+ * Infrastructure and connectivity issues.
+ */
+class ConnectionException(
+    message: String,
+    cause: Throwable?
+) : DatabaseException(message, null, cause)
+
+/**
+ * Concurrency and transaction-related issues (e.g., deadlocks, timeouts).
+ */
+class ConcurrencyException(
+    val errorType: ConcurrencyErrorType,
+    queryContext: QueryContext?,
+    cause: Throwable?
+) : DatabaseException("Concurrency error: $errorType", queryContext, cause)
 
 
 enum class DbErrorType {
