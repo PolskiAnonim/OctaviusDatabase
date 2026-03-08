@@ -14,8 +14,8 @@ object ExceptionTranslator {
         // Already a domain exception, just pass through (possibly enrich with context)
         when (ex) {
             is StepDependencyException -> return ex // Context added inside TransactionPlanExecutor
-            // CodeExecutionException (RuntimeTypeRegistryException and ConversionException) must be given context
-            is CodeExecutionException -> return ex.withContext(queryContext)
+            // (TypeRegistryException and ConversionException) must be given context
+            is TypeRegistryException, is ConversionException -> return ex.withContext(queryContext)
             // InitializationException -> only on start - impossible here, ConstraintViolationException -> created here
             // GrammarException -> created here, PermissionException -> created here, ConnectionException -> only on start - impossible here
             // ConcurrencyException -> created here, UnknownDatabaseException -> created here

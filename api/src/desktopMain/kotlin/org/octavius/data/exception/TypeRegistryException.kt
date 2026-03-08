@@ -13,7 +13,7 @@ class TypeRegistryException(
     val typeName: String,
     cause: Throwable? = null,
     queryContext: QueryContext? = null
-) : CodeExecutionException(
+) : DatabaseException(
     queryContext = queryContext,
     message = messageEnum.name,
     cause = cause

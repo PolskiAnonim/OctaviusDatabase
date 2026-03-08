@@ -36,7 +36,7 @@ class StepDependencyException(
     vararg val args: Any,
     cause: Throwable? = null,
     queryContext: QueryContext? = null
-) : CodeExecutionException(
+) : DatabaseException(
     queryContext = queryContext,
     message = messageEnum.name,
     cause = cause

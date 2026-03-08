@@ -62,16 +62,6 @@ $causeSection
 }
 
 /**
- * Errors in the application code or framework logic (e.g., mapping failures, dependency errors).
- * Errors that probably can't be fixed without database or code changes
- */
-sealed class CodeExecutionException(
-    message: String,
-    queryContext: QueryContext?,
-    cause: Throwable?
-) : DatabaseException(message, cause, queryContext, includeCauseInToString = true)
-
-/**
  * Thrown when the SQL query is syntactically incorrect or references non-existent objects.
  */
 class GrammarException(

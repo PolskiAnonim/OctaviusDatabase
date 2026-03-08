@@ -51,7 +51,7 @@ class ConversionException(
     val propertyName: String? = null,
     cause: Throwable? = null,
     queryContext: QueryContext? = null
-) : CodeExecutionException(
+) : DatabaseException(
     queryContext = queryContext,
     message = messageEnum.name,
     cause = cause
