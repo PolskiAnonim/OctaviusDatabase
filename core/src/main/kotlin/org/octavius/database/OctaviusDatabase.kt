@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.flywaydb.core.Flyway
 import org.octavius.data.DataAccess
+import org.octavius.data.exception.ConnectionException
 import org.octavius.data.exception.InitializationException
 import org.octavius.data.exception.InitializationExceptionMessage
 import org.octavius.database.config.DatabaseConfig
@@ -54,7 +55,14 @@ object OctaviusDatabase {
             maximumPoolSize = 10
             this.connectionInitSql = connectionInitSql
         }
-        val dataSource = HikariDataSource(hikariConfig)
+        val dataSource = try {
+            HikariDataSource(hikariConfig)
+        } catch (e: Exception) {
+            throw ConnectionException(
+                "Failed to initialize connection pool (DataSource). Ensure the database is reachable and credentials are correct.",
+                e
+            )
+        }
         logger.debug { "HikariCP datasource initialized with pool size: ${hikariConfig.maximumPoolSize}" }
 
         return fromDataSource(

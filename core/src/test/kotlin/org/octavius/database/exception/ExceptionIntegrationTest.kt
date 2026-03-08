@@ -17,7 +17,7 @@ class ExceptionIntegrationTest {
 
     @BeforeAll
     fun setup() {
-        config = DatabaseConfig.loadFromFile("test-database.properties")
+        config = DatabaseConfig.loadFromFile("test-database.properties").copy(disableFlyway = true, disableCoreTypeInitialization = true)
     }
 
     @Test
@@ -58,6 +58,7 @@ class ExceptionIntegrationTest {
     fun `should return ConcurrencyException on deadlock`() = runBlocking {
         // GIVEN
         val dataAccess = OctaviusDatabase.fromConfig(config)
+        dataAccess.rawQuery("CREATE TABLE IF NOT EXISTS deadlock_test (id INT PRIMARY KEY, val TEXT)").execute()
         dataAccess.rawQuery("TRUNCATE deadlock_test").execute()
         dataAccess.rawQuery("INSERT INTO deadlock_test (id, val) VALUES (1, 'A'), (2, 'B')").execute()
 
