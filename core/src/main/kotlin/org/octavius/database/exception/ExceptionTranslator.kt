@@ -36,7 +36,6 @@ object ExceptionTranslator {
         var cause: Throwable? = ex
         while (cause != null) {
             if (cause is SQLException) return cause
-            // Spring DataAccessException often wraps SQLException
             cause = cause.cause
         }
         return null
@@ -53,12 +52,10 @@ object ExceptionTranslator {
             // Class 08 — Connection Exception
             state.startsWith("08") -> ConnectionException(sqlEx.message ?: "Connection error", sqlEx)
 
-            // Class 22 — Data Exception (Invalid data provided by the user) TODO Should it be another exception not Constraint violation? Or should ConstraintViolationException have changed name?
-            state.startsWith("22") -> ConstraintViolationException(
-                messageEnum = ConstraintViolationExceptionMessage.DATA_INTEGRITY,
-                tableName = pgMetadata.table,
-                columnName = pgMetadata.column,
-                constraintName = pgMetadata.constraint,
+            // Class 22 — Data Exception (Invalid data provided by the user)
+            state.startsWith("22") -> StatementException(
+                messageEnum = StatementExceptionMessage.DATA_EXCEPTION,
+                detail = sqlEx.message,
                 queryContext = queryContext,
                 cause = sqlEx
             )
@@ -82,28 +79,30 @@ object ExceptionTranslator {
                 )
             }
 
-            // Class 40 — Transaction Rollback (Serialization failures and deadlocks)
+            // Class 40 — Transaction Rollback
             state.startsWith("40") -> {
                 val errorType = when (state) {
                     "40P01" -> ConcurrencyErrorType.DEADLOCK
-                    else -> ConcurrencyErrorType.TIMEOUT // or serialization failure, usually retriable
+                    else -> ConcurrencyErrorType.TIMEOUT
                 }
                 ConcurrencyException(errorType, queryContext, sqlEx)
             }
 
-            // Class 42 — Syntax Error or Access Rule Violation (Grammar or non-existent objects)
+            // Class 42 — Syntax Error or Access Rule Violation
             state.startsWith("42") -> {
-                if (state == "42501") {
-                    PermissionException(sqlEx.message ?: "Insufficient privilege", queryContext, sqlEx)
-                } else {
-                    GrammarException(sqlEx.message ?: "SQL Grammar error", queryContext, sqlEx)
+                val messageEnum = when (state) {
+                    "42501" -> StatementExceptionMessage.PERMISSION_DENIED
+                    "42601" -> StatementExceptionMessage.SYNTAX_ERROR
+                    "42P01", "42703", "42883", "42704" -> StatementExceptionMessage.OBJECT_NOT_FOUND
+                    else -> StatementExceptionMessage.SYNTAX_ERROR
                 }
+                StatementException(messageEnum, sqlEx.message, queryContext, sqlEx)
             }
 
             // Class 28 — Invalid Authorization Specification
-            state.startsWith("28") -> PermissionException(sqlEx.message ?: "Invalid authorization", queryContext, sqlEx)
+            state.startsWith("28") -> StatementException(StatementExceptionMessage.INVALID_AUTHORIZATION, sqlEx.message, queryContext, sqlEx)
 
-            // Class 57 — Operator Intervention (Query canceled, shutdown, etc.)
+            // Class 57 — Operator Intervention
             state == "57014" -> ConcurrencyException(ConcurrencyErrorType.TIMEOUT, queryContext, sqlEx)
             state.startsWith("57") -> ConnectionException("Database operator intervention: ${sqlEx.message}", sqlEx)
 
@@ -113,7 +112,7 @@ object ExceptionTranslator {
             // Class 55 — Object Not In Prerequisite State
             state.startsWith("55") -> ConnectionException("Database object state error: ${sqlEx.message}", sqlEx)
 
-            // Class 58 — System Error (errors external to PostgreSQL itself)
+            // Class 58 — System Error
             state.startsWith("58") -> ConnectionException("System error: ${sqlEx.message}", sqlEx)
 
             // Class P0 — PL/pgSQL Error

@@ -62,24 +62,6 @@ $causeSection
 }
 
 /**
- * Thrown when the SQL query is syntactically incorrect or references non-existent objects.
- */
-class GrammarException(
-    message: String,
-    queryContext: QueryContext?,
-    cause: Throwable?
-) : DatabaseException(message, cause, queryContext, includeCauseInToString = true)
-
-/**
- * Thrown when the database user lacks sufficient privileges to perform an operation.
- */
-class PermissionException(
-    message: String,
-    queryContext: QueryContext?,
-    cause: Throwable?
-) : DatabaseException(message, cause, queryContext, includeCauseInToString = true)
-
-/**
  * Infrastructure and connectivity issues.
  */
 class ConnectionException(

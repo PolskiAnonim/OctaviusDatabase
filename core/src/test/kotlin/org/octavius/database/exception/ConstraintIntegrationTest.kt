@@ -78,12 +78,14 @@ class ConstraintIntegrationTest {
     }
 
     @Test
-    fun `should return GrammarException for bad SQL`() {
+    fun `should return StatementException for bad SQL`() {
         val result = dataAccess.rawQuery("SELECT * FROM non_existent_table_xyz").execute()
-        
+
         assertThat(result).isInstanceOf(DataResult.Failure::class.java)
         val error = (result as DataResult.Failure).error
-        assertThat(error).isInstanceOf(GrammarException::class.java)
-        assertThat(error.message).contains("non_existent_table_xyz")
+        assertThat(error).isInstanceOf(StatementException::class.java)
+        val stmtError = error as StatementException
+        assertThat(stmtError.messageEnum).isEqualTo(StatementExceptionMessage.OBJECT_NOT_FOUND)
+        assertThat(stmtError.detail).contains("non_existent_table_xyz")
     }
 }
