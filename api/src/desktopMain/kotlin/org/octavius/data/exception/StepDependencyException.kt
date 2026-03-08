@@ -39,23 +39,17 @@ class StepDependencyException(
 ) : CodeExecutionException(
     details = generateDeveloperMessage(messageEnum, referencedStepIndex, args),
     queryContext = queryContext,
+    message = messageEnum.name,
     cause = cause
 ) {
     constructor(messageEnum: StepDependencyExceptionMessage, stepIndex: Int)
             : this(messageEnum, stepIndex, *emptyArray<Any>())
 
-    override fun toString(): String {
-        val contextStr = queryContext?.toString() ?: ""
-
+    override fun getDetailedMessage(): String {
         return """
-$contextStr
-
-        -------------------------------
-        |     STEP DEPENDENCY FAILED     
-        | message: ${generateDeveloperMessage(this.messageEnum, referencedStepIndex, args)}
-        | referencedStepIndex: $referencedStepIndex
-        ---------------------------------
-        """.trimIndent()
+| message: ${generateDeveloperMessage(this.messageEnum, referencedStepIndex, args)}
+| referencedStepIndex: $referencedStepIndex
+"""
     }
 }
 

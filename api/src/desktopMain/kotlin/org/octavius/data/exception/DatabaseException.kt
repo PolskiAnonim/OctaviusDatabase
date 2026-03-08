@@ -5,8 +5,8 @@ package org.octavius.data.exception
  */
 sealed class DatabaseException(
     message: String,
-    queryContext: QueryContext?,
-    cause: Throwable? = null
+    cause: Throwable? = null,
+    queryContext: QueryContext? = null
 ): RuntimeException(message, cause) {
 
     private var _queryContext: QueryContext? = queryContext
@@ -29,8 +29,14 @@ sealed class DatabaseException(
         return this
     }
 
+    /**
+     * Subclasses can provide additional technical details here.
+     */
+    open fun getDetailedMessage(): String? = null
+
     override fun toString(): String {
         val contextStr = queryContext?.toString() ?: ""
+        val detailedMsg = getDetailedMessage()?.let { "| DETAILS: $it\n" } ?: ""
         val nestedError = cause?.toString()?.prependIndent("|   ") ?: "|   No cause available"
 
         return """
@@ -39,7 +45,7 @@ $contextStr
 ------------------------------------------------------------
 | ERROR: ${this::class.simpleName}
 | MESSAGE: $message
-------------------------------------------------------------
+${detailedMsg}------------------------------------------------------------
 | CAUSE:
 ------------------------------------------------------------
 $nestedError
@@ -54,9 +60,12 @@ $nestedError
  */
 sealed class CodeExecutionException(
     val details: String,
+    message: String,
     queryContext: QueryContext?,
     cause: Throwable?
-) : DatabaseException(details, queryContext, cause)
+) : DatabaseException(message, cause, queryContext) {
+    override fun getDetailedMessage(): String? = details
+}
 
 /**
  * Errors during SQL execution in the database (e.g., constraint violations, syntax errors).
@@ -66,7 +75,9 @@ class DatabaseExecutionException(
     val constraintName: String? = null,
     queryContext: QueryContext?,
     cause: Throwable?
-) : DatabaseException("DB Execution failed: $errorType${constraintName?.let { " (Constraint: $it)" } ?: ""}", queryContext, cause)
+) : DatabaseException("DB Execution failed: $errorType${constraintName?.let { " (Constraint: $it)" } ?: ""}", cause, queryContext) {
+    override fun getDetailedMessage(): String? = constraintName?.let { "Constraint: $it" }
+}
 
 /**
  * Infrastructure and connectivity issues.
@@ -74,7 +85,7 @@ class DatabaseExecutionException(
 class ConnectionException(
     message: String,
     cause: Throwable?
-) : DatabaseException(message, null, cause)
+) : DatabaseException(message, cause, null)
 
 /**
  * Concurrency and transaction-related issues (e.g., deadlocks, timeouts).
@@ -83,7 +94,7 @@ class ConcurrencyException(
     val errorType: ConcurrencyErrorType,
     queryContext: QueryContext?,
     cause: Throwable?
-) : DatabaseException("Concurrency error: $errorType", queryContext, cause)
+) : DatabaseException("Concurrency error: $errorType", cause, queryContext)
 
 
 enum class DbErrorType {

@@ -10,30 +10,23 @@ enum class TypeRegistryExceptionMessage {
 
 class TypeRegistryException(
     val messageEnum: TypeRegistryExceptionMessage,
-    val typeName: String? = null,
+    val typeName: String,
     cause: Throwable? = null,
     queryContext: QueryContext? = null
 ) : CodeExecutionException(
     details = generateDeveloperMessage(messageEnum, typeName),
     queryContext = queryContext,
+    message = messageEnum.name,
     cause = cause
 ) {
-    override fun toString(): String {
-        val contextStr = queryContext?.toString() ?: ""
 
+    override fun getDetailedMessage(): String {
         return """
-
-$contextStr
--------------------------------
-|     TYPE REGISTRY LOOKUP FAILED     
-| Reason: ${messageEnum.name}
-| Details: ${generateDeveloperMessage(this.messageEnum, typeName)}
-| Related Type: ${typeName ?: "N/A"}
--------------------------------
+| message: ${generateDeveloperMessage(this.messageEnum, typeName)}
+| Related Type: $typeName
 """
     }
 }
-
 private fun generateDeveloperMessage(messageEnum: TypeRegistryExceptionMessage, typeName: String?): String {
     return when (messageEnum) {
         TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE -> "Schema mismatch. Composite type '$typeName' in the database has a different number of fields than defined in the registry."

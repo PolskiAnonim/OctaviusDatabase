@@ -1,7 +1,5 @@
 package org.octavius.data.exception
 
-//---------------------------------------------TypeRegistryException----------------------------------------------------
-
 enum class InitializationExceptionMessage {
     // --- Loading / Infrastructure errors ---
     INITIALIZATION_FAILED,       // General fatal error
@@ -21,24 +19,11 @@ class InitializationException(
     cause: Throwable? = null,
     queryContext: QueryContext? = null
 ) : DatabaseException(
-    message = generateDeveloperMessage(messageEnum, details),
-    queryContext = queryContext,
-    cause = cause
+    message = "Initialization failed: ${messageEnum.name}",
+    cause = cause,
+    queryContext = queryContext
 ) {
-
-    override fun toString(): String {
-        val contextStr = queryContext?.toString() ?: ""
-        
-        return """
-$contextStr
-
-        -------------------------------
-        |     INITIALIZATION FAILED     
-        | Reason: ${messageEnum.name}
-        | Details: ${generateDeveloperMessage(this.messageEnum, details)}
-        -------------------------------
-        """.trimIndent()
-    }
+    override fun getDetailedMessage(): String = generateDeveloperMessage(messageEnum, details)
 }
 
 private fun generateDeveloperMessage(messageEnum: InitializationExceptionMessage, details: String?): String {

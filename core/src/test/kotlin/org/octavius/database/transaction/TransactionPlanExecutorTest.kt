@@ -13,6 +13,7 @@ import org.octavius.data.builder.execute
 import org.octavius.data.builder.toColumn
 import org.octavius.data.builder.toField
 import org.octavius.data.exception.DatabaseException
+import org.octavius.data.exception.DatabaseExecutionException
 import org.octavius.data.exception.StepDependencyException
 import org.octavius.data.transaction.TransactionPlan
 import org.octavius.database.OctaviusDatabase
@@ -169,7 +170,7 @@ class TransactionPlanExecutorTest {
         // Assert
         assertThat(result).isInstanceOf(DataResult.Failure::class.java)
         val failure = (result as DataResult.Failure).error
-        assertThat(failure).isInstanceOf(DatabaseException.DatabaseExecutionException::class.java)
+        assertThat(failure).isInstanceOf(DatabaseExecutionException::class.java)
         assertThat(failure.queryContext!!.transactionStepIndex).isEqualTo(1) // Błąd w drugim kroku (indeks 1)
 
         // Kluczowa asercja: Sprawdzamy, czy Krok 1 został wycofany
@@ -194,7 +195,7 @@ class TransactionPlanExecutorTest {
         assertThat(result).isInstanceOf(DataResult.Failure::class.java)
         val error = (result as DataResult.Failure).error
         assertThat(error).isInstanceOf(StepDependencyException::class.java)
-        assertThat(error.message).contains("non_existent_column")
+        assertThat(error.message).contains("COLUMN_NOT_FOUND")
     }
 
     @Test

@@ -54,27 +54,16 @@ class ConversionException(
 ) : CodeExecutionException(
     details = generateDeveloperMessage(messageEnum, value, targetType, propertyName),
     queryContext = queryContext,
+    message = messageEnum.name,
     cause = cause
 ) {
-    override fun toString(): String {
-        val contextStr = queryContext?.toString() ?: ""
-
-        var s = """
-            
-$contextStr
--------------------------------
-|     CONVERSION FAILED     
+    override fun getDetailedMessage(): String {
+        return """
 | message: ${generateDeveloperMessage(this.messageEnum, value, targetType, propertyName)}
 | value: $value
 | targetType: $targetType
 | rowData: $rowData
 | propertyName: $propertyName
-"""
-        if (cause != null) {
-            s += "\n| Caused by: ${cause!!::class.simpleName}: ${cause!!.message}"
-        }
-        return s + """
----------------------------------
 """
     }
 }
