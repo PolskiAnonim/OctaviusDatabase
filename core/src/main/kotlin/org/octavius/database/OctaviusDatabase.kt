@@ -8,6 +8,7 @@ import org.octavius.data.DataAccess
 import org.octavius.data.exception.ConnectionException
 import org.octavius.data.exception.InitializationException
 import org.octavius.data.exception.InitializationExceptionMessage
+import org.octavius.data.exception.QueryContext
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
 import org.octavius.database.type.KotlinToPostgresConverter
@@ -60,6 +61,7 @@ object OctaviusDatabase {
         } catch (e: Exception) {
             throw ConnectionException(
                 "Failed to initialize connection pool (DataSource). Ensure the database is reachable and credentials are correct.",
+                queryContext = QueryContext(sql = "N/A", mapOf()),
                 e
             )
         }

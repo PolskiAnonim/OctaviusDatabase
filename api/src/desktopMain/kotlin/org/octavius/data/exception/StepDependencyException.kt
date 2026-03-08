@@ -6,8 +6,6 @@ enum class StepDependencyExceptionMessage {
     UNKNOWN_STEP_HANDLE,
 
     // Result access errors
-    RESULT_NOT_FOUND,
-    NULL_SOURCE_RESULT,
     ROW_INDEX_OUT_OF_BOUNDS,
 
     // Result structure errors
@@ -66,8 +64,6 @@ private fun generateDeveloperMessage(
         }."
 
         StepDependencyExceptionMessage.UNKNOWN_STEP_HANDLE -> "Validation failed: Found a handle that doesn't exist in the plan."
-        StepDependencyExceptionMessage.RESULT_NOT_FOUND -> "Result for source step $stepIndex not found. It might have not been executed yet."
-        StepDependencyExceptionMessage.NULL_SOURCE_RESULT -> "Cannot extract data because the result of source step $stepIndex is null."
         StepDependencyExceptionMessage.ROW_INDEX_OUT_OF_BOUNDS -> "Row index ${args.getOrNull(0)} is out of bounds for result of step $stepIndex (size: ${
             args.getOrNull(
                 1

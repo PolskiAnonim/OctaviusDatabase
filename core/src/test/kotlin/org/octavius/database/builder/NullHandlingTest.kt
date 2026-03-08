@@ -22,7 +22,7 @@ import org.springframework.jdbc.core.RowMapper
 /**
  * Tests for null-handling behavior in terminal methods.
  * Verifies that nullability is determined by the KType parameter (reified T):
- * - Non-nullable T → Failure(QueryExecutionException(cause = ConversionException(UNEXPECTED_NULL_VALUE)))
+ * - Non-nullable T → Failure(ConversionException(UNEXPECTED_NULL_VALUE))
  * - Nullable T? → Success(null)
  */
 class NullHandlingTest {

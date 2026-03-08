@@ -14,10 +14,7 @@ enum class StatementExceptionMessage {
     INVALID_AUTHORIZATION,
 
     /** Invalid data format, value out of range, or division by zero (SQLSTATE Class 22). */
-    DATA_EXCEPTION,
-
-    /** An unknown statement-related error occurred. */
-    UNKNOWN
+    DATA_EXCEPTION
 }
 
 class StatementException(
@@ -26,22 +23,22 @@ class StatementException(
     queryContext: QueryContext?,
     cause: Throwable?
 ) : DatabaseException(
-    message = generateDeveloperMessage(messageEnum, detail),
+    message = messageEnum.name,
     cause = cause,
     queryContext = queryContext,
     includeCauseInToString = true
 ) {
     override fun getDetailedMessage(): String {
         return buildString {
-            appendLine("| message: ${generateDeveloperMessage(messageEnum, detail)}")
+            append("\n")
+            appendLine("| message: ${generateDeveloperMessage(messageEnum)}")
             detail?.let { appendLine("| detail: $it") }
         }
     }
 }
 
 private fun generateDeveloperMessage(
-    messageEnum: StatementExceptionMessage,
-    detail: String?
+    messageEnum: StatementExceptionMessage
 ): String {
     return when (messageEnum) {
         StatementExceptionMessage.SYNTAX_ERROR -> 
@@ -58,8 +55,5 @@ private fun generateDeveloperMessage(
         
         StatementExceptionMessage.DATA_EXCEPTION -> 
             "Data exception. The provided data is invalid (e.g., value out of range, division by zero, or incorrect format)."
-        
-        StatementExceptionMessage.UNKNOWN -> 
-            "An unknown statement error occurred while executing the query."
     }
 }

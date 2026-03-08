@@ -50,7 +50,7 @@ object ExceptionTranslator {
 
         return when {
             // Class 08 — Connection Exception
-            state.startsWith("08") -> ConnectionException(sqlEx.message ?: "Connection error", sqlEx)
+            state.startsWith("08") -> ConnectionException(sqlEx.message ?: "Connection error", queryContext, sqlEx)
 
             // Class 22 — Data Exception (Invalid data provided by the user)
             state.startsWith("22") -> StatementException(
@@ -104,24 +104,24 @@ object ExceptionTranslator {
 
             // Class 57 — Operator Intervention
             state == "57014" -> ConcurrencyException(ConcurrencyErrorType.TIMEOUT, queryContext, sqlEx)
-            state.startsWith("57") -> ConnectionException("Database operator intervention: ${sqlEx.message}", sqlEx)
+            state.startsWith("57") -> ConnectionException("Database operator intervention: ${sqlEx.message}", queryContext, sqlEx)
 
             // Class 53/54 - Insufficient Resources / Program Limit Exceeded
-            state.startsWith("53") || state.startsWith("54") -> ConnectionException("Database resources exceeded: ${sqlEx.message}", sqlEx)
+            state.startsWith("53") || state.startsWith("54") -> ConnectionException("Database resources exceeded: ${sqlEx.message}", queryContext, sqlEx)
 
             // Class 55 — Object Not In Prerequisite State
-            state.startsWith("55") -> ConnectionException("Database object state error: ${sqlEx.message}", sqlEx)
+            state.startsWith("55") -> ConnectionException("Database object state error: ${sqlEx.message}", queryContext, sqlEx)
 
             // Class 58 — System Error
-            state.startsWith("58") -> ConnectionException("System error: ${sqlEx.message}", sqlEx)
+            state.startsWith("58") -> ConnectionException("System error: ${sqlEx.message}", queryContext, sqlEx)
 
             // Class P0 — PL/pgSQL Error
-            state.startsWith("P0") -> UnknownDatabaseException("PL/pgSQL Error: ${sqlEx.message}", sqlEx).withContext(queryContext)
+            state.startsWith("P0") -> UnknownDatabaseException("PL/pgSQL Error: ${sqlEx.message}", queryContext, sqlEx)
 
             // Class XX — Internal Error
-            state.startsWith("XX") -> ConnectionException("Internal database error: ${sqlEx.message}", sqlEx)
+            state.startsWith("XX") -> ConnectionException("Internal database error: ${sqlEx.message}", queryContext, sqlEx)
 
-            else -> UnknownDatabaseException(sqlEx.message ?: "Unknown SQL Error (State: $state)", sqlEx).withContext(queryContext)
+            else -> UnknownDatabaseException(sqlEx.message ?: "Unknown SQL Error (State: $state)", queryContext, sqlEx).withContext(queryContext)
         }
     }
 

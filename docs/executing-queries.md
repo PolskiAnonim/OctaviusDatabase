@@ -159,7 +159,7 @@ val row: DataResult<Map<String, Any?>> = dataAccess.select("*")
 
 ### Terminal Method Behavior Matrix
 
-All failures are `DataResult.Failure(QueryExecutionException)` with `ConversionException` as cause.
+All failures are `DataResult.Failure(DatabaseException)` with specific subclasses like `StatementException` or `ConstraintViolationException`. If the error occurred during mapping, the `error` will be a `ConversionException`.
 
 | Method               | 0 rows                                       | non-null value   | null value, non-null `T` | null value, nullable `T?` | >1 rows          |
 |----------------------|----------------------------------------------|------------------|--------------------------|---------------------------|------------------|

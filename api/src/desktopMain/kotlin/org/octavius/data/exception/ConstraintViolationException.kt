@@ -15,10 +15,7 @@ enum class ConstraintViolationExceptionMessage {
     CHECK_CONSTRAINT_VIOLATION,
 
     /** General data integrity error (e.g., exclusion constraint or invalid data format). */
-    DATA_INTEGRITY,
-
-    /** An unrecognized constraint violation error occurred. */
-    UNKNOWN
+    DATA_INTEGRITY
 }
 
 /**
@@ -73,8 +70,5 @@ private fun generateDeveloperMessage(
         
         ConstraintViolationExceptionMessage.DATA_INTEGRITY ->
             "Data integrity violation$tableInfo. The operation would leave the database in an inconsistent state$constraintInfo."
-        
-        ConstraintViolationExceptionMessage.UNKNOWN ->
-            "An unknown database constraint violation occurred$tableInfo$constraintInfo."
     }
 }

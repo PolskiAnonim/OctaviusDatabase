@@ -66,8 +66,9 @@ $causeSection
  */
 class ConnectionException(
     message: String,
+    queryContext: QueryContext? = null,
     cause: Throwable?
-) : DatabaseException(message, cause, null, includeCauseInToString = true)
+) : DatabaseException(message, cause, queryContext, includeCauseInToString = true)
 
 /**
  * Concurrency and transaction-related issues (e.g., deadlocks, timeouts).
@@ -85,5 +86,6 @@ enum class ConcurrencyErrorType {
 
 class UnknownDatabaseException(
     message: String,
+    queryContext: QueryContext? = null,
     cause: Throwable?,
-): DatabaseException(message, cause, includeCauseInToString = true)
+) : DatabaseException(message, cause, queryContext = queryContext, includeCauseInToString = true)

@@ -103,7 +103,7 @@ internal class DatabaseAccess(
                 // Catch any other unexpected exception
                 status.setRollbackOnly()
                 // There is no additional context here
-                val ex = ExceptionTranslator.translate(e, QueryContext("", mapOf()))
+                val ex = ExceptionTranslator.translate(e, QueryContext("N/A", mapOf()))
                 logger.error(e) { "An unexpected exception was thrown inside the transaction block. Rolling back." }
                 // Wrap it in standard Failure
                 DataResult.Failure(ex)

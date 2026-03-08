@@ -216,8 +216,7 @@ internal class TransactionPlanExecutor(
             }
 
             else -> {
-                //  TODO it is probably TransactionException from spring? Context doesn't exists because it is from commit or rollback
-                val ex = ExceptionTranslator.translate(error, QueryContext("", emptyMap()))
+                val ex = ExceptionTranslator.translate(error, QueryContext("COMMIT/ROLLBACK", emptyMap()))
                 logger.error(ex) { "Transaction failed and was rolled back." }
                 DataResult.Failure(ex)
             }
