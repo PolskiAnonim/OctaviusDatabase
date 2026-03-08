@@ -104,7 +104,7 @@ Automatic conversion between PostgreSQL and Kotlin types.
 | `timestamptz`             | `Instant`       | `kotlin.time` <sup>*</sup>                       |
 | `interval`                | `Duration`      | `kotlin.time` <sup>*</sup>                       |
 
-<sup>*</sup> Supports PostgreSQL infinity values (`infinity`, `-infinity`). See [Type System](docs/type-system.md#infinity-values-for-datetime-types) for details.
+<sup>*</sup> Supports PostgreSQL infinity values (`infinity`, `-infinity`). See [Type System](docs/type-system.md#infinity-values-for-datetime) for details.
 
 Arrays of all standard types are supported and map to `List<T>`.
 
