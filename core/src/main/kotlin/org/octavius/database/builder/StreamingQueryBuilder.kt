@@ -3,7 +3,8 @@ package org.octavius.database.builder
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.octavius.data.DataResult
 import org.octavius.data.builder.StreamingTerminalMethods
-import org.octavius.data.exception.QueryExecutionException
+import org.octavius.data.exception.QueryContext
+import org.octavius.database.exception.ExceptionTranslator
 import org.octavius.database.type.PositionalQuery
 import org.springframework.jdbc.core.PreparedStatementSetter
 import org.springframework.jdbc.core.ResultSetExtractor
@@ -72,16 +73,16 @@ internal class StreamingQueryBuilder(
 
             DataResult.Success(Unit)
         } catch (e: Exception) {
-            val executionException = QueryExecutionException(
+            val queryContext = QueryContext(
                 sql = originalSql,
-                params = params,
-                expandedSql = positionalQuery?.sql,
-                expandedParams = positionalQuery?.params,
-                message = "Streaming query failed.",
-                cause = e
+                parameters = params,
+                dbSql = positionalQuery?.sql,
+                dbParameters = positionalQuery?.params
             )
-            logger.error(executionException) { "Database error executing streaming query" }
-            DataResult.Failure(executionException)
+            val translatedException = ExceptionTranslator.translate(e, queryContext)
+            
+            logger.error(translatedException) { "Database error executing streaming query" }
+            DataResult.Failure(translatedException)
         }
     }
 

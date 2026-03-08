@@ -6,12 +6,13 @@ import org.octavius.data.DataResult
 import org.octavius.data.QueryOperations
 import org.octavius.data.builder.*
 import org.octavius.data.exception.DatabaseException
-import org.octavius.data.exception.TransactionException
+import org.octavius.data.exception.QueryContext
 import org.octavius.data.notification.PgChannelListener
 import org.octavius.data.transaction.TransactionPlan
 import org.octavius.data.transaction.TransactionPlanResult
 import org.octavius.data.transaction.TransactionPropagation
 import org.octavius.database.builder.*
+import org.octavius.database.exception.ExceptionTranslator
 import org.octavius.database.notification.DatabasePgChannelListener
 import org.octavius.database.transaction.TransactionPlanExecutor
 import org.octavius.database.type.KotlinToPostgresConverter
@@ -92,18 +93,20 @@ internal class DatabaseAccess(
                 }
                 result // Return original result (Success or Failure)
             } catch (e: DatabaseException) {
-                // Catch our own exceptions to avoid wrapping them again
                 status.setRollbackOnly()
+                // There is no additional context here so there is nothing to do with this exception
+                // It should be logged - technically someone is throwing it instead of returning or it is from toMap/toDataObject
+                // Because it is unreasonable to throw from queries we are assuming that this error has not been logged
                 logger.error(e) { "A DatabaseException was thrown inside the transaction block. Rolling back." }
                 DataResult.Failure(e)
             } catch (e: Exception) {
                 // Catch any other unexpected exception
                 status.setRollbackOnly()
+                // There is no additional context here
+                val ex = ExceptionTranslator.translate(e, QueryContext("N/A", mapOf()))
                 logger.error(e) { "An unexpected exception was thrown inside the transaction block. Rolling back." }
-                // Wrap it in our standard Failure
-                DataResult.Failure(
-                    TransactionException(cause = e)
-                )
+                // Wrap it in standard Failure
+                DataResult.Failure(ex)
             }
         }
     }

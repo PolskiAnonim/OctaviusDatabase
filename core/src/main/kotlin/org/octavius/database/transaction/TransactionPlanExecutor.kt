@@ -4,6 +4,8 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.octavius.data.DataResult
 import org.octavius.data.exception.*
 import org.octavius.data.transaction.*
+import org.octavius.database.builder.AbstractQueryBuilder
+import org.octavius.database.exception.ExceptionTranslator
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.support.TransactionTemplate
@@ -89,8 +91,22 @@ internal class TransactionPlanExecutor(
 
         for ((currentIndex, pair) in stepsWithHandles.withIndex()) {
             val step = pair.second
-            for (paramValue in step.params.values) {
-                validateTransactionValue(paramValue, currentIndex, handleToIndexMap)
+            try {
+                for (paramValue in step.params.values) {
+                    validateTransactionValue(paramValue, currentIndex, handleToIndexMap)
+                }
+            } catch (e: StepDependencyException) {
+                //TODO Technically it can throw - throw exception that should not be handled? or should it - for single query it is not handled because it is programmer error (for example HAVING without GROUP BY)
+                // maybe it should be checked in validation? Technically it is additional string building but it shouldn't be extra taxing
+                //TODO toString on TransactionValue
+                val sql = (step.builder as AbstractQueryBuilder<*>).toSql()
+                throw e.withContext(
+                    QueryContext(
+                        sql = sql,
+                        parameters = step.params,
+                        transactionStepIndex = currentIndex
+                    )
+                )
             }
         }
 
@@ -116,12 +132,7 @@ internal class TransactionPlanExecutor(
 
         for ((index, pair) in stepsWithHandles.withIndex()) {
             val step = pair.second
-            try {
-                executeSingleStep(index, step, indexedResults, handleToIndexMap)
-            } catch (e: Exception) {
-                // Wrap EVERY error in step context and throw it to rollback the transaction
-                throw TransactionStepExecutionException(stepIndex = index, cause = e)
-            }
+            executeSingleStep(index, step, indexedResults, handleToIndexMap)
         }
 
         // After successfully executing all steps, create the final results map
@@ -139,7 +150,21 @@ internal class TransactionPlanExecutor(
         logger.debug { "Executing step $index..." }
 
         // Resolve references and build final parameters
-        val finalParams = buildFinalParameters(step, indexedResults, handleToIndexMap)
+        val finalParams = try {
+            buildFinalParameters(step, indexedResults, handleToIndexMap)
+        } catch (e: StepDependencyException) {
+            //TODO Technically it can throw - throw exception that should not be handled? or should it - for single query it is not handled because it is programmer error (for example HAVING without GROUP BY)
+            //TODO toString on TransactionValue
+            val sql = (step.builder as AbstractQueryBuilder<*>).toSql()
+            throw e.withContext(
+                QueryContext(
+                    sql = sql,
+                    parameters = step.params,
+                    transactionStepIndex = index
+                )
+            )
+        }
+        
         logger.trace { "--> Final params for step $index: $finalParams" }
 
         // Execute step logic
@@ -149,8 +174,9 @@ internal class TransactionPlanExecutor(
                 indexedResults[index] = stepResult.value
             }
             is DataResult.Failure -> {
-                // Throw error, it will be caught one level up and wrapped
-                throw stepResult.error
+                val error = stepResult.error
+                error.withStepIndex(index)
+                throw error
             }
         }
     }
@@ -178,12 +204,23 @@ internal class TransactionPlanExecutor(
     }
 
     private fun handleTransactionError(error: Throwable): DataResult.Failure {
-        val dbException = when (error) {
-            is DatabaseException -> error
-            else -> TransactionException(error)
+        return when (error) {
+            is StepDependencyException -> {
+                // StepDependencyException wasn't logged anywhere
+                logger.error(error) { "Transaction failed and was rolled back." }
+                DataResult.Failure(error)
+            }
+
+            is DatabaseException -> {
+                DataResult.Failure(error)
+            }
+
+            else -> {
+                val ex = ExceptionTranslator.translate(error, QueryContext("COMMIT/ROLLBACK", emptyMap()))
+                logger.error(ex) { "Transaction failed and was rolled back." }
+                DataResult.Failure(ex)
+            }
         }
-        logger.error(dbException) { "Transaction failed and was rolled back." }
-        return DataResult.Failure(dbException)
     }
 
 
@@ -246,7 +283,7 @@ internal class TransactionPlanExecutor(
         indexedResults: Map<Int, Any?>,
         handleToIndexMap: Map<StepHandle<*>, Int>
     ): Any? {
-        val stepIndex = handleToIndexMap[value.handle]!! // Validated earlier
+        val stepIndex = handleToIndexMap.getValue(value.handle) // Validated earlier
         // The `execute` loop logic guarantees that if we reached this point,
         // step `stepIndex` has been executed and its result is in the map.
         val sourceResult = indexedResults[stepIndex] ?: return null // Step result can be null

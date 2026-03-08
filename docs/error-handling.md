@@ -8,12 +8,15 @@ Octavius Database uses a **Result type pattern** instead of throwing exceptions.
 
 - [Builder Validation Errors](#builder-validation-errors)
 - [Exception Hierarchy](#exception-hierarchy)
-- [QueryExecutionException](#queryexecutionexception)
+- [StatementException](#statementexception)
+- [ConstraintViolationException](#constraintviolationexception)
+- [ConcurrencyException](#concurrencyexception)
+- [ConnectionException](#connectionexception)
 - [ConversionException](#conversionexception)
-- [TransactionStepExecutionException](#transactionstepexecutionexception)
-- [TransactionException](#transactionexception)
 - [StepDependencyException](#stepdependencyexception)
 - [TypeRegistryException](#typeregistryexception)
+- [InitializationException](#initializationexception)
+- [UnknownDatabaseException](#unknowndatabaseexception)
 - [Logging and Debugging](#logging-and-debugging)
 
 ---
@@ -46,319 +49,124 @@ dataAccess.select("department", "AVG(salary)")
 
 ## Exception Hierarchy
 
-All database exceptions inherit from the sealed class `DatabaseException`:
+All database exceptions inherit from the sealed class `DatabaseException`. Octavius prioritizes PostgreSQL-specific error codes (SQLSTATE) to provide precise error types.
 
 ```
 DatabaseException (sealed)
-├── QueryExecutionException           - SQL execution errors
-├── ConversionException               - Type mapping/conversion errors
-├── TransactionException              - Transaction execution failures
-├── TransactionStepExecutionException - Transaction plan step failures
-├── StepDependencyException           - Invalid step references in plans
-└── TypeRegistryException             - Type registry/mapping errors
+├── StatementException                - SQL syntax, permissions, and invalid statements
+├── ConstraintViolationException      - Data integrity (unique, FK, check) violations
+├── ConcurrencyException              - Deadlocks and query timeouts
+├── ConnectionException               - Infrastructure and connectivity issues
+├── ConversionException               - Type mapping and conversion failures
+├── StepDependencyException           - Invalid step references in Transaction Plans
+├── TypeRegistryException             - Type registry and mapping errors
+├── InitializationException           - Startup and configuration errors
+└── UnknownDatabaseException          - Fallback for unrecognized errors
 ```
 
-### Exception Nesting (Cause Chain)
+### Exception Enrichment
 
-Octavius wraps exceptions in a hierarchy. The outer exception provides context, the inner exception (`.cause`) contains the root cause:
+Every `DatabaseException` contains a `QueryContext` when it is available. This object stores the original SQL, parameters, and the low-level SQL actually sent to PostgreSQL. It also tracks the `transactionStepIndex` when running inside a `TransactionPlan`.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ dataAccess.transaction { }                                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ TransactionException                                                         │
-│   └── cause: QueryExecutionException (query failed inside transaction)       │
-│               └── cause: Spring/JDBC exception OR ConversionException        │
-│                                                                              │
-│   └── cause: Spring TransactionException (timeout, deadlock, etc.)           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ dataAccess.executeTransactionPlan(plan)                                      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ TransactionStepExecutionException (stepIndex = N)                            │
-│   └── cause: QueryExecutionException (SQL error in step N)                   │
-│               └── cause: Spring/JDBC exception OR ConversionException        │
-│                                                                              │
-│   └── cause: StepDependencyException (invalid reference in step N)           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ Single query (outside transaction)                                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ QueryExecutionException                                                      │
-│   └── cause: Spring/JDBC exception (PSQLException, etc.)                     │
-│   └── cause: ConversionException (type mapping failed)                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Unwrapping Exceptions
-
-To get to the root cause:
-
-```kotlin
-result.onFailure { error ->
-    when (error) {
-        is TransactionException -> {
-            when (val cause = error.cause) {
-                is QueryExecutionException -> {
-                    // Query failed inside transaction
-                    println("SQL: ${cause.sql}")
-
-                    // Check deeper cause
-                    when (val rootCause = cause.cause) {
-                        is ConversionException -> println("Conversion: ${rootCause.messageEnum}")
-                        else -> println("JDBC error: ${rootCause?.message}")
-                    }
-                }
-                else -> println("Transaction error: ${cause?.message}")
-            }
-        }
-
-        is TransactionStepExecutionException -> {
-            println("Step ${error.stepIndex} failed")
-            when (val cause = error.cause) {
-                is StepDependencyException -> println("Bad reference: ${cause.messageEnum}")
-                is QueryExecutionException -> println("SQL: ${cause.sql}")
-                else -> println("Error: ${cause.message}")
-            }
-        }
-
-        is QueryExecutionException -> {
-            // Direct query failure (not in transaction)
-            println("SQL: ${error.sql}")
-        }
-
-        else -> println("Other error: ${error.message}")
-    }
-}
-```
+The `QueryContext` is automatically printed as part of the exception's `toString()` output, providing a clear, framed visualization of the execution state.
 
 ---
 
-## QueryExecutionException
+## StatementException
 
-Thrown when SQL query execution fails. Contains full debugging context.
+Thrown when the SQL statement itself is invalid or fails due to database-level rules.
 
 ### Properties
 
-| Property         | Type                | Description                                   |
-|------------------|---------------------|-----------------------------------------------|
-| `sql`            | `String`            | Original SQL with named parameters            |
-| `params`         | `Map<String, Any?>` | Original parameter map                        |
-| `expandedSql`    | `String?`           | SQL with positional placeholders (`$1`, `$2`) |
-| `expandedParams` | `List<Any?>?`       | Converted parameters in positional order      |
-| `cause`          | `Throwable?`        | Underlying JDBC exception                     |
+| Property       | Type                        | Description                        |
+|----------------|-----------------------------|------------------------------------|
+| `messageEnum`  | `StatementExceptionMessage` | Specific error type                |
+| `detail`       | `String?`                   | Technical detail from the database |
+| `queryContext` | `QueryContext`              | Full context (SQL, parameters)     |
+
+### Error Types (`StatementExceptionMessage`)
+
+| Enum Value              | PostgreSQL Class / State | Description                                     |
+|-------------------------|--------------------------|-------------------------------------------------|
+| `SYNTAX_ERROR`          | Class 426xx              | Malformed SQL or syntax errors                  |
+| `OBJECT_NOT_FOUND`      | Class 42Pxx / 427xx      | Missing table, column, or function              |
+| `PERMISSION_DENIED`     | 42501                    | Insufficient privileges for the operation       |
+| `INVALID_AUTHORIZATION` | Class 28                 | Failed authentication or invalid role           |
+| `DATA_EXCEPTION`        | Class 22                 | Invalid data format, value out of range, etc.   |
+
+---
+
+## ConstraintViolationException
+
+Thrown when an operation violates data integrity rules in the database. Provides structured information about the violation.
+
+### Properties
+
+| Property         | Type                                  | Description                        |
+|------------------|---------------------------------------|------------------------------------|
+| `messageEnum`    | `ConstraintViolationExceptionMessage` | Violation type                     |
+| `tableName`      | `String?`                             | Name of the table                  |
+| `columnName`     | `String?`                             | Name of the column (if applicable) |
+| `constraintName` | `String?`                             | Name of the constraint violated    |
+
+### Error Types (`ConstraintViolationExceptionMessage`)
+
+| Enum Value                    | PostgreSQL SQLSTATE | Description                            |
+|-------------------------------|---------------------|----------------------------------------|
+| `UNIQUE_CONSTRAINT_VIOLATION` | 23505               | Duplicate value for a unique field     |
+| `FOREIGN_KEY_VIOLATION`       | 23503               | Referenced record does not exist       |
+| `NOT_NULL_VIOLATION`          | 23502               | Null value for a non-nullable column   |
+| `CHECK_CONSTRAINT_VIOLATION`  | 23514               | Value violates a business rule (CHECK) |
+| `DATA_INTEGRITY`              | Other Class 23      | General integrity failure              |
+
+---
+
+## ConcurrencyException
+
+Thrown during transaction-related conflicts or when query execution takes too long.
+
+### Properties
+
+| Property    | Type                   | Description                               |
+|-------------|------------------------|-------------------------------------------|
+| `errorType` | `ConcurrencyErrorType` | Either `TIMEOUT` or `DEADLOCK`            |
+
+---
+
+## ConnectionException
+
+Thrown when the library cannot establish or maintain a connection with the database. These are typically infrastructure issues.
 
 ### When Thrown
 
-- SQL syntax errors
-- Constraint violations (unique, foreign key, check)
-- Connection errors
-- Permission errors
-- Data type mismatches in database
-- Null value for non-nullable target type (cause: `ConversionException(UNEXPECTED_NULL_VALUE)`)
-
-### Example Output
-
-```
-------------------------------------------------------------
-|  QUERY EXECUTION FAILED
-------------------------------------------------------------
-| Message: Error during query execution
-|
-|---[ Original Query ]---
-| SQL: INSERT INTO users (email, name) VALUES (:email, :name)
-| Params:
-|   email = john@example.com
-|   name = John
-|
-|---[ Execution Details (Low Level) ]---
-| expandedSql: INSERT INTO users (email, name) VALUES ($1, $2)
-| expandedParams (2):
-|    [0] -> john@example.com
-|    [1] -> John
-------------------------------------------------------------
-| Error Cause:
-|   org.postgresql.util.PSQLException: ERROR: duplicate key value
-|   violates unique constraint "users_email_key"
-------------------------------------------------------------
-```
-
-### Handling
-
-```kotlin
-result.onFailure { error ->
-    when (error) {
-        is QueryExecutionException -> {
-            println("Query failed: ${error.sql}")
-            println("With params: ${error.params}")
-
-            // Check for specific PostgreSQL errors
-            val pgError = error.cause?.message ?: ""
-            when {
-                "duplicate key" in pgError -> handleDuplicateKey()
-                "foreign key" in pgError -> handleForeignKeyViolation()
-                else -> logGenericError(error)
-            }
-        }
-        else -> { /* other error types */ }
-    }
-}
-```
+- **Connection Refused**: Wrong host or port in `DatabaseConfig`.
+- **Authentication Failure**: Wrong username or password (captured at connection level).
+- **Database Shutdown**: Operator intervention or administrative shutdown (SQLSTATE Class 57).
+- **Resource Exhaustion**: Disk full, out of memory, or too many connections (SQLSTATE Class 53/54).
 
 ---
 
 ## ConversionException
 
-Thrown when converting between PostgreSQL and Kotlin types fails.
+Thrown when data mapping between PostgreSQL and Kotlin fails. Unlike other execution errors, this often indicates a mismatch between database schema and Kotlin data classes.
 
-### Properties
+### Error Types (`ConversionExceptionMessage`)
 
-| Property       | Type                         | Description                           |
-|----------------|------------------------------|---------------------------------------|
-| `messageEnum`  | `ConversionExceptionMessage` | Error type enum                       |
-| `value`        | `Any?`                       | The value that failed to convert      |
-| `targetType`   | `String?`                    | Target Kotlin type                    |
-| `rowData`      | `Map<String, Any?>?`         | Full row context (for object mapping) |
-| `propertyName` | `String?`                    | Property name (for object mapping)    |
-
-### Error Types
-
-| Enum Value                             | Description                              |
-|----------------------------------------|------------------------------------------|
-| `VALUE_CONVERSION_FAILED`              | General type conversion error            |
-| `ENUM_CONVERSION_FAILED`               | Database value doesn't match Kotlin enum |
-| `UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY`  | Complex types in native JDBC arrays      |
-| `INVALID_DYNAMIC_DTO_FORMAT`           | Malformed `dynamic_dto` value            |
-| `INCOMPATIBLE_COLLECTION_ELEMENT_TYPE` | Wrong element type in collection         |
-| `INCOMPATIBLE_TYPE`                    | General type mismatch                    |
-| `OBJECT_MAPPING_FAILED`                | Data class instantiation error           |
-| `MISSING_REQUIRED_PROPERTY`            | Missing field for non-nullable property  |
-| `JSON_DESERIALIZATION_FAILED`          | JSON parsing error in dynamic_dto        |
-| `JSON_SERIALIZATION_FAILED`            | Object to JSON conversion error          |
-| `UNEXPECTED_NULL_VALUE`                | Null value for non-nullable target type  |
-| `EMPTY_RESULT`                         | No rows when at least one was expected   |
-| `TOO_MANY_ROWS`                        | Multiple rows from a single-row method   |
-
-### Where It Appears
-
-`ConversionException` is **nested inside** `QueryExecutionException.cause` - it's never returned directly:
-
-```
-QueryExecutionException
-  └── cause: ConversionException  ← here
-```
-
-### Handling
-
-```kotlin
-result.onFailure { error ->
-    when (error) {
-        is QueryExecutionException -> {
-            // Check if the cause is a ConversionException
-            val conversionError = error.cause as? ConversionException
-            if (conversionError != null) {
-                when (conversionError.messageEnum) {
-                    ConversionExceptionMessage.MISSING_REQUIRED_PROPERTY -> {
-                        println("Missing field '${conversionError.propertyName}' for type ${conversionError.targetType}")
-                        println("Available data: ${conversionError.rowData}")
-                    }
-                    ConversionExceptionMessage.ENUM_CONVERSION_FAILED -> {
-                        println("Invalid enum value '${conversionError.value}' for ${conversionError.targetType}")
-                    }
-                    else -> println("Conversion error: ${conversionError.messageEnum}")
-                }
-            } else {
-                // Other SQL error (constraint violation, syntax, etc.)
-                println("SQL error: ${error.cause?.message}")
-            }
-        }
-        else -> { /* other error types */ }
-    }
-}
-```
-
----
-
-## TransactionStepExecutionException
-
-Thrown when a step in a `TransactionPlan` fails.
-
-### Properties
-
-| Property    | Type        | Description                                            |
-|-------------|-------------|--------------------------------------------------------|
-| `stepIndex` | `Int`       | Zero-based index of the failed step                    |
-| `cause`     | `Throwable` | Original exception (usually `QueryExecutionException`) |
-
-### Handling
-
-```kotlin
-val result = dataAccess.executeTransactionPlan(plan)
-
-result.onFailure { error ->
-    when (error) {
-        is TransactionStepExecutionException -> {
-            println("Step ${error.stepIndex} failed")
-
-            // Get the underlying cause
-            when (val cause = error.cause) {
-                is QueryExecutionException -> {
-                    println("SQL: ${cause.sql}")
-                    println("Params: ${cause.params}")
-                }
-                else -> println("Cause: ${cause.message}")
-            }
-        }
-        else -> { /* other error types */ }
-    }
-}
-```
-
----
-
-## TransactionException
-
-Thrown when transaction execution fails (outside of step-specific errors).
-
-### Properties
-
-| Property | Type        | Description        |
-|----------|-------------|--------------------|
-| `cause`  | `Throwable` | Original exception |
-
-### When Thrown
-
-- Transaction timeout
-- Deadlock detected
-- Connection lost during transaction
-- Rollback failure
-
-### Handling
-
-```kotlin
-result.onFailure { error ->
-    when (error) {
-        is TransactionException -> {
-            val causeMessage = error.cause?.message ?: "Unknown"
-
-            when {
-                "deadlock" in causeMessage.lowercase() -> {
-                    // Retry logic
-                    retryTransaction()
-                }
-                "timeout" in causeMessage.lowercase() -> {
-                    // Increase timeout or break up transaction
-                    handleTimeout()
-                }
-                else -> logTransactionError(error)
-            }
-        }
-        else -> { /* other error types */ }
-    }
-}
-```
+| Enum Value                             | Description                                      |
+|----------------------------------------|--------------------------------------------------|
+| `VALUE_CONVERSION_FAILED`              | General type conversion error                    |
+| `ENUM_CONVERSION_FAILED`               | Database value doesn't match Kotlin enum         |
+| `UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY`  | Complex types in native JDBC arrays              |
+| `INVALID_DYNAMIC_DTO_FORMAT`           | Malformed `dynamic_dto` value                    |
+| `INCOMPATIBLE_COLLECTION_ELEMENT_TYPE` | Wrong element type in collection                 |
+| `INCOMPATIBLE_TYPE`                    | General type mismatch                            |
+| `OBJECT_MAPPING_FAILED`                | Data class instantiation error                   |
+| `MISSING_REQUIRED_PROPERTY`            | Missing field for a non-nullable constructor arg |
+| `JSON_DESERIALIZATION_FAILED`          | JSON parsing error in dynamic_dto                |
+| `JSON_SERIALIZATION_FAILED`            | Object to JSON conversion error                  |
+| `UNEXPECTED_NULL_VALUE`                | Null value for non-nullable target type          |
+| `EMPTY_RESULT`                         | No rows when at least one was expected           |
+| `TOO_MANY_ROWS`                        | Multiple rows returned for a single-row method   |
 
 ---
 
@@ -366,22 +174,10 @@ result.onFailure { error ->
 
 Thrown when a `TransactionValue.FromStep` reference is invalid.
 
-### Properties
-
-| Property              | Type                             | Description                                       |
-|-----------------------|----------------------------------|---------------------------------------------------|
-| `messageEnum`         | `StepDependencyExceptionMessage` | Error type                                        |
-| `referencedStepIndex` | `Int`                            | Index of the step being referenced                |
-| `args`                | `Array<Any>`                     | Additional context (row index, column name, etc.) |
-
-### Error Types
-
-| Enum Value                       | Description                                   |
+| Error Type                       | Description                                   |
 |----------------------------------|-----------------------------------------------|
 | `DEPENDENCY_ON_FUTURE_STEP`      | Step references a step that runs later        |
 | `UNKNOWN_STEP_HANDLE`            | Handle doesn't exist in the plan              |
-| `RESULT_NOT_FOUND`               | Referenced step hasn't been executed          |
-| `NULL_SOURCE_RESULT`             | Referenced step returned null                 |
 | `ROW_INDEX_OUT_OF_BOUNDS`        | Row index exceeds result size                 |
 | `RESULT_NOT_LIST`                | Expected list result, got something else      |
 | `RESULT_NOT_MAP_LIST`            | Expected `List<Map>`, got different structure |
@@ -390,118 +186,45 @@ Thrown when a `TransactionValue.FromStep` reference is invalid.
 | `SCALAR_NOT_FOUND`               | Can't extract scalar from result              |
 | `TRANSFORMATION_FAILED`          | `.map {}` transformation threw exception      |
 
-### Where It Appears
-
-`StepDependencyException` is **nested inside** `TransactionStepExecutionException.cause` - it's never returned directly:
-
-```
-TransactionStepExecutionException (stepIndex = N)
-  └── cause: StepDependencyException  ← here
-```
-
-### Handling
-
-```kotlin
-val result = dataAccess.executeTransactionPlan(plan)
-
-result.onFailure { error ->
-    when (error) {
-        is TransactionStepExecutionException -> {
-            val stepError = error.cause as? StepDependencyException
-            if (stepError != null) {
-                println("Step ${error.stepIndex} has invalid reference")
-                println("Error: ${stepError.messageEnum}")
-                println("Referenced step: ${stepError.referencedStepIndex}")
-            }
-        }
-        else -> { /* other error types */ }
-    }
-}
-```
-
-### Common Mistakes
-
-```kotlin
-// WRONG: Using handle from different plan
-val planA = TransactionPlan()
-val handleA = planA.add(/* ... */)
-
-val planB = TransactionPlan()
-planB.add(
-    dataAccess.insertInto("table")
-        .values(listOf("col"))
-        .asStep()
-        .execute("col" to handleA.field())  // Error: UNKNOWN_STEP_HANDLE
-)
-
-// WRONG: Accessing column that doesn't exist
-val handle = plan.add(
-    dataAccess.select("id", "name")  // Note: no "email" column
-        .from("users")
-        .asStep()
-        .toSingle()
-)
-plan.add(
-    dataAccess.rawQuery("...")
-        .asStep()
-        .execute("email" to handle.field("email"))  // Error: COLUMN_NOT_FOUND
-)
-
-// WRONG: Row index out of bounds
-val handle = plan.add(
-    dataAccess.select("*")
-        .from("users")
-        .limit(1)  // Only 1 row
-        .asStep()
-        .toList()
-)
-plan.add(
-    dataAccess.rawQuery("...")
-        .asStep()
-        .execute("val" to handle.field("id", rowIndex = 5))  // Error: ROW_INDEX_OUT_OF_BOUNDS
-)
-```
-
 ---
 
 ## TypeRegistryException
 
-Thrown during type registry initialization or lookup.
+Thrown during runtime lookups in the internal type registry. This indicates a mismatch between Kotlin classes and database objects.
 
-### Properties
+### Error Types (`TypeRegistryExceptionMessage`)
 
-| Property      | Type                           | Description       |
-|---------------|--------------------------------|-------------------|
-| `messageEnum` | `TypeRegistryExceptionMessage` | Error type        |
-| `typeName`    | `String?`                      | Related type name |
+| Enum Value                        | Description                                      |
+|-----------------------------------|--------------------------------------------------|
+| `WRONG_FIELD_NUMBER_IN_COMPOSITE` | Composite type schema mismatch                   |
+| `PG_TYPE_NOT_FOUND`               | PostgreSQL type missing from the loaded registry |
+| `KOTLIN_CLASS_NOT_MAPPED`         | Kotlin class has no @PgType annotation           |
+| `DYNAMIC_TYPE_NOT_FOUND`          | Unknown key for `dynamic_dto` polymorphism       |
 
-### Error Types
+---
 
-**Initialization Errors (startup):**
+## InitializationException
 
-| Enum Value              | Description                              |
-|-------------------------|------------------------------------------|
-| `INITIALIZATION_FAILED` | Critical registry initialization failure |
-| `CLASSPATH_SCAN_FAILED` | ClassGraph scanning error                |
-| `DB_QUERY_FAILED`       | Failed to query database for types       |
+Thrown during the startup of `OctaviusDatabase` when the system fails to validate its configuration or the database schema.
+It is **NOT** wrapped in DataResult.
 
-**Schema Consistency Errors (startup):**
+### Error Types (`InitializationExceptionMessage`)
 
-| Enum Value                          | Description                                       |
-|-------------------------------------|---------------------------------------------------|
-| `TYPE_DEFINITION_MISSING_IN_DB`     | `@PgEnum`/`@PgComposite` without matching DB type |
-| `DUPLICATE_PG_TYPE_DEFINITION`      | Multiple classes with same PostgreSQL type name   |
-| `DUPLICATE_DYNAMIC_TYPE_DEFINITION` | Multiple `@DynamicallyMappable` with same key     |
+| Enum Value                          | Description                                              |
+|-------------------------------------|----------------------------------------------------------|
+| `INITIALIZATION_FAILED`             | General fatal error during system startup                |
+| `CLASSPATH_SCAN_FAILED`             | Error scanning project for annotations                   |
+| `DB_QUERY_FAILED`                   | Failed to fetch metadata from PostgreSQL                 |
+| `MIGRATION_FAILED`                  | Flyway migration failed                                  |
+| `TYPE_DEFINITION_MISSING_IN_DB`     | Annotated class exists, but CREATE TYPE is missing in DB |
+| `DUPLICATE_PG_TYPE_DEFINITION`      | Conflict between two @PgType names                       |
+| `DUPLICATE_DYNAMIC_TYPE_DEFINITION` | Conflict between two @DynamicallyMappable keys           |
 
-**Runtime Lookup Errors:**
+---
 
-| Enum Value                        | Description                         |
-|-----------------------------------|-------------------------------------|
-| `WRONG_FIELD_NUMBER_IN_COMPOSITE` | Composite type field count mismatch |
-| `PG_TYPE_NOT_FOUND`               | PostgreSQL type not in registry     |
-| `KOTLIN_CLASS_NOT_MAPPED`         | Kotlin class has no type mapping    |
-| `PG_TYPE_NOT_MAPPED`              | No Kotlin class for PostgreSQL type |
-| `DYNAMIC_TYPE_NOT_FOUND`          | Unknown `dynamic_dto` type key      |
+## UnknownDatabaseException
+
+A generic fallback exception used for errors that do not fit into specific categories or for unrecognized SQLSTATE codes. It includes the full `QueryContext` and the original `cause`.
 
 ---
 
@@ -509,33 +232,49 @@ Thrown during type registry initialization or lookup.
 
 ### Just Use toString()
 
-All exceptions have overridden `toString()` that includes the full context (SQL, params, cause chain). No need to manually unwrap:
+All `DatabaseException` subclasses have a standardized `toString()` override that prints the full context (via `QueryContext`), error details, and the underlying cause chain.
 
 ```kotlin
 result.onFailure { error ->
-    logger.error(error.toString())  // Full context automatically included
+    logger.error(error.toString()) 
 }
 ```
 
-### Handling Specific PostgreSQL Errors
+### Typical Output Format
 
-Unwrap the hierarchy when you need to handle specific cases:
+Octavius uses a double-line frame to clearly separate the execution context from the error details.
 
-```kotlin
-result.onFailure { error ->
-    // Check for duplicate key to show user-friendly message
-    val pgError = (error as? QueryExecutionException)?.cause?.message ?: ""
-    when {
-        "duplicate key" in pgError && "users_email_key" in pgError -> {
-            throw ValidationException("Email already exists")
-        }
-        "deadlock" in pgError.lowercase() -> {
-            // Retry logic
-            retryOperation()
-        }
-        else -> throw error  // Re-throw for global handler
-    }
-}
+```text
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ DATABASE EXECUTION CONTEXT                                                   ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ HIGH-LEVEL SQL:                                                              ║
+║   INSERT INTO users (email, name) VALUES (:email, :name)                     ║
+╟──────────────────────────────────────────────────────────────────────────────╢
+║ PARAMETERS:                                                                  ║
+║   email = john@example.com                                                   ║
+║   name = John                                                                ║
+╟──────────────────────────────────────────────────────────────────────────────╢
+║ DATABASE-LEVEL SQL (SENT TO DB):                                             ║
+║   INSERT INTO users (email, name) VALUES ($1, $2)                            ║
+╟──────────────────────────────────────────────────────────────────────────────╢
+║ DATABASE-LEVEL PARAMETERS:                                                   ║
+║   john@example.com                                                           ║
+║   John                                                                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+------------------------------------------------------------
+| ERROR: ConstraintViolationException
+| MESSAGE: UNIQUE_CONSTRAINT_VIOLATION
+| DETAILS: 
+| message: Unique constraint violation in table 'users'.
+| table: users
+| column: email
+| constraint: users_email_key
+------------------------------------------------------------
+| CAUSE: 
+|   org.postgresql.util.PSQLException: ERROR: duplicate key value ...
+------------------------------------------------------------
 ```
 
 ---
@@ -543,4 +282,5 @@ result.onFailure { error ->
 ## See Also
 
 - [Executing Queries](executing-queries.md) - DataResult patterns and usage
-- [Transactions](transactions.md) - Transaction error handling
+- [Transactions](transactions.md) - Transaction execution and rollback logic
+- [Type System](type-system.md) - How custom types are mapped and registered

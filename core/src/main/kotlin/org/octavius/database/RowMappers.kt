@@ -51,7 +51,11 @@ internal class RowMappers(
         val value = valueExtractor.extract(rs, 1)
         if (value == null) {
             if (!kType.isMarkedNullable) {
-                throw ConversionException(ConversionExceptionMessage.UNEXPECTED_NULL_VALUE, targetType = kType.toString())
+                throw ConversionException(
+                    messageEnum = ConversionExceptionMessage.UNEXPECTED_NULL_VALUE,
+                    value = null,
+                    targetType = kType.toString()
+                )
             }
             return@RowMapper null
         }
@@ -71,15 +75,9 @@ internal class RowMappers(
             logger.trace { "Mapping row to ${kClass.simpleName} using DataObjectMapper" }
             val map = baseMapper.mapRow(rs, rowNum)
 
-            try {
-                // Use existing logic to convert map to object
-                val result = map.toDataObject(kClass)
-                logger.trace { "Successfully mapped row to ${kClass.simpleName}" }
-                result
-            } catch (e: Exception) { // This should always be ConversionException
-                logger.error(e) { e }
-                throw e
-            }
+            val result = map.toDataObject(kClass)
+            logger.trace { "Successfully mapped row to ${kClass.simpleName}" }
+            result
         }
     }
 }

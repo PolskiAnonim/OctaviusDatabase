@@ -95,7 +95,10 @@ internal class KotlinToPostgresConverter(
             else -> {
                 when {
                     value::class.isData -> pgObject("text", serializer.serializeComposite(value, skipDynamicDto, pgType))
-                    value::class.isValue -> throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, value::class.qualifiedName)
+                    value::class.isValue -> throw TypeRegistryException(
+                        TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED,
+                        value::class.qualifiedName ?: value::class.simpleName ?: "unknown"
+                    )
                     else -> value
                 }
             }
@@ -132,7 +135,7 @@ internal class KotlinToPostgresConverter(
     private fun handleArray(array: Array<*>): ParameterConversion {
         val componentType = array::class.java.componentType!!.kotlin
         if (componentType.isData || componentType == Map::class || componentType == List::class) {
-            throw ConversionException(ConversionExceptionMessage.UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY, array, componentType.qualifiedName)
+            throw ConversionException(ConversionExceptionMessage.UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY, array, componentType.qualifiedName ?: componentType.simpleName ?: "unknown")
         }
         return ParameterConversion("?", array)
     }
@@ -257,7 +260,7 @@ internal class KotlinToPostgresConverter(
                     val kClass = current::class
                     when {
                         kClass.isData -> serializeComposite(current, skipDynamicDto || wasPgTyped, explicitType)
-                        kClass.isValue -> throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, kClass.qualifiedName)
+                        kClass.isValue -> throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, kClass.qualifiedName ?: kClass.simpleName ?: "unknown")
                         else -> current.toString()
                     }
                 }

@@ -30,7 +30,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      * @param value Value from database as `String` (can be `null`).
      * @param pgTypeName Type name in PostgreSQL (e.g., "int4", "my_enum", "dynamic_dto").
      * @return Converted value or `null` if `value` was `null`.
-     * @throws org.octavius.data.exception.TypeRegistryException if type is unknown.
+     * @throws TypeRegistryException if type is unknown.
      * @throws ConversionException if conversion fails.
      */
     fun convert(value: String?, pgTypeName: String): Any? {
@@ -113,12 +113,12 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      * @param value Enum value from database.
      * @param typeInfo Enum type information from TypeRegistry.
      * @return Kotlin enum instance.
-     * @throws TypeRegistryException if enum class not found.
      * @throws ConversionException if conversion fails.
      */
     private fun convertEnum(value: String, typeInfo: PgEnumDefinition): Any { // null handled in convert method
 
         return typeInfo.valueToEnumMap[value]
+            //Should this be RegistryException?
             ?: throw ConversionException(
                 messageEnum = ConversionExceptionMessage.ENUM_CONVERSION_FAILED,
                 value = value,
@@ -166,12 +166,10 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
 
         parseNestedStructure(value) { elementValue, _ ->
             if (index >= dbAttributes.size) {
-                val ex = TypeRegistryException(
+                throw TypeRegistryException(
                     TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
                     typeName = typeInfo.typeName
                 )
-                logger.error(ex) { ex }
-                throw ex
             }
 
             val (dbAttributeName, dbAttributeType) = dbAttributes[index]
@@ -180,36 +178,30 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
         }
 
         if (index != dbAttributes.size) {
-            val ex = TypeRegistryException(
+            throw TypeRegistryException(
                 TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
                 typeName = typeInfo.typeName
             )
-            logger.error(ex) { ex }
-            throw ex
         }
 
-        return try {
-            val result = if (typeInfo.mapper != null) {
-                logger.trace { "Using manual mapper for ${typeInfo.typeName}" }
-                try {
-                    typeInfo.mapper.fromMap(constructorArgsMap)
-                } catch (e: Exception) {
-                    throw ConversionException(
-                        ConversionExceptionMessage.COMPOSITE_MAPPER_FAILED,
-                        targetType = typeInfo.typeName,
-                        rowData = constructorArgsMap,
-                        cause = e
-                    )
-                }
-            } else {
-                constructorArgsMap.toDataObject(typeInfo.kClass)
+
+        val result = if (typeInfo.mapper != null) {
+            logger.trace { "Using manual mapper for ${typeInfo.typeName}" }
+            try {
+                typeInfo.mapper.fromMap(constructorArgsMap)
+            } catch (e: Exception) {
+                throw ConversionException(
+                    ConversionExceptionMessage.COMPOSITE_MAPPER_FAILED,
+                    targetType = typeInfo.typeName,
+                    rowData = constructorArgsMap,
+                    cause = e
+                )
             }
-            logger.trace { "Successfully created instance of ${typeInfo.kClass.simpleName}" }
-            result
-        } catch (e: Exception) { // This should always be a ConversionException
-            logger.error(e) { e }
-            throw e
+        } else {
+            constructorArgsMap.toDataObject(typeInfo.kClass)
         }
+        logger.trace { "Successfully created instance of ${typeInfo.kClass.simpleName}" }
+        return result
     }
 
     /**

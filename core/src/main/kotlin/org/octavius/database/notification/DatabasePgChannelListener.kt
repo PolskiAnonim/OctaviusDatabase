@@ -8,7 +8,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
 import org.octavius.data.DataResult
-import org.octavius.data.exception.QueryExecutionException
+import org.octavius.data.exception.QueryContext
+import org.octavius.database.exception.ExceptionTranslator
 import org.octavius.data.notification.PgChannelListener
 import org.octavius.data.notification.PgNotification
 import org.postgresql.PGConnection
@@ -21,6 +22,7 @@ internal class DatabasePgChannelListener(
     private val pgConnection: PGConnection = connection.unwrap(PGConnection::class.java)
 
     override fun listen(vararg channels: String): DataResult<Unit> {
+        val sql = channels.joinToString("; ") { "LISTEN ${pgConnection.escapeIdentifier(it)}" }
         return try {
             channels.forEach { channel ->
                 connection.createStatement().use { stmt ->
@@ -29,13 +31,14 @@ internal class DatabasePgChannelListener(
             }
             DataResult.Success(Unit)
         } catch (e: Exception) {
-            val sql = channels.joinToString("; ") { "LISTEN ${it}" }
-            logger.error(e) { "Error executing LISTEN on channels: ${channels.toList()}" }
-            DataResult.Failure(QueryExecutionException(sql = sql, params = emptyMap(), cause = e))
+            val translated = ExceptionTranslator.translate(e, QueryContext(sql, emptyMap()))
+            logger.error(translated) { "Error executing LISTEN on channels: ${channels.toList()}" }
+            DataResult.Failure(translated)
         }
     }
 
     override fun unlisten(vararg channels: String): DataResult<Unit> {
+        val sql = channels.joinToString("; ") { "UNLISTEN ${pgConnection.escapeIdentifier(it)}" }
         return try {
             channels.forEach { channel ->
                 connection.createStatement().use { stmt ->
@@ -44,21 +47,23 @@ internal class DatabasePgChannelListener(
             }
             DataResult.Success(Unit)
         } catch (e: Exception) {
-            val sql = channels.joinToString("; ") { "UNLISTEN ${it}" }
-            logger.error(e) { "Error executing UNLISTEN on channels: ${channels.toList()}" }
-            DataResult.Failure(QueryExecutionException(sql = sql, params = emptyMap(), cause = e))
+            val translated = ExceptionTranslator.translate(e, QueryContext(sql, emptyMap()))
+            logger.error(translated) { "Error executing UNLISTEN on channels: ${channels.toList()}" }
+            DataResult.Failure(translated)
         }
     }
 
     override fun unlistenAll(): DataResult<Unit> {
+        val sql = "UNLISTEN *"
         return try {
             connection.createStatement().use { stmt ->
-                stmt.execute("UNLISTEN *")
+                stmt.execute(sql)
             }
             DataResult.Success(Unit)
         } catch (e: Exception) {
-            logger.error(e) { "Error executing UNLISTEN *" }
-            DataResult.Failure(QueryExecutionException(sql = "UNLISTEN *", params = emptyMap(), cause = e))
+            val translated = ExceptionTranslator.translate(e, QueryContext(sql, emptyMap()))
+            logger.error(translated) { "Error executing UNLISTEN *" }
+            DataResult.Failure(translated)
         }
     }
 

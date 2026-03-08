@@ -1,6 +1,9 @@
 package org.octavius.database
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.octavius.data.exception.InitializationException
+import org.octavius.data.exception.InitializationExceptionMessage
+import org.octavius.data.exception.QueryContext
 import org.springframework.jdbc.core.JdbcTemplate
 
 /**
@@ -86,7 +89,12 @@ internal object CoreTypeInitializer {
             logger.debug { "Core schema elements verified." }
         } catch (e: Exception) {
             logger.error(e) { "Failed to initialize Octavius core schema! dynamic_dto might be missing." }
-            throw e
+            throw InitializationException(
+                messageEnum = InitializationExceptionMessage.DB_QUERY_FAILED,
+                details = "dynamic_dto",
+                cause = e,
+                queryContext = QueryContext("", mapOf(), CORE_INIT_SQL, listOf())
+            )
         }
     }
 }

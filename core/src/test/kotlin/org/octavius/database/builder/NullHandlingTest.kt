@@ -13,7 +13,6 @@ import org.octavius.data.builder.toFieldStrict
 import org.octavius.data.builder.toSingleOf
 import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
-import org.octavius.data.exception.QueryExecutionException
 import org.octavius.database.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.octavius.database.type.PositionalQuery
@@ -23,7 +22,7 @@ import org.springframework.jdbc.core.RowMapper
 /**
  * Tests for null-handling behavior in terminal methods.
  * Verifies that nullability is determined by the KType parameter (reified T):
- * - Non-nullable T → Failure(QueryExecutionException(cause = ConversionException(UNEXPECTED_NULL_VALUE)))
+ * - Non-nullable T → Failure(ConversionException(UNEXPECTED_NULL_VALUE))
  * - Nullable T? → Success(null)
  */
 class NullHandlingTest {
@@ -44,10 +43,8 @@ class NullHandlingTest {
     private fun assertConversionFailure(result: DataResult<*>, expectedMessage: ConversionExceptionMessage) {
         assertThat(result).isInstanceOf(DataResult.Failure::class.java)
         val failure = result as DataResult.Failure
-        assertThat(failure.error).isInstanceOf(QueryExecutionException::class.java)
-        val cause = failure.error.cause
-        assertThat(cause).isInstanceOf(ConversionException::class.java)
-        assertThat((cause as ConversionException).messageEnum).isEqualTo(expectedMessage)
+        assertThat(failure.error).isInstanceOf(ConversionException::class.java)
+        assertThat((failure.error as ConversionException).messageEnum).isEqualTo(expectedMessage)
     }
 
     private fun assertUnexpectedNullFailure(result: DataResult<*>) {
@@ -80,7 +77,7 @@ class NullHandlingTest {
         fun `toField with nullable type and 0 rows should return Success(null)`() {
             val nullMapper = RowMapper<Any?> { _, _ -> null }
             every { mockMappers.SingleValueMapper(any()) } returns nullMapper
-            every { mockJdbcTemplate.query(any<String>(), any<RowMapper<Any?>>(), *anyVararg()) } returns emptyList<Any?>()
+            every { mockJdbcTemplate.query(any<String>(), any<RowMapper<Any?>>(), *anyVararg()) } returns emptyList()
 
             val result: DataResult<Int?> = builder.toField<Int?>()
 

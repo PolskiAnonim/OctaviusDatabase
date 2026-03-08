@@ -3,9 +3,11 @@ package org.octavius.data.exception
 enum class ConversionExceptionMessage {
     /** General standard type conversion error */
     VALUE_CONVERSION_FAILED,
+
     /** Database value doesn't match any enum */
     ENUM_CONVERSION_FAILED,
     UNSUPPORTED_COMPONENT_TYPE_IN_ARRAY,
+
     /** dynamic_dto parsing error */
     INVALID_DYNAMIC_DTO_FORMAT,
     INCOMPATIBLE_COLLECTION_ELEMENT_TYPE,
@@ -14,21 +16,57 @@ enum class ConversionExceptionMessage {
     // Mapping errors
     /** General error during data class instantiation */
     OBJECT_MAPPING_FAILED,
+
     /** Missing key for required field in data class */
     MISSING_REQUIRED_PROPERTY,
+
     /** JSON deserialization error in dynamic_dto */
     JSON_DESERIALIZATION_FAILED,
+
     /** Object to JSON serialization error for dynamic_dto */
     JSON_SERIALIZATION_FAILED,
+
     /** When a non-null value was expected but null was received */
     UNEXPECTED_NULL_VALUE,
+
     /** When a query returned no rows but at least one was expected */
     EMPTY_RESULT,
+
     /** When a single-row method received more than one row */
     TOO_MANY_ROWS,
+
     /** Error during manual mapping via PgCompositeMapper */
     COMPOSITE_MAPPER_FAILED
 }
+
+/**
+ * Errors related to conversion, parsing, or mapping data between Postgres and Kotlin.
+ */
+class ConversionException(
+    val messageEnum: ConversionExceptionMessage,
+    // Context fields - can be null depending on error type
+    val value: Any? = null,
+    val targetType: String? = null,
+    val rowData: Map<String, Any?>? = null,
+    val propertyName: String? = null,
+    cause: Throwable? = null,
+    queryContext: QueryContext? = null
+) : DatabaseException(
+    queryContext = queryContext,
+    message = messageEnum.name,
+    cause = cause
+) {
+    override fun getDetailedMessage(): String {
+        return """
+| message: ${generateDeveloperMessage(this.messageEnum, value, targetType, propertyName)}
+| value: $value
+| targetType: $targetType
+| rowData: $rowData
+| propertyName: $propertyName
+"""
+    }
+}
+
 
 private fun generateDeveloperMessage(
     messageEnum: ConversionExceptionMessage,
@@ -53,49 +91,17 @@ private fun generateDeveloperMessage(
 
         ConversionExceptionMessage.JSON_SERIALIZATION_FAILED -> "Failed to serialize object of class '$targetType' to JSON format. " +
                 "Ensure that the class and all its nested types have the @Serializable annotation."
+
         ConversionExceptionMessage.UNEXPECTED_NULL_VALUE ->
             "Query returned null but target type '$targetType' is non-nullable. Use a nullable type (e.g. toField<Int?>()) if null values are expected."
+
         ConversionExceptionMessage.EMPTY_RESULT ->
             "Query returned no rows but a result of type '$targetType' was expected. Use toField() instead of toFieldStrict() if empty results should return Success(null)."
+
         ConversionExceptionMessage.TOO_MANY_ROWS ->
             "Query returned multiple rows but only a single row was expected (target type: '$targetType'). Use toList() or toColumn() for multi-row results, or add LIMIT 1 to your query."
+
         ConversionExceptionMessage.COMPOSITE_MAPPER_FAILED ->
             "Custom PgCompositeMapper failed for type '$targetType'. Check the 'cause' for implementation-specific error."
-    }
-}
-
-/**
- * Errors related to conversion, parsing, or mapping data between Postgres and Kotlin.
- */
-class ConversionException(
-    val messageEnum: ConversionExceptionMessage,
-    // Context fields - can be null depending on error type
-    val value: Any? = null,
-    val targetType: String? = null,
-    val rowData: Map<String, Any?>? = null,
-    val propertyName: String? = null,
-    cause: Throwable? = null
-) : DatabaseException(
-    messageEnum.name,
-    cause
-) {
-    override fun toString(): String {
-
-        var s = """
-
-        -------------------------------
-        |     CONVERSION FAILED     
-        | message: ${generateDeveloperMessage(this.messageEnum, value, targetType, propertyName)}
-        | value: $value
-        | targetType: $targetType
-        | rowData: $rowData
-        | propertyName: $propertyName
-        """.trimIndent()
-        if (cause != null) {
-            s += "\n| Caused by: ${cause!!::class.simpleName}: ${cause!!.message}"
-        }
-        return s + """
-        ---------------------------------
-        """.trimIndent()
     }
 }

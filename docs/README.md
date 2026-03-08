@@ -14,7 +14,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 | [ORM-Like Patterns](orm-patterns.md) | CRUD patterns, real-world examples, PostgreSQL composite types |
 | [Transactions](transactions.md) | Transaction blocks, TransactionPlan, StepHandle, passing data between steps |
 | [Notifications](notifications.md) | PostgreSQL LISTEN/NOTIFY, PgChannelListener, Flow-based receiving |
-| [Error Handling](error-handling.md) | Exception hierarchy, QueryExecutionException, ConversionException |
+| [Error Handling](error-handling.md) | Exception hierarchy, StatementException, ConversionException |
 | [Type System](type-system.md) | @PgEnum, @PgComposite, @DynamicallyMappable, PgTyped, standard type mappings |
 
 ## Quick Links
@@ -72,7 +72,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 
 ### Error Handling
 - [Exception Hierarchy](error-handling.md#exception-hierarchy) - DatabaseException subtypes
-- [QueryExecutionException](error-handling.md#queryexecutionexception) - SQL errors with full context
+- [StatementException](error-handling.md#statementexception) - SQL errors with full context
 - [ConversionException](error-handling.md#conversionexception) - Type mapping errors
 - [Logging and Debugging](error-handling.md#logging-and-debugging) - Using toString() for diagnostics
 

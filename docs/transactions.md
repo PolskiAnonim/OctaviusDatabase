@@ -402,8 +402,8 @@ val orderIdHandle = plan.add(/* ... */)
 val result = dataAccess.executeTransactionPlan(plan)
 
 result.onSuccess { planResult: TransactionPlanResult ->
-    val userId: Int = planResult.get(userIdHandle)!!
-    val orderId: Int = planResult.get(orderIdHandle)!!
+    val userId: Int = planResult.get(userIdHandle)
+    val orderId: Int = planResult.get(orderIdHandle)
 
     println("Created user $userId with order $orderId")
 }
@@ -568,71 +568,38 @@ dataAccess.transaction { tx ->
 
 ## Error Handling
 
-### Transaction Block Errors
+### Database Errors
 
-```kotlin
-val result = dataAccess.transaction { tx ->
-    val insertResult = tx.insertInto("users")
-        .values(userData)
-        .execute(userData)
-
-    // Option 1: Early return on error
-    insertResult.getOrElse { error ->
-        return@transaction DataResult.Failure(error)
-    }
-
-    // Option 2: Use onFailure
-    insertResult.onFailure { error ->
-        // Log, cleanup, etc.
-        return@transaction DataResult.Failure(error)
-    }
-
-    DataResult.Success(Unit)
-}
-
-// Handle final result
-result.onSuccess { /* committed */ }
-      .onFailure { error -> /* rolled back */ }
-```
-
-### Transaction Plan Errors
-
-If any step fails, the entire plan is rolled back:
+If any step in a transaction fails, the entire transaction is rolled back. The error returned is a `DatabaseException` (e.g., `ConstraintViolationException`, `StatementException`) enriched with the `transactionStepIndex`.
 
 ```kotlin
 val result = dataAccess.executeTransactionPlan(plan)
 
 result.onFailure { error ->
-    when (error) {
-        is TransactionStepExecutionException -> {
-            println("Step ${error.stepIndex} failed: ${error.message}")
-            // error.cause contains the original exception
-        }
-        is TransactionException -> {
-            println("Transaction failed: ${error.message}")
-        }
-        else -> {
-            println("Unknown error: ${error.message}")
-        }
-    }
+    val stepIndex = error.queryContext?.transactionStepIndex
+    println("Transaction failed at step $stepIndex")
+    println("Error type: ${error::class.simpleName}")
+    println("Details: ${error.message}")
 }
 ```
 
 ### Step Dependency Errors
 
-If a step references an invalid handle:
+If a step references a previous step's result incorrectly, a `StepDependencyException` is returned:
 
 ```kotlin
-val planA = TransactionPlan()
-val handleA = planA.add(/* ... */)
-
-val planB = TransactionPlan()
-planB.add(
-    dataAccess.insertInto("table")
-        .values(listOf("column"))
-        .asStep()
-        .execute("column" to handleA.field())  // Wrong! handleA is from planA
-)
-
-// This will throw StepDependencyException when executed
+result.onFailure { error ->
+    if (error is StepDependencyException) {
+        println("Dependency error: ${error.messageEnum}")
+        println("Referenced step: ${error.referencedStepIndex}")
+    }
+}
 ```
+
+---
+
+## See Also
+
+- [Executing Queries](executing-queries.md) - DataResult patterns and usage
+- [Error Handling](error-handling.md) - Exception hierarchy and debugging
+- [Query Builders](query-builders.md) - How to build queries

@@ -10,8 +10,9 @@ import org.octavius.data.builder.StepBuilderMethods
 import org.octavius.data.builder.StreamingTerminalMethods
 import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
-import org.octavius.data.exception.QueryExecutionException
+import org.octavius.data.exception.QueryContext
 import org.octavius.database.RowMappers
+import org.octavius.database.exception.ExceptionTranslator
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.octavius.database.type.PositionalQuery
 import org.springframework.jdbc.core.JdbcTemplate
@@ -292,17 +293,18 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
             }
             action(positionalQuery.sql, positionalQuery.params)
         } catch (e: Exception) {
-            val executionException = QueryExecutionException(
+            val queryContext = QueryContext(
                 sql = sql,
-                params = params,
-                expandedSql = positionalQuery?.sql,
-                expandedParams = positionalQuery?.params,
-                cause = e
+                parameters = params,
+                dbSql = positionalQuery?.sql,
+                dbParameters = positionalQuery?.params
             )
+            
+            val translatedException = ExceptionTranslator.translate(e, queryContext)
 
-            logger.error(executionException) { "Database error occurred" }
+            logger.error(translatedException) { "Database error occurred" }
 
-            DataResult.Failure(executionException)
+            DataResult.Failure(translatedException)
         }
     }
 
