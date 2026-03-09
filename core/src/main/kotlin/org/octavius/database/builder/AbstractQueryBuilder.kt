@@ -8,9 +8,11 @@ import org.octavius.data.builder.AsyncTerminalMethods
 import org.octavius.data.builder.QueryBuilder
 import org.octavius.data.builder.StepBuilderMethods
 import org.octavius.data.builder.StreamingTerminalMethods
+import org.octavius.data.exception.BuilderException
 import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.QueryContext
+import org.octavius.data.exception.checkBuilder
 import org.octavius.database.RowMappers
 import org.octavius.database.exception.ExceptionTranslator
 import org.octavius.database.type.KotlinToPostgresConverter
@@ -221,7 +223,7 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
      * `toList()`, `toSingle()`, etc. methods instead.
      */
     fun execute(params: Map<String, Any?>): DataResult<Int> {
-        check(returningClause == null) { "Use toList(), toSingle(), etc. methods when RETURNING clause is defined." }
+        checkBuilder(returningClause == null) { "Use toList(), toSingle(), etc. methods when RETURNING clause is defined." }
         val sql = buildSql()
         return execute(sql, params) { positionalSql, positionalParams ->
             val affectedRows = jdbcTemplate.update(positionalSql, *positionalParams.toTypedArray())
@@ -258,7 +260,7 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
         rowMapper: RowMapper<M>,
         transform: (List<M>) -> DataResult<R>
     ): DataResult<R> {
-        check(canReturnResultsByDefault || returningClause != null) { "Cannot call toList(), toSingle(), etc. on a modifying query without RETURNING clause. Use .returning()." }
+        checkBuilder(canReturnResultsByDefault || returningClause != null) { "Cannot call toList(), toSingle(), etc. on a modifying query without RETURNING clause. Use .returning()." }
         val sql = buildSql()
         return execute(sql, params) { positionalSql, positionalParams ->
             val results: List<M> = jdbcTemplate.query(positionalSql, rowMapper, *positionalParams.toTypedArray())

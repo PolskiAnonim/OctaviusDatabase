@@ -1,7 +1,8 @@
 package org.octavius.data.exception
 
 /**
- * Base sealed exception for all Octavius Database errors.
+ * Base sealed exception for most Octavius Database errors.
+ * Only InitializationException and BuilderException are excluded as they are thrown and can't be inside DataResult
  */
 sealed class DatabaseException(
     message: String,

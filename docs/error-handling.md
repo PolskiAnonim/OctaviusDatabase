@@ -1,12 +1,16 @@
 # Error Handling
 
-Octavius Database uses a **Result type pattern** instead of throwing exceptions. All database operations return `DataResult<T>` which forces explicit handling of both success and failure cases.
+Octavius Database divides errors into two simple categories: **Database Execution Errors** (returned safely) and **Fatal/Setup Errors** (thrown immediately).
+
+* **Database Execution (Returned):** If a query goes to the database, it **never throws**. Whether it's a bad SQL syntax, a constraint violation, or a missing table, `DataResult.Failure<DatabaseException>` is always returned. This forces explicit error handling.
+* **Fatal Errors (Thrown):** If an obvious setup mistake is made (like using `.execute()` with a `returning()` method) or the database fails to connect on startup, Octavius **throws a standard exception**. It fails fast because the query or application state is fundamentally broken and should not proceed.
 
 > **Working with DataResult**: For `DataResult` usage patterns (`map`, `onSuccess`, `getOrElse`, etc.), see [Executing Queries](executing-queries.md#dataresult).
 
 ## Table of Contents
 
-- [Builder Validation Errors](#builder-validation-errors)
+- [BuilderException](#builderexception)
+- [InitializationException](#initializationexception)
 - [Exception Hierarchy](#exception-hierarchy)
 - [StatementException](#statementexception)
 - [ConstraintViolationException](#constraintviolationexception)
@@ -15,41 +19,64 @@ Octavius Database uses a **Result type pattern** instead of throwing exceptions.
 - [ConversionException](#conversionexception)
 - [StepDependencyException](#stepdependencyexception)
 - [TypeRegistryException](#typeregistryexception)
-- [InitializationException](#initializationexception)
 - [UnknownDatabaseException](#unknowndatabaseexception)
 - [Logging and Debugging](#logging-and-debugging)
 
 ---
 
-## Builder Validation Errors
+## BuilderException
 
-Query builders validate their configuration when building SQL. These errors throw standard Kotlin exceptions (`IllegalArgumentException`, `IllegalStateException`) rather than returning `DataResult.Failure`:
+`BuilderException` is thrown when a query cannot be built correctly due to invalid state or missing mandatory clauses. Unlike other errors, this is a **programmer error** (contract violation) and is thrown immediately, bypassing the `DataResult` pattern.
 
-| Error                               | Exception                  | Cause                                           |
-|-------------------------------------|----------------------------|-------------------------------------------------|
-| `having()` without `groupBy()`      | `IllegalArgumentException` | HAVING requires GROUP BY                        |
-| `DELETE`/`UPDATE` without `where()` | `IllegalStateException`    | Safety check to prevent accidental mass changes |
-| `fromSelect()` after `values()`     | `IllegalStateException`    | Mutually exclusive operations                   |
-| `values()` after `fromSelect()`     | `IllegalStateException`    | Mutually exclusive operations                   |
-| No values or select in INSERT       | `IllegalStateException`    | Nothing to insert                               |
+### Common Validation Errors
+
+| Error                                            | Cause                                           |
+|--------------------------------------------------|-------------------------------------------------|
+| `DELETE`/`UPDATE` without `where()`              | Safety check to prevent accidental mass changes |
+| `execute()` with `RETURNING`                     | Must use `toList()`, `toSingle()`, etc.         |
+| `toList()`, `toField()` etc. without `RETURNING` | Modifying queries require `.returning()`        |
+| `fromSelect()` after `values()`                  | Mutually exclusive operations                   |
+| `values()` after `fromSelect()`                  | Mutually exclusive operations                   |
+| No values or select in INSERT                    | Nothing to insert                               |
+| `page()` with negative values                    | Invalid pagination parameters                   |
 
 **Why not DataResult?**
 
-These are **programmer errors** (contract violations), not runtime errors. They should be caught during development and never occur in production. Additionally, `toSql()` returns `String`, not `DataResult`, so builder validation must throw exceptions for consistency.
+These errors should be caught during development and never occur in production. They indicate that the SQL being generated is fundamentally broken. `BuilderException` also propagates through `TransactionPlan` and `DataAccess.transaction` blocks.
 
 ```kotlin
-// This throws IllegalArgumentException, not DataResult.Failure
-dataAccess.select("department", "AVG(salary)")
-    .from("employees")
-    .having("AVG(salary) > 50000")  // Missing groupBy()!
-    .toListOf<DeptStats>()
+// This throws BuilderException immediately
+dataAccess.deleteFrom("users")
+    .execute() // Fails: missing .where()
 ```
+
+---
+
+## InitializationException
+
+Thrown during the startup of `OctaviusDatabase` when the system fails to validate its configuration or the database schema.
+It inherits directly from **`RuntimeException`** and is **NOT** wrapped in `DataResult`.
+
+### Error Types (`InitializationExceptionMessage`)
+
+| Enum Value                          | Description                                              |
+|-------------------------------------|----------------------------------------------------------|
+| `INITIALIZATION_FAILED`             | General fatal error during system startup                |
+| `CONNECTION_FAILED`                 | Failed to establish connection or initialize pool        |
+| `CLASSPATH_SCAN_FAILED`             | Error scanning project for annotations                   |
+| `DB_QUERY_FAILED`                   | Failed to fetch metadata from PostgreSQL                 |
+| `MIGRATION_FAILED`                  | Flyway migration failed                                  |
+| `TYPE_DEFINITION_MISSING_IN_DB`     | Annotated class exists, but CREATE TYPE is missing in DB |
+| `DUPLICATE_PG_TYPE_DEFINITION`      | Conflict between two @PgType names                       |
+| `DUPLICATE_DYNAMIC_TYPE_DEFINITION` | Conflict between two @DynamicallyMappable keys           |
 
 ---
 
 ## Exception Hierarchy
 
-All database exceptions inherit from the sealed class `DatabaseException`. Octavius prioritizes PostgreSQL-specific error codes (SQLSTATE) to provide precise error types.
+All other exceptions inherit from the sealed class `DatabaseException`. Octavius prioritizes PostgreSQL-specific error codes (SQLSTATE) to provide precise error types.
+
+*Note: Although these classes inherit from standard JVM Exceptions (to capture stack traces and causes), they are **returned** inside `DataResult.Failure(error)`, not thrown (no `try-catch` needed).*
 
 ```
 DatabaseException (sealed)
@@ -60,7 +87,6 @@ DatabaseException (sealed)
 ├── ConversionException               - Type mapping and conversion failures
 ├── StepDependencyException           - Invalid step references in Transaction Plans
 ├── TypeRegistryException             - Type registry and mapping errors
-├── InitializationException           - Startup and configuration errors
 └── UnknownDatabaseException          - Fallback for unrecognized errors
 ```
 
@@ -74,7 +100,7 @@ The `QueryContext` is automatically printed as part of the exception's `toString
 
 ## StatementException
 
-Thrown when the SQL statement itself is invalid or fails due to database-level rules.
+Returned when the SQL statement itself is invalid or fails due to database-level rules.
 
 ### Properties
 
@@ -98,7 +124,7 @@ Thrown when the SQL statement itself is invalid or fails due to database-level r
 
 ## ConstraintViolationException
 
-Thrown when an operation violates data integrity rules in the database. Provides structured information about the violation.
+Returned when an operation violates data integrity rules in the database. Provides structured information about the violation.
 
 ### Properties
 
@@ -123,7 +149,7 @@ Thrown when an operation violates data integrity rules in the database. Provides
 
 ## ConcurrencyException
 
-Thrown during transaction-related conflicts or when query execution takes too long.
+Returned during transaction-related conflicts or when query execution takes too long.
 
 ### Properties
 
@@ -135,12 +161,11 @@ Thrown during transaction-related conflicts or when query execution takes too lo
 
 ## ConnectionException
 
-Thrown when the library cannot establish or maintain a connection with the database. These are typically infrastructure issues.
+Returned when the library cannot establish or maintain a connection with the database during query execution.
+
+*Note: For connection failures during **initialization**, see [InitializationException](#initializationexception).*
 
 ### When Thrown
-
-- **Connection Refused**: Wrong host or port in `DatabaseConfig`.
-- **Authentication Failure**: Wrong username or password (captured at connection level).
 - **Database Shutdown**: Operator intervention or administrative shutdown (SQLSTATE Class 57).
 - **Resource Exhaustion**: Disk full, out of memory, or too many connections (SQLSTATE Class 53/54).
 
@@ -148,7 +173,7 @@ Thrown when the library cannot establish or maintain a connection with the datab
 
 ## ConversionException
 
-Thrown when data mapping between PostgreSQL and Kotlin fails. Unlike other execution errors, this often indicates a mismatch between database schema and Kotlin data classes.
+Returned when data mapping between PostgreSQL and Kotlin fails. Unlike other execution errors, this often indicates a mismatch between database schema and Kotlin data classes.
 
 ### Error Types (`ConversionExceptionMessage`)
 
@@ -172,7 +197,7 @@ Thrown when data mapping between PostgreSQL and Kotlin fails. Unlike other execu
 
 ## StepDependencyException
 
-Thrown when a `TransactionValue.FromStep` reference is invalid.
+Returned when a `TransactionValue.FromStep` reference is invalid.
 
 | Error Type                       | Description                                   |
 |----------------------------------|-----------------------------------------------|
@@ -190,7 +215,7 @@ Thrown when a `TransactionValue.FromStep` reference is invalid.
 
 ## TypeRegistryException
 
-Thrown during runtime lookups in the internal type registry. This indicates a mismatch between Kotlin classes and database objects.
+Returned when a runtime lookup in the internal type registry fails. This indicates a mismatch between Kotlin classes and database objects.
 
 ### Error Types (`TypeRegistryExceptionMessage`)
 
@@ -200,25 +225,6 @@ Thrown during runtime lookups in the internal type registry. This indicates a mi
 | `PG_TYPE_NOT_FOUND`               | PostgreSQL type missing from the loaded registry |
 | `KOTLIN_CLASS_NOT_MAPPED`         | Kotlin class has no @PgType annotation           |
 | `DYNAMIC_TYPE_NOT_FOUND`          | Unknown key for `dynamic_dto` polymorphism       |
-
----
-
-## InitializationException
-
-Thrown during the startup of `OctaviusDatabase` when the system fails to validate its configuration or the database schema.
-It is **NOT** wrapped in DataResult.
-
-### Error Types (`InitializationExceptionMessage`)
-
-| Enum Value                          | Description                                              |
-|-------------------------------------|----------------------------------------------------------|
-| `INITIALIZATION_FAILED`             | General fatal error during system startup                |
-| `CLASSPATH_SCAN_FAILED`             | Error scanning project for annotations                   |
-| `DB_QUERY_FAILED`                   | Failed to fetch metadata from PostgreSQL                 |
-| `MIGRATION_FAILED`                  | Flyway migration failed                                  |
-| `TYPE_DEFINITION_MISSING_IN_DB`     | Annotated class exists, but CREATE TYPE is missing in DB |
-| `DUPLICATE_PG_TYPE_DEFINITION`      | Conflict between two @PgType names                       |
-| `DUPLICATE_DYNAMIC_TYPE_DEFINITION` | Conflict between two @DynamicallyMappable keys           |
 
 ---
 
@@ -232,7 +238,7 @@ A generic fallback exception used for errors that do not fit into specific categ
 
 ### Just Use toString()
 
-All `DatabaseException` subclasses have a standardized `toString()` override that prints the full context (via `QueryContext`), error details, and the underlying cause chain.
+All Octavius exceptions have a standardized `toString()` override that prints the full context (via `QueryContext`), error details, and the underlying cause chain.
 
 ```kotlin
 result.onFailure { error ->

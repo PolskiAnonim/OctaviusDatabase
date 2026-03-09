@@ -1,5 +1,7 @@
 package org.octavius.data
 
+import org.octavius.data.exception.requireBuilder
+
 /**
  * Simple container for an SQL query fragment and its parameters.
  *
@@ -51,7 +53,7 @@ fun List<QueryFragment>.join(separator: String, prefix: String = "", postfix: St
     val finalParams = mutableMapOf<String, Any?>()
     significantFragments.forEach { fragment ->
         fragment.params.forEach { (key, value) ->
-            require(!finalParams.containsKey(key) || finalParams[key] == value) {
+            requireBuilder(!finalParams.containsKey(key) || finalParams[key] == value) {
                 "Duplicate parameter key '$key' with different values found while joining QueryFragments. " +
                         "Parameter names must be unique across all joined fragments."
             }

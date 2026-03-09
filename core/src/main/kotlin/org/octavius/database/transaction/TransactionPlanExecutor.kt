@@ -204,6 +204,10 @@ internal class TransactionPlanExecutor(
     }
 
     private fun handleTransactionError(error: Throwable): DataResult.Failure {
+        if (error is BuilderException) {
+            throw error
+        }
+
         return when (error) {
             is StepDependencyException -> {
                 // StepDependencyException wasn't logged anywhere

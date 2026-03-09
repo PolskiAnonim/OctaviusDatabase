@@ -14,7 +14,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 | [ORM-Like Patterns](orm-patterns.md)      | CRUD patterns, real-world examples, PostgreSQL composite types                      |
 | [Transactions](transactions.md)           | Transaction blocks, TransactionPlan, StepHandle, passing data between steps         |
 | [Notifications](notifications.md)         | PostgreSQL LISTEN/NOTIFY, PgChannelListener, Flow-based receiving                   |
-| [Error Handling](error-handling.md)       | Exception hierarchy, StatementException, ConversionException                        |
+| [Error Handling](error-handling.md)       | Fatal errors vs. DataResult, Exception hierarchy, Statement/Constraint errors       |
 | [Type System](type-system.md)             | @PgEnum, @PgComposite, @DynamicallyMappable, PgTyped, standard type mappings        |
 
 ## Quick Links
@@ -74,10 +74,14 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Connection Management](notifications.md#connection-management) - Dedicated connections and `use { }`
 
 ### Error Handling
-- [Exception Hierarchy](error-handling.md#exception-hierarchy) - DatabaseException subtypes
-- [StatementException](error-handling.md#statementexception) - SQL errors with full context
-- [ConversionException](error-handling.md#conversionexception) - Type mapping errors
-- [Logging and Debugging](error-handling.md#logging-and-debugging) - Using toString() for diagnostics
+- [Fatal vs. Execution Errors](error-handling.md#error-handling) - Categorization of error types
+- [BuilderException](error-handling.md#builderexception) - Programmer errors thrown during query building
+- [InitializationException](error-handling.md#initializationexception) - Setup and configuration failures
+- [Exception Hierarchy](error-handling.md#exception-hierarchy) - `DatabaseException` subtypes returned in `DataResult`
+- [StatementException](error-handling.md#statementexception) - SQL syntax and permission errors
+- [ConstraintViolationException](error-handling.md#constraintviolationexception) - Data integrity (Unique, FK, Check) violations
+- [ConversionException](error-handling.md#conversionexception) - Type mapping and serialization errors
+- [Logging and Debugging](error-handling.md#logging-and-debugging) - Diagnostics with full `QueryContext`
 
 ### Type System
 - [Standard Type Mapping](type-system.md#standard-type-mapping) - PostgreSQL ↔ Kotlin conversions

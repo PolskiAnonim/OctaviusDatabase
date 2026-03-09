@@ -9,6 +9,7 @@ import org.octavius.data.DataResult
 import org.octavius.data.exception.ConcurrencyErrorType
 import org.octavius.data.exception.ConcurrencyException
 import org.octavius.data.exception.ConnectionException
+import org.octavius.data.exception.InitializationException
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 
@@ -23,12 +24,12 @@ class ExceptionIntegrationTest {
     }
 
     @Test
-    fun `should throw ConnectionException when port is wrong`() {
+    fun `should throw InitializationException when port is wrong`() {
         // GIVEN: config with wrong port
         val wrongConfig = config.copy(dbUrl = "jdbc:postgresql://localhost:5433/non_existent_db")
         
         // WHEN & THEN
-        assertThrows<ConnectionException> {
+        assertThrows<InitializationException> {
             OctaviusDatabase.fromConfig(wrongConfig)
         }
     }

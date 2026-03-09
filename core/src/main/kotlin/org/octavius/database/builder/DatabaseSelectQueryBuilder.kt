@@ -2,6 +2,8 @@ package org.octavius.database.builder
 
 import org.octavius.data.builder.LockWaitMode
 import org.octavius.data.builder.SelectQueryBuilder
+import org.octavius.data.exception.checkBuilder
+import org.octavius.data.exception.requireBuilder
 import org.octavius.database.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.springframework.jdbc.core.JdbcTemplate
@@ -88,8 +90,8 @@ internal class DatabaseSelectQueryBuilder(
     }
 
     override fun page(page: Long, size: Long): SelectQueryBuilder = apply {
-        require(page >= 0) { "Page number cannot be negative." }
-        require(size > 0) { "Page size must be positive." }
+        requireBuilder(page >= 0) { "Page number cannot be negative." }
+        requireBuilder(size > 0) { "Page size must be positive." }
         this.offsetValue = page * size
         this.limitValue = size
     }
@@ -105,14 +107,14 @@ internal class DatabaseSelectQueryBuilder(
     //------------------------------------------------------------------------------------------------------------------
 
     override fun buildSql(): String {
-        check(!selectClause.isBlank()) { "Cannot build a SELECT query without a SELECT clause." }
+        checkBuilder(!selectClause.isBlank()) { "Cannot build a SELECT query without a SELECT clause." }
         // Condition: FROM must exist OR none of the dependent clauses can exist
-        check(
+        checkBuilder(
             !fromClause.isNullOrBlank() || (whereCondition == null && groupByClause == null && orderByClause == null)
         ) {
             "WHERE, GROUP BY, or ORDER BY clauses require a FROM clause."
         }
-        check(
+        checkBuilder(
             havingClause.isNullOrBlank() || !groupByClause.isNullOrBlank()
         ) {
             "HAVING clause requires a GROUP BY clause."

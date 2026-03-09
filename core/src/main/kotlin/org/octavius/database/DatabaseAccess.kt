@@ -5,6 +5,7 @@ import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.QueryOperations
 import org.octavius.data.builder.*
+import org.octavius.data.exception.BuilderException
 import org.octavius.data.exception.DatabaseException
 import org.octavius.data.exception.QueryContext
 import org.octavius.data.notification.PgChannelListener
@@ -92,6 +93,9 @@ internal class DatabaseAccess(
                     status.setRollbackOnly()
                 }
                 result // Return original result (Success or Failure)
+            } catch (e: BuilderException) {
+                status.setRollbackOnly()
+                throw e
             } catch (e: DatabaseException) {
                 status.setRollbackOnly()
                 // There is no additional context here so there is nothing to do with this exception
