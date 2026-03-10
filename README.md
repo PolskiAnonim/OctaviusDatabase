@@ -4,8 +4,8 @@
 
 **An explicit, SQL-first data access layer for Kotlin & PostgreSQL**
 
-[![KDoc API](https://img.shields.io/badge/KDoc-api-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/api)
-[![KDoc Core](https://img.shields.io/badge/KDoc-core-7F52FF?logo=kotlin&logoColor=white)](https://polskianonim.github.io/OctaviusDatabase/core)
+[![KDoc API](https://img.shields.io/badge/KDoc-api-7F52FF?logo=kotlin&logoColor=white)](https://octavius-framework.github.io/octavius-database/api)
+[![KDoc Core](https://img.shields.io/badge/KDoc-core-7F52FF?logo=kotlin&logoColor=white)](https://octavius-framework.github.io/octavius-database/core)
 
 *It's not an ORM. It's a ROM (Relational-Object Mapper) — an Anti-ORM.*
 
@@ -13,11 +13,13 @@
 
 ---
 
-## Philosophy
+## Philosophy (The Pax Romana of Data)
+
+Octavius was built to bring order to the chaotic republic of database interactions. It rejects the unpredictable "magic" of traditional ORMs and return the power to the rightful ruler: **SQL**.
 
 | Principle                   | Description                                                       |
 |-----------------------------|-------------------------------------------------------------------|
-| **Query is King**           | Your SQL query dictates the shape of data — not the framework.    |
+| **Query is Imperator**      | Your SQL query dictates the shape of data — not the framework.    |
 | **Object is a Vessel**      | A `data class` is simply a type-safe container for query results. |
 | **Explicitness over Magic** | No lazy-loading, no session management, no dirty checking.        |
 
@@ -35,14 +37,14 @@
 
 ```kotlin
 // Define your data class — it maps directly to query results
-data class Book(val id: Int, val title: String, val author: String)
+data class Legionnaire(val id: Int, val name: String, val rank: String)
 
 // Query with named parameters
-val books = dataAccess.select("id", "title", "author")
-    .from("books")
-    .where("published_year > :year")
-    .orderBy("title")
-    .toListOf<Book>("year" to 2020)
+val legionnaires = dataAccess.select("id", "name", "rank")
+    .from("legions")
+    .where("enlisted_year > :year")
+    .orderBy("name")
+    .toListOf<Legionnaire>("year" to 24)
 ```
 
 ## Query Builders
