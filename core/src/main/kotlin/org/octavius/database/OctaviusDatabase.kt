@@ -55,6 +55,7 @@ object OctaviusDatabase {
             maximumPoolSize = 10
             this.connectionInitSql = connectionInitSql
         }
+
         val dataSource = try {
             HikariDataSource(hikariConfig)
         } catch (e: Exception) {
@@ -92,35 +93,38 @@ object OctaviusDatabase {
         val jdbcTemplate = JdbcTemplate(dataSource)
         val transactionManager = JdbcTransactionManager(dataSource)
 
-        // Initialize Framework Internals (Idempotent)
+        // 1. Framework Infrastructure (Idempotent)
         if (!disableCoreTypeInitialization) {
+            if (!disableFlyway && flywayBaselineVersion == null) {
+                logger.warn { 
+                    "Octavius is initializing core types. If Flyway fails with 'Found non-empty schema', " +
+                    "set 'flywayBaselineVersion' to not null value or set 'disableCoreTypeInitialization' to true " +
+                    "and add types to your migrations manually." 
+                }
+            }
             CoreTypeInitializer.ensureRequiredTypes(jdbcTemplate)
         } else {
-            logger.info { "Core type initialization disabled - assuming dynamic_dto type exists in the database" }
+            logger.info { "Core type initialization disabled - assuming types already exist in database." }
         }
 
-        // Run User Migrations (Flyway)
-        if (!disableFlyway) runMigrations(dataSource, dbSchemas, flywayBaselineVersion)
+        // 2. User Migrations (Flyway)
+        if (!disableFlyway) {
+            runMigrations(dataSource, dbSchemas, flywayBaselineVersion)
+        }
 
-        logger.debug { "Loading type registry from database..." }
+        logger.debug { "Loading type registry..." }
         val typeRegistry: TypeRegistry
         val typeRegistryLoadTime = measureTime {
-            val loader = TypeRegistryLoader(
-                jdbcTemplate,
-                packagesToScan,
-                dbSchemas
-            )
+            val loader = TypeRegistryLoader(jdbcTemplate, packagesToScan, dbSchemas)
             typeRegistry = loader.load()
         }
         logger.debug { "Type registry loaded successfully in ${typeRegistryLoadTime.inWholeMilliseconds}ms" }
 
         logger.debug { "Initializing converters" }
         val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry, dynamicDtoStrategy)
+        val resolvedListenerConnectionFactory = listenerConnectionFactory ?: resolveListenerConnectionFactory(dataSource)
 
-        val resolvedListenerConnectionFactory: () -> Connection = listenerConnectionFactory
-            ?: resolveListenerConnectionFactory(dataSource)
-
-        logger.info { "OctaviusDatabase initialization completed" }
+        logger.info { "OctaviusDatabase initialization completed." }
         return DatabaseAccess(
             jdbcTemplate,
             transactionManager,
@@ -150,7 +154,6 @@ object OctaviusDatabase {
         val flywayConfig = Flyway.configure()
             .dataSource(dataSource)
             .schemas(*schemas.toTypedArray())
-            // Default location is classpath:db/migration
             .locations("classpath:db/migration")
             .createSchemas(true)
 
@@ -178,5 +181,4 @@ object OctaviusDatabase {
             )
         }
     }
-
 }
