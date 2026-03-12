@@ -38,10 +38,10 @@ internal data class ClasspathScanResult(
  * Result of database scanning for PostgreSQL type definitions.
  */
 internal data class DatabaseScanResult(
-    /** Enum type name -> list of enum values */
-    val enums: Map<String, List<String>>,
-    /** Composite type name -> ordered map of (attribute name -> attribute type) */
-    val composites: Map<String, Map<String, String>>,
+    /** Enum type name -> (OID, ArrayOID, list of enum values) */
+    val enums: Map<String, Triple<Int, Int, List<String>>>,
+    /** Composite type name -> (OID, ArrayOID, ordered map of (attribute name -> attribute OID)) */
+    val composites: Map<String, Triple<Int, Int, Map<String, Int>>>,
     /** Procedure name -> ordered list of parameters with modes */
     val procedures: Map<String, List<PgProcedureParam>>
 )

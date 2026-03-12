@@ -12,6 +12,7 @@ internal enum class TypeCategory {
 
 /** Metadata for a PostgreSQL ENUM type, enabling bidirectional value mapping. */
 internal data class PgEnumDefinition(
+    val oid: Int,
     val typeName: String,
     val valueToEnumMap: Map<String, Enum<*>>,
     val kClass: KClass<out Enum<*>>
@@ -21,8 +22,9 @@ internal data class PgEnumDefinition(
 
 /** Metadata for a PostgreSQL COMPOSITE type with ordered attribute definitions. */
 internal data class PgCompositeDefinition(
+    val oid: Int,
     val typeName: String,
-    val attributes: Map<String, String>, // colName -> colType (ordered)
+    val attributes: Map<String, Int>, // colName -> colOid (ordered)
     val kClass: KClass<*>,
     val mapper: PgCompositeMapper<Any>? = null
 ) {
@@ -31,8 +33,9 @@ internal data class PgCompositeDefinition(
 
 /** Metadata for a PostgreSQL ARRAY type, linking to its element type. */
 internal data class PgArrayDefinition(
+    val oid: Int,
     val typeName: String,
-    val elementTypeName: String
+    val elementOid: Int
 )
 
 /** Parameter direction in a PostgreSQL procedure. */

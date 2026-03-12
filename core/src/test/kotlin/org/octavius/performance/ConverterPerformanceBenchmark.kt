@@ -4,6 +4,7 @@ import org.junit.jupiter.api.*
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.octavius.database.type.PostgresToKotlinConverter
+import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.utils.createFakeTypeRegistry
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.measureNanoTime
@@ -34,6 +35,7 @@ class ConverterPerformanceBenchmark {
 
     // --- Komponenty testowane ---
     private lateinit var converter: PostgresToKotlinConverter
+    private lateinit var typeRegistry: TypeRegistry
 
     companion object {
         // Definiujemy liczbę obiektów (projektów) do sparsowania w jednym wywołaniu
@@ -50,14 +52,15 @@ class ConverterPerformanceBenchmark {
     @BeforeAll
     fun setup() {
         println("--- ROZPOCZYNANIE KONFIGURACJI BENCHMARKU PARSOWANIA ---")
-        val fakeTypeRegistry = createFakeTypeRegistry() // Używamy fałszywego rejestru, jak w testach jednostkowych
-        this.converter = PostgresToKotlinConverter(fakeTypeRegistry)
+        typeRegistry = createFakeTypeRegistry()
+        this.converter = PostgresToKotlinConverter(typeRegistry)
+
+        val oid = typeRegistry.getOidForName("_test_project")
 
         println("\n--- WARM-UP RUN (500 projektów, wyniki ignorowane) ---")
         val warmupString = buildTestArrayString(500)
-        // Wykonajmy kilka razy, aby mieć pewność, że wszystko jest "gorące"
         repeat(10) {
-            converter.convert(warmupString, "_test_project")
+            converter.convert(warmupString, oid)
         }
         println("--- WARM-UP COMPLETE ---")
     }
@@ -69,10 +72,11 @@ class ConverterPerformanceBenchmark {
         println("\n--- POMIAR DLA $projectCount PROJEKTÓW (x$ITERATIONS_PER_SIZE iteracji) ---")
         val testString = buildTestArrayString(projectCount)
         val timings = mutableListOf<Long>()
+        val oid = typeRegistry.getOidForName("_test_project")
 
         repeat(ITERATIONS_PER_SIZE) {
             val time = measureNanoTime {
-                converter.convert(testString, "_test_project")
+                converter.convert(testString, oid)
             }
             timings.add(time)
         }

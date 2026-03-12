@@ -18,13 +18,14 @@ import kotlin.reflect.KClass
  * @see TypeRegistryLoader
  */
 internal class TypeRegistry(
-    // Main router: PgTypeName -> Category
-    private val categoryMap: Map<String, TypeCategory>,
+    // Main router: OID -> Category
+    private val oidCategoryMap: Map<Int, TypeCategory>,
 
-    // Specialized detail maps
-    private val enums: Map<String, PgEnumDefinition>,
-    private val composites: Map<String, PgCompositeDefinition>,
-    private val arrays: Map<String, PgArrayDefinition>,
+    // Specialized detail maps by OID
+    private val enumsByOid: Map<Int, PgEnumDefinition>,
+    private val compositesByOid: Map<Int, PgCompositeDefinition>,
+    private val arraysByOid: Map<Int, PgArrayDefinition>,
+
     private val procedures: Map<String, PgProcedureDefinition>,
 
     // Mappings for writing (Kotlin Class -> PgType)
@@ -32,35 +33,46 @@ internal class TypeRegistry(
 
     // Dynamic mappings (Dynamic Key -> Kotlin Class)
     private val dynamicSerializers: Map<String, KSerializer<Any>>,
-    private val classToDynamicNameMap: Map<KClass<*>, String>
+    private val classToDynamicNameMap: Map<KClass<*>, String>,
+
+    // Reverse maps for name-based lookup (if still needed, e.g. for dynamic_dto)
+    private val pgNameToOidMap: Map<String, Int>
 ) {
     // --- READ Section (DB -> Kotlin) ---
 
-    fun getCategory(pgTypeName: String): TypeCategory {
-        return categoryMap[pgTypeName] ?: throw TypeRegistryException(
+    fun getCategory(oid: Int): TypeCategory {
+        return oidCategoryMap[oid] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+            typeName = "OID: $oid"
+        )
+    }
+
+    fun getEnumDefinition(oid: Int): PgEnumDefinition {
+        return enumsByOid[oid] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+            typeName = "OID: $oid (expected ENUM)"
+        )
+    }
+
+    fun getCompositeDefinition(oid: Int): PgCompositeDefinition {
+        return compositesByOid[oid] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+            typeName = "OID: $oid (expected COMPOSITE)"
+        )
+    }
+
+    fun getArrayDefinition(oid: Int): PgArrayDefinition {
+        return arraysByOid[oid] ?: throw TypeRegistryException(
+            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+            typeName = "OID: $oid (expected ARRAY)"
+        )
+    }
+
+    /** Helper for getting OID by name (used during initialization or for specific types like dynamic_dto) */
+    fun getOidForName(pgTypeName: String): Int {
+        return pgNameToOidMap[pgTypeName] ?: throw TypeRegistryException(
             TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
             typeName = pgTypeName
-        )
-    }
-
-    fun getEnumDefinition(pgTypeName: String): PgEnumDefinition {
-        return enums[pgTypeName] ?: throw TypeRegistryException(
-            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
-            typeName = "$pgTypeName (expected ENUM)"
-        )
-    }
-
-    fun getCompositeDefinition(pgTypeName: String): PgCompositeDefinition {
-        return composites[pgTypeName] ?: throw TypeRegistryException(
-            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
-            typeName = "$pgTypeName (expected COMPOSITE)"
-        )
-    }
-
-    fun getArrayDefinition(pgTypeName: String): PgArrayDefinition {
-        return arrays[pgTypeName] ?: throw TypeRegistryException(
-            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
-            typeName = "$pgTypeName (expected ARRAY)"
         )
     }
 

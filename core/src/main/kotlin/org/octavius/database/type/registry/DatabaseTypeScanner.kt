@@ -21,20 +21,28 @@ internal class DatabaseTypeScanner(
      * Scans configured schemas and returns discovered type definitions.
      */
     fun scan(): DatabaseScanResult {
-        val enums = mutableMapOf<String, MutableList<String>>()
-        val composites = mutableMapOf<String, MutableMap<String, String>>()
+        val enums = mutableMapOf<String, Triple<Int, Int, MutableList<String>>>()
+        val composites = mutableMapOf<String, Triple<Int, Int, MutableMap<String, Int>>>()
 
         try {
             val schemas = dbSchemas.toTypedArray()
             jdbcTemplate.query(SQL_QUERY_ALL_TYPES, { rs, _ ->
                 val type = rs.getString("info_type")
                 val name = rs.getString("type_name")
+                val oid = rs.getInt("type_oid")
+                val arrayOid = rs.getInt("array_oid")
                 val col1 = rs.getString("col1")
-                val col2 = rs.getString("col2")
 
                 when (type) {
-                    "enum" -> enums.getOrPut(name) { mutableListOf() }.add(col1)
-                    "composite" -> composites.getOrPut(name) { mutableMapOf() }[col1] = col2
+                    "enum" -> {
+                        val triple = enums.getOrPut(name) { Triple(oid, arrayOid, mutableListOf()) }
+                        triple.third.add(col1)
+                    }
+                    "composite" -> {
+                        val col2 = rs.getInt("col2")
+                        val triple = composites.getOrPut(name) { Triple(oid, arrayOid, mutableMapOf()) }
+                        triple.third[col1] = col2
+                    }
                 }
             }, schemas, schemas)
         } catch (e: Exception) {
@@ -44,7 +52,11 @@ internal class DatabaseTypeScanner(
 
         val procedures = scanProcedures()
 
-        return DatabaseScanResult(enums, composites, procedures)
+        return DatabaseScanResult(
+            enums.mapValues { Triple(it.value.first, it.value.second, it.value.third.toList()) },
+            composites.mapValues { Triple(it.value.first, it.value.second, it.value.third.toMap()) },
+            procedures
+        )
     }
 
     private fun scanProcedures(): Map<String, List<PgProcedureParam>> {
@@ -94,6 +106,8 @@ internal class DatabaseTypeScanner(
             SELECT
                 'enum' AS info_type,
                 t.typname AS type_name,
+                t.oid AS type_oid,
+                t.typarray AS array_oid,
                 e.enumlabel AS col1,
                 NULL AS col2,
                 e.enumsortorder::int AS sort_order
@@ -109,14 +123,15 @@ internal class DatabaseTypeScanner(
             SELECT
                 'composite' AS info_type,
                 t.typname AS type_name,
+                t.oid AS type_oid,
+                t.typarray AS array_oid,
                 a.attname AS col1,
-                at.typname AS col2,
+                a.atttypid::int AS col2, -- OID of attribute type
                 a.attnum AS sort_order
             FROM
                 pg_type t
                 JOIN pg_class c ON t.typrelid = c.oid
                 JOIN pg_attribute a ON a.attrelid = c.oid
-                JOIN pg_type at ON a.atttypid = at.oid
                 JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
             WHERE
                 t.typtype = 'c'

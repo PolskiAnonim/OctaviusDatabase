@@ -147,7 +147,8 @@ internal class KotlinToPostgresConverter(
 
     private fun handleEnum(enum: Enum<*>, pgType: String?): PGobject {
         val typeName = pgType ?: typeRegistry.getPgTypeNameForClass(enum::class)
-        val typeInfo = typeRegistry.getEnumDefinition(typeName)
+        val oid = typeRegistry.getOidForName(typeName)
+        val typeInfo = typeRegistry.getEnumDefinition(oid)
         return pgObject(typeName, typeInfo.enumToValueMap[enum] ?: enum.name)
     }
 
@@ -198,7 +199,8 @@ internal class KotlinToPostgresConverter(
 
         fun serializeComposite(obj: Any, skipDynamicDto: Boolean, explicitType: String?): String {
             val typeName = explicitType ?: typeRegistry.getPgTypeNameForClass(obj::class)
-            val typeInfo = typeRegistry.getCompositeDefinition(typeName)
+            val oid = typeRegistry.getOidForName(typeName)
+            val typeInfo = typeRegistry.getCompositeDefinition(oid)
             
             val valueMap = if (typeInfo.mapper != null) {
                 logger.trace { "Using manual mapper for serialization of ${typeInfo.typeName}" }
@@ -253,7 +255,8 @@ internal class KotlinToPostgresConverter(
             return when (current) {
                 is Enum<*> -> {
                     val typeName = explicitType ?: typeRegistry.getPgTypeNameForClass(current::class)
-                    typeRegistry.getEnumDefinition(typeName).enumToValueMap[current] ?: current.name
+                    val oid = typeRegistry.getOidForName(typeName)
+                    typeRegistry.getEnumDefinition(oid).enumToValueMap[current] ?: current.name
                 }
                 is List<*> -> serializeList(current, skipDynamicDto || wasPgTyped, explicitType?.let { StandardTypeMappingRegistry.resolveBaseTypeName(it) })
                 else -> {

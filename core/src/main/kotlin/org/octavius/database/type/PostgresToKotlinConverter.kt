@@ -28,46 +28,46 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      * Supports all type categories: STANDARD, ENUM, ARRAY, COMPOSITE, and DYNAMIC.
      *
      * @param value Value from database as `String` (can be `null`).
-     * @param pgTypeName Type name in PostgreSQL (e.g., "int4", "my_enum", "dynamic_dto").
+     * @param oid PostgreSQL type OID.
      * @return Converted value or `null` if `value` was `null`.
      * @throws TypeRegistryException if type is unknown.
      * @throws ConversionException if conversion fails.
      */
-    fun convert(value: String?, pgTypeName: String): Any? {
+    fun convert(value: String?, oid: Int): Any? {
         if (value == null) {
-            logger.trace { "Converting null value for type: $pgTypeName" }
+            logger.trace { "Converting null value for OID: $oid" }
             return null
         }
 
-        logger.trace { "Converting value '$value' from PostgreSQL type: $pgTypeName" }
-        val category = typeRegistry.getCategory(pgTypeName)
+        logger.trace { "Converting value '$value' from PostgreSQL OID: $oid" }
+        val category = typeRegistry.getCategory(oid)
 
         return when (category) {
             TypeCategory.STANDARD -> {
-                logger.trace { "Converting standard value '$value' for type $pgTypeName" }
-                convertStandardType(value, pgTypeName)
+                logger.trace { "Converting standard value '$value' for OID $oid" }
+                convertStandardType(value, oid)
             }
 
             TypeCategory.ENUM -> {
-                logger.trace { "Converting enum value '$value' for type $pgTypeName" }
-                val def = typeRegistry.getEnumDefinition(pgTypeName)
+                logger.trace { "Converting enum value '$value' for OID $oid" }
+                val def = typeRegistry.getEnumDefinition(oid)
                 convertEnum(value, def)
             }
 
             TypeCategory.ARRAY -> {
-                logger.trace { "Converting array value for type $pgTypeName" }
-                val def = typeRegistry.getArrayDefinition(pgTypeName)
+                logger.trace { "Converting array value for OID $oid" }
+                val def = typeRegistry.getArrayDefinition(oid)
                 convertArray(value, def)
             }
 
             TypeCategory.COMPOSITE -> {
-                logger.trace { "Converting composite value for type $pgTypeName" }
-                val def = typeRegistry.getCompositeDefinition(pgTypeName)
+                logger.trace { "Converting composite value for OID $oid" }
+                val def = typeRegistry.getCompositeDefinition(oid)
                 convertCompositeType(value, def)
             }
 
             TypeCategory.DYNAMIC -> {
-                logger.trace { "Converting dynamic DTO value for type $pgTypeName" }
+                logger.trace { "Converting dynamic DTO value for OID $oid" }
                 convertDynamicType(value)
             }
         }
@@ -79,16 +79,16 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      * Delegates to `StandardTypeMappingRegistry`, which is the single source of truth.
      *
      * @param value Value from database as String.
-     * @param pgTypeName Name of standard PostgreSQL type.
+     * @param oid OID of standard PostgreSQL type.
      * @return Converted value.
      * @throws ConversionException if conversion fails.
      */
-    private fun convertStandardType(value: String, pgTypeName: String): Any { // null handled in convert method
+    private fun convertStandardType(value: String, oid: Int): Any { // null handled in convert method
         // 1. Find the appropriate handler in the central registry
-        val handler = StandardTypeMappingRegistry.getHandler(pgTypeName)
+        val handler = StandardTypeMappingRegistry.getHandlerByOid(oid)
 
         if (handler == null) {
-            logger.warn { "No standard type handler found for PostgreSQL type '$pgTypeName'. Returning raw string value." }
+            logger.warn { "No standard type handler found for PostgreSQL OID '$oid'. Returning raw string value." }
             return value // Default behavior: return string if type is unknown
         }
 
@@ -99,7 +99,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
             throw ConversionException(
                 messageEnum = ConversionExceptionMessage.VALUE_CONVERSION_FAILED,
                 value = value,
-                targetType = handler.kotlinClass.simpleName ?: pgTypeName,
+                targetType = handler.kotlinClass.simpleName ?: oid.toString(),
                 cause = e
             )
         }
@@ -139,7 +139,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      */
     private fun convertArray(value: String, typeInfo: PgArrayDefinition): List<Any?> {
 
-        logger.trace { "Parsing PostgreSQL array with element type: ${typeInfo.elementTypeName}" }
+        logger.trace { "Parsing PostgreSQL array with element OID: ${typeInfo.oid}" }
 
         val results = mutableListOf<Any?>()
 
@@ -147,18 +147,18 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
             // Check if the string representing the element ITSELF is an array.
             val isNestedArray = !isQuoted && elementValue?.startsWith('{') == true
             // If it's a nested array, recursively invoke conversion
-            // for the ENTIRE array type (e.g., "_text"), not its element ("text").
+            // for the ENTIRE array type (OID), not its element.
             // Otherwise, continue with standard elementType logic.
-            val typeNameToUse = if (isNestedArray) typeInfo.typeName else typeInfo.elementTypeName
+            val oidToUse = if (isNestedArray) typeInfo.oid else typeInfo.elementOid
             // Recursively convert each array element using the main conversion function
-            results.add(convert(elementValue, typeNameToUse))
+            results.add(convert(elementValue, oidToUse))
         }
         logger.trace { "Parsed ${results.size} array elements" }
         return results
     }
 
     private fun convertCompositeType(value: String, typeInfo: PgCompositeDefinition): Any {
-        logger.trace { "Converting composite type ${typeInfo.typeName} to class: ${typeInfo.kClass.qualifiedName}" }
+        logger.trace { "Converting composite type ${typeInfo.typeName} (OID: ${typeInfo.oid}) to class: ${typeInfo.kClass.qualifiedName}" }
 
         val dbAttributes = typeInfo.dbAttributes
         val constructorArgsMap = mutableMapOf<String, Any?>()
@@ -172,8 +172,8 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
                 )
             }
 
-            val (dbAttributeName, dbAttributeType) = dbAttributes[index]
-            constructorArgsMap[dbAttributeName] = convert(elementValue, dbAttributeType)
+            val (dbAttributeName, dbAttributeOid) = dbAttributes[index]
+            constructorArgsMap[dbAttributeName] = convert(elementValue, dbAttributeOid)
             index++
         }
 
