@@ -35,7 +35,7 @@ internal class StreamingQueryBuilder(
             logger.debug {
                 """
                 Executing query (original): $originalSql with params: $params
-                  -> serialized and positional params: ${positionalQuery.params}
+                  -> (database): ${positionalQuery.sql} with positional params: ${positionalQuery.params}
                 """.trimIndent()
             }
 

@@ -39,7 +39,7 @@ internal class ClasspathTypeScanner(
         val dynamicReverseMap = mutableMapOf<KClass<*>, String>()
 
         // Tracks uniqueness of PostgreSQL type names (Enums + Composites share namespace)
-        val seenPgNames = mutableSetOf<String>()
+        val seenPgNames = mutableSetOf<Pair<String, String>>()
 
         try {
             logger.debug { "Scanning packages for annotations: ${packagesToScan.joinToString()}" }
@@ -63,7 +63,7 @@ internal class ClasspathTypeScanner(
     private fun processEnums(
         scanResult: ScanResult,
         target: MutableList<KtEnumInfo>,
-        seenNames: MutableSet<String>
+        seenNames: MutableSet<Pair<String, String>>
     ) {
         scanResult.getClassesWithAnnotation(PgEnum::class.java).forEach { classInfo ->
             if (!classInfo.isEnum) {
@@ -77,12 +77,13 @@ internal class ClasspathTypeScanner(
             val annotation = classInfo.getAnnotationInfo(PgEnum::class.java)
             val name = (annotation.parameterValues.getValue("name") as String)
                 .ifBlank { classInfo.simpleName.toSnakeCase() }
+            val schema = (annotation.parameterValues.getValue("schema") as String)
 
-            if (!seenNames.add(name)) {
+            if (!seenNames.add(schema to name)) {
                 throw InitializationException(
                     messageEnum = InitializationExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION,
-                    details = name,
-                    cause = IllegalStateException("Duplicate PostgreSQL type name detected: '$name'. Found on ${classInfo.name}")
+                    details = if (schema.isBlank()) name else "$schema.$name",
+                    cause = IllegalStateException("Duplicate PostgreSQL type name detected: '$name' in schema '$schema'. Found on ${classInfo.name}")
                 )
             }
 
@@ -92,14 +93,14 @@ internal class ClasspathTypeScanner(
                 .loadClassAndReturnEnumValue() as CaseConvention
             val kClass = classInfo.loadClass().kotlin
 
-            target.add(KtEnumInfo(kClass, name, pgConv, ktConv))
+            target.add(KtEnumInfo(kClass, name, schema, pgConv, ktConv))
         }
     }
 
     private fun processComposites(
         scanResult: ScanResult,
         target: MutableList<KtCompositeInfo>,
-        seenNames: MutableSet<String>
+        seenNames: MutableSet<Pair<String, String>>
     ) {
         scanResult.getClassesWithAnnotation(PgComposite::class.java).forEach { classInfo ->
             if (classInfo.isEnum) {
@@ -113,12 +114,13 @@ internal class ClasspathTypeScanner(
             val annotation = classInfo.getAnnotationInfo(PgComposite::class.java)
             val name = (annotation.parameterValues.getValue("name") as String)
                 .ifBlank { classInfo.simpleName.toSnakeCase() }
+            val schema = (annotation.parameterValues.getValue("schema") as String)
 
-            if (!seenNames.add(name)) {
+            if (!seenNames.add(schema to name)) {
                 throw InitializationException(
                     messageEnum = InitializationExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION,
-                    details = name,
-                    cause = IllegalStateException("Duplicate PostgreSQL type name detected: '$name'. Found on ${classInfo.name}")
+                    details = if (schema.isBlank()) name else "$schema.$name",
+                    cause = IllegalStateException("Duplicate PostgreSQL type name detected: '$name' in schema '$schema'. Found on ${classInfo.name}")
                 )
             }
 
@@ -129,7 +131,7 @@ internal class ClasspathTypeScanner(
             } else null
 
             val kClass = classInfo.loadClass().kotlin
-            target.add(KtCompositeInfo(kClass, name, mapperClass))
+            target.add(KtCompositeInfo(kClass, name, schema, mapperClass))
         }
     }
 

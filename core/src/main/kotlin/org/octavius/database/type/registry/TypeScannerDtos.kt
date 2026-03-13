@@ -11,6 +11,7 @@ import kotlin.reflect.KClass
 internal data class KtEnumInfo(
     val kClass: KClass<*>,
     val pgName: String,
+    val schema: String,
     val pgConvention: CaseConvention,
     val kotlinConvention: CaseConvention
 )
@@ -21,6 +22,7 @@ internal data class KtEnumInfo(
 internal data class KtCompositeInfo(
     val kClass: KClass<*>,
     val pgName: String,
+    val schema: String,
     val mapperClass: KClass<out PgCompositeMapper<*>>? = null
 )
 
@@ -38,10 +40,12 @@ internal data class ClasspathScanResult(
  * Result of database scanning for PostgreSQL type definitions.
  */
 internal data class DatabaseScanResult(
-    /** Enum type name -> list of enum values */
-    val enums: Map<String, List<String>>,
-    /** Composite type name -> ordered map of (attribute name -> attribute type) */
-    val composites: Map<String, Map<String, String>>,
+    /** Schema -> Enum type name -> (OID, ArrayOID, list of enum values) */
+    val enums: Map<String, Map<String, Triple<Int, Int, List<String>>>>,
+    /** Schema -> Composite type name -> (OID, ArrayOID, ordered map of (attribute name -> attribute OID)) */
+    val composites: Map<String, Map<String, Triple<Int, Int, Map<String, Int>>>>,
     /** Procedure name -> ordered list of parameters with modes */
-    val procedures: Map<String, List<PgProcedureParam>>
+    val procedures: Map<String, List<PgProcedureParam>>,
+    /** OID -> Human readable name (for all discovered types) */
+    val allOidNames: Map<Int, String>
 )

@@ -85,5 +85,6 @@ object DefaultPgCompositeMapper : PgCompositeMapper<Any> {
 @Retention(AnnotationRetention.RUNTIME)
 annotation class PgComposite(
     val name: String = "",
+    val schema: String = "",
     val mapper: KClass<out PgCompositeMapper<*>> = DefaultPgCompositeMapper::class
 )

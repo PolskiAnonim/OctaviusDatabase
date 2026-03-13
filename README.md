@@ -119,7 +119,7 @@ Arrays of all standard types are supported and map to `List<T>`.
 data class Address(val street: String, val city: String, val zipCode: String)
 
 // PostgreSQL ENUM → Kotlin enum
-@PgEnum
+@PgEnum(schema = "catalog")
 enum class OrderStatus { Pending, Processing, Shipped, Delivered }
 
 // Works seamlessly in queries
@@ -132,20 +132,20 @@ val orders = dataAccess.select("id", "status", "shipping_address")
 
 ## Dynamic Type System
 
-Octavius uses `dynamic_dto` — a PostgreSQL composite type combining a type discriminator with JSONB payload — to bridge static SQL and Kotlin's type system. This type is automatically initialized in your database on startup.
+Octavius uses `dynamic_dto` — a PostgreSQL composite type combining a type discriminator with JSONB payload — to bridge static SQL and Kotlin's type system. This type is automatically initialized in the **`public`** schema on startup.
 
 ```sql
--- Created automatically by Octavius
-CREATE TYPE dynamic_dto AS (
+-- Created automatically by Octavius in "public" schema
+CREATE TYPE public.dynamic_dto AS (
     type_name    TEXT,
     data_payload JSONB
 );
 
 -- Helper function for constructing values
-CREATE FUNCTION dynamic_dto(p_type_name TEXT, p_data JSONB)
-RETURNS dynamic_dto AS $$
+CREATE OR REPLACE FUNCTION public.dynamic_dto(p_type_name TEXT, p_data JSONB)
+RETURNS public.dynamic_dto AS $$
 BEGIN
-    RETURN ROW(p_type_name, p_data)::dynamic_dto;
+    RETURN ROW(p_type_name, p_data)::public.dynamic_dto;
 END;
 $$ LANGUAGE plpgsql;
 ```

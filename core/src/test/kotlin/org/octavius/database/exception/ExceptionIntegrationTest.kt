@@ -8,7 +8,6 @@ import org.junit.jupiter.api.*
 import org.octavius.data.DataResult
 import org.octavius.data.exception.ConcurrencyErrorType
 import org.octavius.data.exception.ConcurrencyException
-import org.octavius.data.exception.ConnectionException
 import org.octavius.data.exception.InitializationException
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig

@@ -8,7 +8,6 @@ import org.octavius.data.builder.AsyncTerminalMethods
 import org.octavius.data.builder.QueryBuilder
 import org.octavius.data.builder.StepBuilderMethods
 import org.octavius.data.builder.StreamingTerminalMethods
-import org.octavius.data.exception.BuilderException
 import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.QueryContext
@@ -290,7 +289,7 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
             logger.debug {
                 """
                 Executing query (original): $sql with params: $params
-                  -> serialized and positional params: ${positionalQuery.params}
+                  -> (database): ${positionalQuery.sql} with positional params: ${positionalQuery.params}
                 """.trimIndent()
             }
             action(positionalQuery.sql, positionalQuery.params)

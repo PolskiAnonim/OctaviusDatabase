@@ -2,6 +2,7 @@ package org.octavius.database.type
 
 import org.octavius.database.type.registry.TypeCategory
 import org.octavius.database.type.registry.TypeRegistry
+import org.postgresql.jdbc.PgResultSet
 import java.sql.ResultSet
 
 /**
@@ -15,6 +16,10 @@ internal class ResultSetValueExtractor(
     private val stringConverter = PostgresToKotlinConverter(typeRegistry)
 
     fun extract(rs: ResultSet, columnIndex: Int): Any? {
+        // Unwrap to get PostgreSQL-specific OID directly from ResultSet
+        val pgRs = rs.unwrap(PgResultSet::class.java)
+        val oid = pgRs.getColumnOID(columnIndex)
+        
         val pgTypeName = rs.metaData.getColumnTypeName(columnIndex)
 
         // void is a special JDBC-level case — not a real column type.
@@ -22,14 +27,14 @@ internal class ResultSetValueExtractor(
         // SELECT-ing void functions via toField<Unit>() without error.
         if (pgTypeName == "void") return Unit
 
-        val typeCategory = typeRegistry.getCategory(pgTypeName)
+        val typeCategory = typeRegistry.getCategory(oid)
 
         // Main logic: path distinction
         return when (typeCategory) {
-            TypeCategory.STANDARD -> extractStandardType(rs, columnIndex, pgTypeName)
+            TypeCategory.STANDARD -> extractStandardType(rs, columnIndex, oid)
             else -> {
                 val rawValue = rs.getString(columnIndex)
-                stringConverter.convert(rawValue, pgTypeName)
+                stringConverter.convert(rawValue, oid)
             }
         }
     }
@@ -38,8 +43,8 @@ internal class ResultSetValueExtractor(
     /**
      * Fast path for standard types.
      */
-    private fun extractStandardType(rs: ResultSet, columnIndex: Int, pgTypeName: String): Any? {
-        val handler = StandardTypeMappingRegistry.getHandler(pgTypeName)
+    private fun extractStandardType(rs: ResultSet, columnIndex: Int, oid: Int): Any? {
+        val handler = StandardTypeMappingRegistry.getHandlerByOid(oid)
 
         // 1. Try to use dedicated "fast path" if it exists.
         handler?.fromResultSet?.let { fastPath ->
@@ -49,6 +54,6 @@ internal class ResultSetValueExtractor(
         // 2. If there's no fast path (handler is null or fromResultSet is null),
         //    use the universal but slower path based on String conversion.
         val rawValue = rs.getString(columnIndex)
-        return stringConverter.convert(rawValue, pgTypeName)
+        return stringConverter.convert(rawValue, oid)
     }
 }

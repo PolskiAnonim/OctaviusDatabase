@@ -156,35 +156,35 @@ db.flywayBaselineVersion=3
 
 ## Core Type Initialization
 
-On startup, Octavius automatically creates the `dynamic_dto` type and helper functions in PostgreSQL.
+On startup, Octavius automatically creates the `dynamic_dto` type and helper functions in the **`public`** PostgreSQL schema.
 
 ### What Gets Created
 
 ```sql
 -- Composite type for polymorphic storage
-CREATE TYPE dynamic_dto AS (
+CREATE TYPE public.dynamic_dto AS (
     type_name    TEXT,     -- Discriminator key (e.g., "user_profile")
     data_payload JSONB     -- Serialized data
 );
 
 -- Constructor function
-CREATE OR REPLACE FUNCTION dynamic_dto(p_type_name TEXT, p_data JSONB)
-RETURNS dynamic_dto AS $$
+CREATE OR REPLACE FUNCTION public.dynamic_dto(p_type_name TEXT, p_data JSONB)
+RETURNS public.dynamic_dto AS $$
 BEGIN
-    RETURN ROW(p_type_name, p_data)::dynamic_dto;
+    RETURN ROW(p_type_name, p_data)::public.dynamic_dto;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 
 -- Convenience function for any type
-CREATE OR REPLACE FUNCTION to_dynamic_dto(p_type_name TEXT, p_value ANYELEMENT)
-RETURNS dynamic_dto AS $$
+CREATE OR REPLACE FUNCTION public.to_dynamic_dto(p_type_name TEXT, p_value ANYELEMENT)
+RETURNS public.dynamic_dto AS $$
 BEGIN
-    RETURN ROW(p_type_name, to_jsonb(p_value))::dynamic_dto;
+    RETURN ROW(p_type_name, to_jsonb(p_value))::public.dynamic_dto;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 
 -- Unwrap function
-CREATE OR REPLACE FUNCTION unwrap_dto_payload(p_dto dynamic_dto)
+CREATE OR REPLACE FUNCTION public.unwrap_dto_payload(p_dto public.dynamic_dto)
 RETURNS JSONB AS $$
 BEGIN
     RETURN p_dto.data_payload;

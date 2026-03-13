@@ -1,13 +1,10 @@
 package org.octavius.performance
 
 import com.zaxxer.hikari.HikariDataSource
-import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.*
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.octavius.data.DataAccess
-import org.octavius.data.annotation.DynamicallyMappable
-import org.octavius.data.annotation.PgComposite
 import org.octavius.data.builder.toColumn
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
@@ -21,12 +18,6 @@ import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
 import javax.sql.DataSource
 import kotlin.system.measureTimeMillis
-
-// --- Definicje klas danych dla obu podejść ---
-
-// 1. Klasy dla natywnego typu kompozytowego PostgreSQL
-
-
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)

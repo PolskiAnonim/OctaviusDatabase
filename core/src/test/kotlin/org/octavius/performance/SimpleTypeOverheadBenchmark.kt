@@ -2,17 +2,13 @@
 package org.octavius.performance
 
 import com.zaxxer.hikari.HikariDataSource
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Disabled
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.*
 import org.octavius.database.RowMappers
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.type.PostgresToKotlinConverter
 import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.registry.TypeRegistryLoader
-import org.postgresql.jdbc.PgResultSetMetaData
+import org.postgresql.jdbc.PgResultSet
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 import java.nio.file.Files
@@ -191,12 +187,13 @@ private class RawJdbcRowMapper : RowMapper<Map<String, Any?>> {
 private class OldFrameworkRowMapper(private val converter: PostgresToKotlinConverter) : RowMapper<Map<String, Any?>> {
     override fun mapRow(rs: ResultSet, rowNum: Int): Map<String, Any?> {
         val data = mutableMapOf<String, Any?>()
-        val metaData = rs.metaData as PgResultSetMetaData
+        val metaData = rs.metaData
+        val pgRs = rs.unwrap(PgResultSet::class.java)
         for (i in 1..metaData.columnCount) {
             val columnName = metaData.getColumnName(i)
-            val columnType = metaData.getColumnTypeName(i)
+            val oid = pgRs.getColumnOID(i)
             val rawValue = rs.getString(i)
-            data[columnName] = converter.convert(rawValue, columnType)
+            data[columnName] = converter.convert(rawValue, oid)
         }
         return data
     }

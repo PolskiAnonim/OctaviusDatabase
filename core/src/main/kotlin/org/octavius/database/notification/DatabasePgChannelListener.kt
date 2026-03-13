@@ -9,9 +9,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
 import org.octavius.data.DataResult
 import org.octavius.data.exception.QueryContext
-import org.octavius.database.exception.ExceptionTranslator
 import org.octavius.data.notification.PgChannelListener
 import org.octavius.data.notification.PgNotification
+import org.octavius.database.exception.ExceptionTranslator
 import org.postgresql.PGConnection
 import java.sql.Connection
 

@@ -44,6 +44,7 @@ import org.octavius.data.util.CaseConvention
 @Retention(AnnotationRetention.RUNTIME)
 annotation class PgEnum(
     val name: String = "",
+    val schema: String = "",
     // How values are stored in PostgreSQL database (e.g., 'PENDING', 'in_progress')
     val pgConvention: CaseConvention = CaseConvention.SNAKE_CASE_UPPER,
     // How values are stored in Kotlin Enum class (e.g., Pending, IN_PROGRESS)

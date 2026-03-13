@@ -19,13 +19,8 @@ import java.time.temporal.ChronoField
 import java.util.*
 import kotlin.reflect.KClass
 import kotlin.reflect.full.isSubclassOf
-import kotlin.time.Duration
-import kotlin.time.DurationUnit
-import kotlin.time.ExperimentalTime
+import kotlin.time.*
 import kotlin.time.Instant
-import kotlin.time.toDuration
-import kotlin.time.toJavaInstant
-import kotlin.time.toKotlinInstant
 import java.time.LocalDate as JLocalDate
 import java.time.LocalDateTime as JLocalDateTime
 import java.time.LocalTime as JLocalTime
@@ -61,13 +56,28 @@ internal object StandardTypeMappingRegistry {
         .optionalStart()
         .appendLiteral(':')
         .appendValue(ChronoField.SECOND_OF_MINUTE, 2)
+        .optionalStart()
+        .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
         .optionalEnd()
-        .appendPattern("X")
+        .optionalEnd()
+        .appendPattern("[XXX][XX][X]")
         .toFormatter()
 
     private val mappings: Map<String, StandardTypeHandler<*>> = buildMappings()
+    private val oidToHandler: Map<Int, StandardTypeHandler<*>> = buildOidMappings()
     private val kotlinClassToHandler: Map<KClass<*>, StandardTypeHandler<*>> = mappings.values
         .associateBy { it.kotlinClass }
+
+    private fun buildOidMappings(): Map<Int, StandardTypeHandler<*>> {
+        val map = mutableMapOf<Int, StandardTypeHandler<*>>()
+        PgStandardType.entries.forEach { pgType ->
+            val handler = mappings[pgType.typeName]
+            if (handler != null) {
+                map[pgType.oid] = handler
+            }
+        }
+        return map
+    }
 
     private fun buildMappings(): Map<String, StandardTypeHandler<*>> {
         val map = mutableMapOf<String, StandardTypeHandler<*>>()
@@ -76,21 +86,21 @@ internal object StandardTypeMappingRegistry {
             if (pgType.isArray) return@forEach
             val handler = when (pgType) {
                 // Integer types
-                PgStandardType.INT2, PgStandardType.SMALLSERIAL -> primitive(
+                PgStandardType.INT2 -> primitive(
                     pgType.typeName,
                     Short::class,
                     ResultSet::getShort,
                     parser = String::toShort
                 )
 
-                PgStandardType.INT4, PgStandardType.SERIAL -> primitive(
+                PgStandardType.INT4 -> primitive(
                     pgType.typeName,
                     Int::class,
                     ResultSet::getInt,
                     parser = String::toInt
                 )
 
-                PgStandardType.INT8, PgStandardType.BIGSERIAL -> primitive(
+                PgStandardType.INT8 -> primitive(
                     pgType.typeName,
                     Long::class,
                     ResultSet::getLong,
@@ -345,6 +355,7 @@ internal object StandardTypeMappingRegistry {
     }
 
     fun getHandler(pgTypeName: String): StandardTypeHandler<*>? = mappings[pgTypeName]
+    fun getHandlerByOid(oid: Int): StandardTypeHandler<*>? = oidToHandler[oid]
     fun getHandlerByClass(kClass: KClass<*>): StandardTypeHandler<*>? {
         kotlinClassToHandler[kClass]?.let { return it }
         // Json Element - it is superclass

@@ -1,9 +1,12 @@
 package org.octavius.database.exception
 
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.octavius.data.DataResult
-import org.octavius.data.exception.*
+import org.octavius.data.exception.StatementException
+import org.octavius.data.exception.StatementExceptionMessage
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 

@@ -43,11 +43,11 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.toPositionalQuery(sql, params)
 
-            assertThat(result.sql).isEqualTo("SELECT * FROM tasks WHERE category = ?::test_category")
+            assertThat(result.sql).isEqualTo("SELECT * FROM tasks WHERE category = ?::public.test_category")
             assertThat(result.params).hasSize(1)
 
             val pgObject = result.params[0] as PGobject
-            assertThat(pgObject.type).isEqualTo("test_category")
+            assertThat(pgObject.type).isEqualTo("text")
             assertThat(pgObject.value).isEqualTo("bug_fix")
         }
 
@@ -72,7 +72,7 @@ class KotlinToPostgresConverterTest {
     inner class ArrayExpansion {
 
         @Test
-        fun `should expand simple array into ARRAY syntax`() {
+        fun `should expand simple array into ARRAY literal`() {
             val sql = "SELECT * FROM users WHERE id = ANY(:ids)"
             val params = mapOf("ids" to listOf(10, 20, 30))
 
@@ -108,7 +108,7 @@ class KotlinToPostgresConverterTest {
 
             val result = converter.toPositionalQuery(sql, params)
 
-            assertThat(result.sql).isEqualTo("SELECT * FROM tasks WHERE status = ANY(?::test_status[])")
+            assertThat(result.sql).isEqualTo("SELECT * FROM tasks WHERE status = ANY(?::public.test_status[])")
             assertThat(result.params).hasSize(1)
 
             val pgObject = result.params[0] as PGobject
@@ -121,15 +121,15 @@ class KotlinToPostgresConverterTest {
     inner class CompositeExpansion {
 
         @Test
-        fun `should expand a single data class into ROW syntax with type cast`() {
+        fun `should expand a single data class into ROW literal`() {
             val sql = "INSERT INTO employees (person) VALUES (:person)"
             val person = TestPerson("John Doe", 35, "john.doe@example.com", true, listOf("developer", "team-lead"))
             val params = mapOf("person" to person)
 
             val result = converter.toPositionalQuery(sql, params)
 
-            // Oczekujemy ?::test_person i zserializowany literal
-            assertThat(result.sql).isEqualTo("INSERT INTO employees (person) VALUES (?::test_person)")
+            // Oczekujemy ?::public.test_person i zserializowany literal
+            assertThat(result.sql).isEqualTo("INSERT INTO employees (person) VALUES (?::public.test_person)")
 
             assertThat(result.params).hasSize(1)
             val pgObject = result.params[0] as PGobject
@@ -150,7 +150,7 @@ class KotlinToPostgresConverterTest {
             val result = converter.toPositionalQuery(sql, params)
 
             // Oczekujemy ?::test_person[]
-            assertThat(result.sql).isEqualTo("SELECT process_team(?::test_person[])")
+            assertThat(result.sql).isEqualTo("SELECT process_team(?::public.test_person[])")
 
             assertThat(result.params).hasSize(1)
             val pgObject = result.params[0] as PGobject
@@ -207,7 +207,7 @@ class KotlinToPostgresConverterTest {
             val result = converter.toPositionalQuery(sql, params)
 
             // Weryfikacja struktury SQL
-            assertThat(result.sql).isEqualTo("SELECT update_project(?::test_project)")
+            assertThat(result.sql).isEqualTo("SELECT update_project(?::public.test_project)")
 
             // Weryfikacja parametrów
             assertThat(result.params).hasSize(1)
