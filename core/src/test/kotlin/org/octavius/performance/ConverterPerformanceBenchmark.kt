@@ -55,7 +55,7 @@ class ConverterPerformanceBenchmark {
         typeRegistry = createFakeTypeRegistry()
         this.converter = PostgresToKotlinConverter(typeRegistry)
 
-        val oid = typeRegistry.getOidForName("_test_project")
+        val oid = typeRegistry.getOidForName("public._test_project")
 
         println("\n--- WARM-UP RUN (500 projektów, wyniki ignorowane) ---")
         val warmupString = buildTestArrayString(500)
@@ -72,7 +72,7 @@ class ConverterPerformanceBenchmark {
         println("\n--- POMIAR DLA $projectCount PROJEKTÓW (x$ITERATIONS_PER_SIZE iteracji) ---")
         val testString = buildTestArrayString(projectCount)
         val timings = mutableListOf<Long>()
-        val oid = typeRegistry.getOidForName("_test_project")
+        val oid = typeRegistry.getOidForName("public._test_project")
 
         repeat(ITERATIONS_PER_SIZE) {
             val time = measureNanoTime {

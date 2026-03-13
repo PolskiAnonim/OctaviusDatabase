@@ -225,7 +225,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
 
         if (count != 2) throw TypeRegistryException(
             TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
-            typeName = "dynamic_dto"
+            typeName = "public.dynamic_dto"
         )
         if (typeName == null || jsonDataString == null) throw ConversionException(
             ConversionExceptionMessage.INVALID_DYNAMIC_DTO_FORMAT,

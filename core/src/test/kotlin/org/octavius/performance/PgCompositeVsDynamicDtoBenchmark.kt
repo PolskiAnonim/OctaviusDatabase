@@ -22,12 +22,6 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.sql.DataSource
 import kotlin.system.measureTimeMillis
 
-// --- Definicje klas danych dla obu podejść ---
-
-// 1. Klasy dla natywnego typu kompozytowego PostgreSQL
-
-
-
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
 @Disabled

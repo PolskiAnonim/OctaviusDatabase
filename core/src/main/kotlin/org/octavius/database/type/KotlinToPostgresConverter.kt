@@ -170,7 +170,8 @@ internal class KotlinToPostgresConverter(
         val typeName = pgType ?: typeRegistry.getPgTypeNameForClass(enum::class)
         val oid = typeRegistry.getOidForName(typeName)
         val typeInfo = typeRegistry.getEnumDefinition(oid)
-        return pgObject(typeName, typeInfo.enumToValueMap[enum] ?: enum.name)
+        // Set type to "text" because we append explicit cast in SQL
+        return pgObject("text", typeInfo.enumToValueMap[enum] ?: enum.name)
     }
 
     private fun pgObject(type: String, value: String?) = PGobject().apply {

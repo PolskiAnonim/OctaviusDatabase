@@ -296,7 +296,7 @@ internal class TypeRegistryLoader(
     ): Map<Int, TypeCategory> {
         val map = mutableMapOf<Int, TypeCategory>()
 
-        val dynamicDtoOid = finalComposites.values.find { it.typeName.endsWith(".dynamic_dto") }?.oid
+        val dynamicDtoOid = finalComposites.values.find { it.typeName == "public.dynamic_dto" }?.oid
 
         enums.forEach { map[it] = TypeCategory.ENUM }
         composites.forEach { oid ->
