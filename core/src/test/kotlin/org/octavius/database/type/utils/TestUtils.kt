@@ -1,8 +1,8 @@
 package org.octavius.database.type.utils
 
-import org.octavius.data.type.QualifiedName
 import org.octavius.data.type.DynamicDto
 import org.octavius.data.type.PgStandardType
+import org.octavius.data.type.QualifiedName
 import org.octavius.data.util.CaseConvention
 import org.octavius.data.util.CaseConverter
 import org.octavius.database.type.registry.*

@@ -10,11 +10,11 @@ import org.octavius.data.getOrThrow
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
-import org.springframework.jdbc.core.JdbcTemplate
 import org.octavius.domain.test.reflvsmap.CharMap
 import org.octavius.domain.test.reflvsmap.CharRefl
 import org.octavius.domain.test.reflvsmap.StatsMap
 import org.octavius.domain.test.reflvsmap.StatsRefl
+import org.springframework.jdbc.core.JdbcTemplate
 import java.util.concurrent.ConcurrentHashMap
 import javax.sql.DataSource
 import kotlin.system.measureTimeMillis

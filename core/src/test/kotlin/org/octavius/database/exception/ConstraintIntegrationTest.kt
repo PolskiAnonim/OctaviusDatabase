@@ -1,10 +1,13 @@
 package org.octavius.database.exception
 
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
-import org.octavius.data.exception.*
+import org.octavius.data.exception.ConstraintViolationException
+import org.octavius.data.exception.ConstraintViolationExceptionMessage
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 

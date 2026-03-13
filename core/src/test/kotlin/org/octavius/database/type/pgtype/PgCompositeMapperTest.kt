@@ -12,7 +12,6 @@ import org.octavius.data.getOrThrow
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
-import javax.sql.DataSource
 
 @PgComposite(name = "mapped_address", mapper = AddressMapper::class)
 data class MappedAddress(val street: String, val city: String)

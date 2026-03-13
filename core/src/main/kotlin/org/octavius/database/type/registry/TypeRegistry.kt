@@ -1,9 +1,9 @@
 package org.octavius.database.type.registry
 
 import kotlinx.serialization.KSerializer
-import org.octavius.data.type.QualifiedName
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
+import org.octavius.data.type.QualifiedName
 import kotlin.reflect.KClass
 
 /**
