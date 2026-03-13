@@ -61,8 +61,11 @@ internal object StandardTypeMappingRegistry {
         .optionalStart()
         .appendLiteral(':')
         .appendValue(ChronoField.SECOND_OF_MINUTE, 2)
+        .optionalStart()
+        .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
         .optionalEnd()
-        .appendPattern("X")
+        .optionalEnd()
+        .appendPattern("[XXX][XX][X]")
         .toFormatter()
 
     private val mappings: Map<String, StandardTypeHandler<*>> = buildMappings()
