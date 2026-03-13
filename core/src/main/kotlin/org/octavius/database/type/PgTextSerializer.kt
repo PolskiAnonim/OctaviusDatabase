@@ -8,6 +8,7 @@ import org.octavius.data.exception.TypeRegistryExceptionMessage
 import org.octavius.data.toMap
 import org.octavius.data.type.DynamicDto
 import org.octavius.data.type.PgTyped
+import org.octavius.data.type.QualifiedName
 import org.octavius.database.config.DynamicDtoSerializationStrategy
 import org.octavius.database.type.registry.TypeRegistry
 import kotlin.reflect.KClass
@@ -26,9 +27,9 @@ internal class PgTextSerializer(
     }
 
     /**
-     * Serializes a list into a PostgreSQL array literal (e.g., `{1,2,3}`).
+     * Serializes a list into a PostgreSQL array literal (e.g., `{val1,val2}`).
      */
-    fun serializeList(list: List<*>, skipDynamicDto: Boolean, explicitElementType: String?): String {
+    fun serializeList(list: List<*>, skipDynamicDto: Boolean, explicitElementType: QualifiedName?): String {
         if (list.isEmpty()) return "{}"
         return list.joinToString(prefix = "{", postfix = "}", separator = ",") { item ->
             if (item == null) "NULL" else {
@@ -41,7 +42,7 @@ internal class PgTextSerializer(
     /**
      * Serializes a data class into a PostgreSQL composite literal (e.g., `(val1,val2)`).
      */
-    fun serializeComposite(obj: Any, skipDynamicDto: Boolean, explicitType: String?): String {
+    fun serializeComposite(obj: Any, skipDynamicDto: Boolean, explicitType: QualifiedName?): String {
         val typeName = explicitType ?: typeRegistry.getPgTypeNameForClass(obj::class)
         val oid = typeRegistry.getOidForName(typeName)
         val typeInfo = typeRegistry.getCompositeDefinition(oid)
@@ -70,7 +71,7 @@ internal class PgTextSerializer(
         }
     }
 
-    private fun serializeValue(value: Any, skipDynamicDto: Boolean, explicitType: String?): String {
+    private fun serializeValue(value: Any, skipDynamicDto: Boolean, explicitType: QualifiedName?): String {
         var current = value
         var wasPgTyped = false
 
@@ -103,7 +104,15 @@ internal class PgTextSerializer(
                 val oid = typeRegistry.getOidForName(typeName)
                 typeRegistry.getEnumDefinition(oid).enumToValueMap[current] ?: current.name
             }
-            is List<*> -> serializeList(current, skipDynamicDto || wasPgTyped, explicitType?.let { StandardTypeMappingRegistry.resolveBaseTypeName(it) })
+            is List<*> -> {
+                val baseType = explicitType?.let { 
+                    // If it's an array type name, get the element type name
+                    if (it.isArray) it.copy(isArray = false) 
+                    else if (it.name.startsWith("_")) it.copy(name = it.name.substring(1))
+                    else it
+                }
+                serializeList(current, skipDynamicDto || wasPgTyped, baseType)
+            }
             else -> {
                 val kClass = current::class
                 when {

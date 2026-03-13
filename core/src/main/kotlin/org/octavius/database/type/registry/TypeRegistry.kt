@@ -1,6 +1,7 @@
 package org.octavius.database.type.registry
 
 import kotlinx.serialization.KSerializer
+import org.octavius.data.type.QualifiedName
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
 import kotlin.reflect.KClass
@@ -25,12 +26,12 @@ internal class TypeRegistry(
 
     private val procedures: Map<String, PgProcedureDefinition>,
     // Mappings for writing (Kotlin Class -> PgType)
-    private val classToPgNameMap: Map<KClass<*>, String>,
+    private val classToPgNameMap: Map<KClass<*>, QualifiedName>,
     // Dynamic mappings (Dynamic Key -> Kotlin Class)
     private val dynamicSerializers: Map<String, KSerializer<Any>>,
     private val classToDynamicNameMap: Map<KClass<*>, String>,
     // Reverse maps for name-based lookup
-    private val pgNameToOidMap: Map<String, Int>
+    private val pgNameToOidMap: Map<QualifiedName, Int>
 ) {
     // --- READING (DB -> Kotlin) ---
 
@@ -54,7 +55,7 @@ internal class TypeRegistry(
 
     // --- WRITING (Kotlin -> DB) ---
 
-    fun getPgTypeNameForClass(clazz: KClass<*>): String =
+    fun getPgTypeNameForClass(clazz: KClass<*>): QualifiedName =
         classToPgNameMap[clazz] ?: throw TypeRegistryException(
             TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED,
             typeName = clazz.qualifiedName ?: clazz.simpleName ?: "unknown"
@@ -64,9 +65,12 @@ internal class TypeRegistry(
         classToDynamicNameMap[clazz]
 
     fun getOidForName(pgTypeName: String): Int =
-        pgNameToOidMap[pgTypeName] ?: throw TypeRegistryException(
+        getOidForName(QualifiedName.from(pgTypeName))
+
+    fun getOidForName(name: QualifiedName): Int =
+        pgNameToOidMap[name] ?: throw TypeRegistryException(
             TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
-            typeName = pgTypeName
+            typeName = name.toString()
         )
 
     fun isPgType(kClass: KClass<*>): Boolean = 

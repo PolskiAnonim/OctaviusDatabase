@@ -15,18 +15,3 @@ fun String.clean(): String {
         }
     }
 }
-
-/**
- * Escapes a PostgreSQL identifier (e.g. table name, type name) by wrapping it in double quotes
- * and escaping any internal double quotes.
- */
-fun String.quoteIdentifier(): String {
-    return buildString(this.length + 2) {
-        append('"')
-        for (c in this@quoteIdentifier) {
-            if (c == '"') append('"')
-            append(c)
-        }
-        append('"')
-    }
-}
