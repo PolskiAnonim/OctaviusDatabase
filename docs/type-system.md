@@ -134,6 +134,15 @@ When collections, arrays, or composite types are passed as named parameters (`:p
 
 ## Type Inference & Safety
 
+### OID-Based Result Mapping
+
+When reading results from the database, Octavius uses PostgreSQL's internal **Object Identifiers (OIDs)** rather than string-based type names. The JDBC `ResultSet` metadata provides the exact OID for each column. Octavius cross-references this OID with its internal `TypeRegistry` to map the incoming data directly to the correct Kotlin class. 
+
+This OID-based resolution:
+- **Eliminates Ambiguity:** Bypasses issues with identical type names existing in multiple schemas.
+- **Boosts Performance:** OID lookups are extremely fast integer lookups compared to string parsing.
+- **Guarantees Type Safety:** Deeply nested composites, arrays, and enums are consistently deserialized to their exact Kotlin representations.
+
 ### Default Type Resolution
 
 When mapping a Kotlin value to a PostgreSQL type, Octavius defaults to the **first matching entry** in the internal registry:
@@ -148,10 +157,10 @@ For ambiguous cases (like empty lists) or to optimize query plans, use `.withPgT
 
 ```kotlin
 // Force JSON instead of the default JSONB
-val data = jsonElement.withPgType(PgStandardType.JSON)
+val data = jsonElement.withPgType("json")
 
 // Prevent inference issues with empty/null lists
-val ids = listOf<Int?>(null).withPgType(PgStandardType.INT4_ARRAY)
+val ids = listOf<Int?>(null).withPgType("int4", isArray = true)
 
 // Safe usage in queries
 dataAccess.rawQuery("SELECT * FROM users WHERE id = ANY(:ids)")
@@ -162,11 +171,11 @@ dataAccess.rawQuery("SELECT * FROM users WHERE id = ANY(:ids)")
 
 If a class has multiple annotations, explicit wrappers dictate the serialization path:
 
-| Wrapper Used               | Behavior                                                                      |
-|----------------------------|-------------------------------------------------------------------------------|
-| `value.withPgType("type")` | Forces `@PgComposite` / `@PgEnum` path (`ROW(...)::type` or `PGobject`)       |
-| `DynamicDto.from(value)`   | Forces `@DynamicallyMappable` path (`dynamic_dto(...)`)                       |
-| None (raw value)           | Follows `DynamicDtoSerializationStrategy` configuration.                      |
+| Wrapper Used                                               | Behavior                                                       |
+|------------------------------------------------------------|----------------------------------------------------------------|
+| `value.withPgType("name", schema = "...", isArray = true)` | Forces explicit path (`?::"schema"."name"[]` using `PGobject`) |
+| `DynamicDto.from(value)`                                   | Forces `@DynamicallyMappable` path (`dynamic_dto(...)`)        |
+| None (raw value)                                           | Follows `DynamicDtoSerializationStrategy` configuration.       |
 
 ---
 
@@ -180,24 +189,33 @@ Maps a Kotlin `enum class` to a PostgreSQL `ENUM`.
 | Parameter          | Default            | Description                                    |
 |--------------------|--------------------|------------------------------------------------|
 | `name`             | `""`               | PostgreSQL type name (auto-generated if empty) |
+| `schema`           | `""`               | Explicit PostgreSQL schema name                |
 | `pgConvention`     | `SNAKE_CASE_UPPER` | How values are stored in PostgreSQL            |
 | `kotlinConvention` | `PASCAL_CASE`      | How values are defined in Kotlin               |
 
 **Example:**
 ```kotlin
 @PgEnum(
+    schema = "public",                               // Explicit schema
     pgConvention = CaseConvention.SNAKE_CASE_LOWER,  // stored as 'credit_card'
     kotlinConvention = CaseConvention.PASCAL_CASE    // defined as CreditCard
 ) // name defaults to transaction_type
 enum class TransactionType { CreditCard, BankTransfer }
 
 // PostgreSQL Migration: 
-// CREATE TYPE transaction_type AS ENUM ('credit_card', 'bank_transfer');
+// CREATE TYPE public.transaction_type AS ENUM ('credit_card', 'bank_transfer');
 ```
 
 ### @PgComposite
 
 Maps a Kotlin `data class` to a PostgreSQL `COMPOSITE` type.
+
+**Annotation Parameters:**
+| Parameter          | Default            | Description                                    |
+|--------------------|--------------------|------------------------------------------------|
+| `name`             | `""`               | PostgreSQL type name (auto-generated if empty) |
+| `schema`           | `""`               | Explicit PostgreSQL schema name                |
+| `mapper`           | `Default...`       | Optional custom `PgCompositeMapper`            |
 
 **Example:**
 ```kotlin
@@ -213,7 +231,7 @@ Composites fully support nesting and arrays:
 @PgComposite // name defaults to geo_location
 data class GeoLocation(val lat: Double, val lng: Double)
 
-@PgComposite // name defaults to address_wtih_geo
+@PgComposite(schema = "public") // name defaults to address_wtih_geo
 data class AddressWithGeo(val street: String, val location: GeoLocation)
 
 data class Company(val id: Int, val branches: List<AddressWithGeo>)

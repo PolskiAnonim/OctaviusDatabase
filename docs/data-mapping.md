@@ -46,7 +46,7 @@ val user: User = row.toDataObject()
 
 ### Nested Structures & Strict Type Checking
 
-When dealing with `Map<String, Any?>` results (either from `toSingle()` or when using `toDataObject()`), type conversion happens **at the database layer**, before the Map is constructed.
+When dealing with `Map<String, Any?>` results (either from `toSingle()` or when using `toDataObject()`), type conversion happens **at the database layer**, before the Map is constructed. Octavius uses **OID-based resolution** (PostgreSQL Object Identifiers) to precisely identify and map nested composite types, enums, and arrays without relying on fragile string matching.
 
 The Map contains **fully instantiated objects**, not raw values or JSON strings.
 

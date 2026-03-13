@@ -37,39 +37,44 @@ internal object CoreTypeInitializer {
     private const val CORE_INIT_SQL = """
         DO $$
         BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'dynamic_dto') THEN
-                CREATE TYPE dynamic_dto AS (
+            IF NOT EXISTS (
+                SELECT 1 
+                FROM pg_type t 
+                JOIN pg_namespace n ON n.oid = t.typnamespace 
+                WHERE t.typname = 'dynamic_dto' AND n.nspname = 'public'
+            ) THEN
+                CREATE TYPE public.dynamic_dto AS (
                     type_name    text,
                     data_payload jsonb
                 );
             END IF;
         END$$;
 
-        CREATE OR REPLACE FUNCTION dynamic_dto(p_type_name TEXT, p_data JSONB)
-            RETURNS dynamic_dto AS
+        CREATE OR REPLACE FUNCTION public.dynamic_dto(p_type_name TEXT, p_data JSONB)
+            RETURNS public.dynamic_dto AS
         $$
         BEGIN
-            RETURN ROW (p_type_name, p_data)::dynamic_dto;
+            RETURN ROW (p_type_name, p_data)::public.dynamic_dto;
         END;
         $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 
-        CREATE OR REPLACE FUNCTION to_dynamic_dto(p_type_name TEXT, p_value ANYELEMENT)
-            RETURNS dynamic_dto AS
+        CREATE OR REPLACE FUNCTION public.to_dynamic_dto(p_type_name TEXT, p_value ANYELEMENT)
+            RETURNS public.dynamic_dto AS
         $$
         BEGIN
-            RETURN ROW (p_type_name, to_jsonb(p_value))::dynamic_dto;
+            RETURN ROW (p_type_name, to_jsonb(p_value))::public.dynamic_dto;
         END;
         $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 
-        CREATE OR REPLACE FUNCTION to_dynamic_dto(p_type_name TEXT, p_value TEXT)
-            RETURNS dynamic_dto AS
+        CREATE OR REPLACE FUNCTION public.to_dynamic_dto(p_type_name TEXT, p_value TEXT)
+            RETURNS public.dynamic_dto AS
         $$
         BEGIN
-            RETURN ROW (p_type_name, to_jsonb(p_value))::dynamic_dto;
+            RETURN ROW (p_type_name, to_jsonb(p_value))::public.dynamic_dto;
         END;
         $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 
-        CREATE OR REPLACE FUNCTION unwrap_dto_payload(p_dto dynamic_dto)
+        CREATE OR REPLACE FUNCTION public.unwrap_dto_payload(p_dto public.dynamic_dto)
             RETURNS JSONB AS
         $$
         BEGIN
