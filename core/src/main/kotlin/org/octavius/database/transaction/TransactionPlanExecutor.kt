@@ -88,7 +88,7 @@ internal class TransactionPlanExecutor(
 
     private fun validatePlan(stepsWithHandles: List<Pair<StepHandle<*>, TransactionStep<*>>>): Map<StepHandle<*>, Int> {
         val handleToIndexMap = stepsWithHandles.withIndex().associate { (index, pair) -> pair.first to index }
-
+        //TODO - validate for BuilderExceptions
         for ((currentIndex, pair) in stepsWithHandles.withIndex()) {
             val step = pair.second
             try {
@@ -96,9 +96,6 @@ internal class TransactionPlanExecutor(
                     validateTransactionValue(paramValue, currentIndex, handleToIndexMap)
                 }
             } catch (e: StepDependencyException) {
-                //TODO Technically it can throw - throw exception that should not be handled? or should it - for single query it is not handled because it is programmer error (for example HAVING without GROUP BY)
-                // maybe it should be checked in validation? Technically it is additional string building but it shouldn't be extra taxing
-                //TODO toString on TransactionValue
                 val sql = (step.builder as AbstractQueryBuilder<*>).toSql()
                 throw e.withContext(
                     QueryContext(
@@ -153,8 +150,6 @@ internal class TransactionPlanExecutor(
         val finalParams = try {
             buildFinalParameters(step, indexedResults, handleToIndexMap)
         } catch (e: StepDependencyException) {
-            //TODO Technically it can throw - throw exception that should not be handled? or should it - for single query it is not handled because it is programmer error (for example HAVING without GROUP BY)
-            //TODO toString on TransactionValue
             val sql = (step.builder as AbstractQueryBuilder<*>).toSql()
             throw e.withContext(
                 QueryContext(

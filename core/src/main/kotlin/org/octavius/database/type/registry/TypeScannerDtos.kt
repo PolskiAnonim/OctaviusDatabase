@@ -44,8 +44,6 @@ internal data class DatabaseScanResult(
     val enums: Map<String, Map<String, Triple<Int, Int, List<String>>>>,
     /** Schema -> Composite type name -> (OID, ArrayOID, ordered map of (attribute name -> attribute OID)) */
     val composites: Map<String, Map<String, Triple<Int, Int, Map<String, Int>>>>,
-    /** Procedure name -> ordered list of parameters with modes */
-    val procedures: Map<String, List<PgProcedureParam>>,
     /** OID -> Human readable name (for all discovered types) */
     val allOidNames: Map<Int, String>
 )

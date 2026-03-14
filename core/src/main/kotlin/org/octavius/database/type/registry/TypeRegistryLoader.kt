@@ -21,9 +21,9 @@ import kotlin.reflect.KClass
  * to fetch PostgreSQL type definitions. Both scans run in parallel for performance.
  */
 internal class TypeRegistryLoader(
-    private val jdbcTemplate: JdbcTemplate,
+    jdbcTemplate: JdbcTemplate,
     packagesToScan: List<String>,
-    private val dbSchemas: List<String>
+    dbSchemas: List<String>
 ) {
     private val classpathScanner = ClasspathTypeScanner(packagesToScan)
     private val databaseScanner = DatabaseTypeScanner(jdbcTemplate, dbSchemas)
@@ -71,17 +71,13 @@ internal class TypeRegistryLoader(
         // Merge class maps
         val classToPgNameMap = enumClassMap + compositeClassMap
 
-        // Procedures
-        val finalProcedures = buildProcedures(databaseData.procedures)
-
-        logger.info { "TypeRegistry initialized. Enums: ${finalEnums.size}, Composites: ${finalComposites.size}, Arrays: ${finalArrays.size}, Procedures: ${finalProcedures.size}" }
+        logger.info { "TypeRegistry initialized. Enums: ${finalEnums.size}, Composites: ${finalComposites.size}, Arrays: ${finalArrays.size}" }
 
         TypeRegistry(
             oidCategoryMap = oidCategoryMap,
             enumsByOid = enumsByOid,
             compositesByOid = compositesByOid,
             arraysByOid = arraysByOid,
-            procedures = finalProcedures,
             classToPgNameMap = classToPgNameMap,
             dynamicSerializers = classpathData.dynamicSerializers,
             classToDynamicNameMap = classpathData.dynamicReverseMap,
@@ -262,14 +258,6 @@ internal class TypeRegistryLoader(
         }
 
         return arrayDefinitions to pgNameToOidMap
-    }
-
-    private fun buildProcedures(
-        dbProcedures: Map<String, List<PgProcedureParam>>
-    ): Map<String, PgProcedureDefinition> {
-        return dbProcedures.map { (name, params) ->
-            name to PgProcedureDefinition(name = name, params = params)
-        }.toMap()
     }
 
     private fun buildOidCategoryMap(

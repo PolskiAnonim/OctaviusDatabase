@@ -37,21 +37,3 @@ internal data class PgArrayDefinition(
     val typeName: String,
     val elementOid: Int
 )
-
-/** Parameter direction in a PostgreSQL procedure. */
-internal enum class PgParamMode {
-    IN, OUT, INOUT
-}
-
-/** Single parameter of a PostgreSQL procedure. */
-internal data class PgProcedureParam(
-    val name: String,
-    val typeName: String,
-    val mode: PgParamMode
-)
-
-/** Metadata for a PostgreSQL procedure, enabling CALL with automatic OUT parameter registration. */
-internal data class PgProcedureDefinition(
-    val name: String,
-    val params: List<PgProcedureParam>
-)

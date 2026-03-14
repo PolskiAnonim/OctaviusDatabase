@@ -181,7 +181,6 @@ internal fun createFakeTypeRegistry(): TypeRegistry {
         enumsByOid = enumsByOid,
         compositesByOid = compositesByOid,
         arraysByOid = arraysByOid,
-        procedures = emptyMap(),
         classToPgNameMap = classToPgNameMap,
         dynamicSerializers = emptyMap(),
         classToDynamicNameMap = emptyMap(),

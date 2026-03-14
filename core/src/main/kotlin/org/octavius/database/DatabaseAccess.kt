@@ -27,7 +27,7 @@ import java.sql.Connection
 internal class DatabaseAccess(
     private val jdbcTemplate: JdbcTemplate,
     private val transactionManager: DataSourceTransactionManager,
-    private val typeRegistry: TypeRegistry,
+    typeRegistry: TypeRegistry,
     private val kotlinToPostgresConverter: KotlinToPostgresConverter,
     private val listenerConnectionFactory: () -> Connection
 ) : DataAccess {
@@ -113,12 +113,6 @@ internal class DatabaseAccess(
                 DataResult.Failure(ex)
             }
         }
-    }
-
-    override fun call(procedureName: String): CallQueryBuilder {
-        return DatabaseCallQueryBuilder(
-            jdbcTemplate, typeRegistry, kotlinToPostgresConverter, rowMappers, procedureName
-        )
     }
 
     override fun notify(channel: String, payload: String?): DataResult<Unit> {

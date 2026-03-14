@@ -239,6 +239,85 @@ data class Company(val id: Int, val branches: List<AddressWithGeo>)
 
 ---
 
+## Manual Composite Mapping (PgCompositeMapper)
+
+By default, Octavius uses reflection for mapping between data classes and PostgreSQL composite types. While highly convenient, you can provide a manual mapper to:
+1. **Improve performance:** Bypass reflection in high-volume operations.
+2. **Transform types:** Change how data is represented in Kotlin vs. Database.
+3. **Handle arrays:** Map PostgreSQL arrays to Kotlin `Array<T>` instead of `List<T>`.
+
+### Basic Usage
+
+Define an object or class implementing `PgCompositeMapper<T>` and reference it in the `@PgComposite` annotation.
+
+```kotlin
+@PgComposite(name = "user_stats", mapper = StatsMapper::class)
+data class Stats(val strength: Int, val agility: Int)
+
+object StatsMapper : PgCompositeMapper<Stats> {
+    override fun fromMap(map: Map<String, Any?>) = Stats(
+        strength = map["strength"] as Int,
+        agility = map["agility"] as Int
+    )
+
+    override fun toMap(obj: Stats) = mapOf(
+        "strength" to obj.strength,
+        "agility" to obj.agility
+    )
+}
+```
+
+### Type Transformation: Collection Conversion
+
+Octavius default mapping always returns collections as `List<T>`. If your data class requires a primitive array (e.g., for high-performance math), use a mapper to perform the conversion.
+
+```kotlin
+@PgComposite(name = "signal_data", mapper = SignalMapper::class)
+data class Signal(val id: Int, val samples: DoubleArray)
+
+object SignalMapper : PgCompositeMapper<Signal> {
+    override fun fromMap(map: Map<String, Any?>) = Signal(
+        id = map["id"] as Int,
+        // PostgreSQL array comes as List<Double>, convert it to DoubleArray
+        samples = (map["samples"] as List<Double>).toDoubleArray()
+    )
+
+    override fun toMap(obj: Signal) = mapOf(
+        "id" to obj.id,
+        "samples" to obj.samples.toList()
+    )
+}
+```
+
+### Type Transformation: Custom Logic
+
+You can also use mappers to handle types that don't have a direct 1:1 mapping or require special logic.
+
+```kotlin
+@PgComposite(name = "event_info", mapper = EventMapper::class)
+data class Event(val name: String, val timestamp: Instant)
+
+object EventMapper : PgCompositeMapper<Event> {
+    override fun fromMap(map: Map<String, Any?>) = Event(
+        name = map["name"] as String,
+        // Map from raw Long (epoch millis) to Instant
+        timestamp = Instant.fromEpochMilliseconds(map["timestamp"] as Long)
+    )
+
+    override fun toMap(obj: Event) = mapOf(
+        "name" to obj.name,
+        "timestamp" to obj.timestamp.toEpochMilliseconds()
+    )
+}
+```
+
+### Implementation Details
+- **Singleton Support:** If the mapper is a Kotlin `object`, it will be used as a singleton.
+- **Class Support:** If the mapper is a `class`, Octavius will instantiate it once using its public no-arg constructor.
+- **Type Safety:** Mappers are called during both reading (from DB to Kotlin) and writing (from Kotlin to DB placeholders).
+
+---
+
 ## Dynamic Types (dynamic_dto)
 
 Enables dynamic type mapping via the `dynamic_dto` PostgreSQL type. This allows polymorphic storage (different types in one column) and ad-hoc mapping without defining COMPOSITE types in your schema.

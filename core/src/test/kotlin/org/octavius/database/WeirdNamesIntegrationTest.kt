@@ -6,8 +6,6 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.*
 import org.octavius.data.DataAccess
 import org.octavius.data.builder.execute
-import org.octavius.data.builder.executeCall
-import org.octavius.data.builder.toSingleStrict
 import org.octavius.data.getOrThrow
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.domain.test.weird.WeirdComposite
@@ -82,19 +80,4 @@ class WeirdNamesIntegrationTest {
         assertThat(row["comp_val"]).isEqualTo(composite)
         assertThat(row["comp_array"]).isEqualTo(listOf(composite, composite))
     }
-
-//    @Test TODO aren't procedures too buggy? And well useless if you can write CALL in RawQueryBuilder
-//    fun `should call procedure with weird parameter and type names`() {
-//        val composite = WeirdComposite("proc.test", 99)
-//        val enum = WeirdEnum.Val2
-//
-//        // dataAccess.call uses metadata from DatabaseTypeScanner, which should handle weird names
-//        val result = dataAccess.call("\"weird schema.with dots\".weird_proc")
-//            .executeCall(
-//                "p.param 1" to enum,
-//                "p param 2" to composite
-//            ).getOrThrow()
-//
-//        assertThat(result["p.param 1"]).isEqualTo(enum)
-//    }
 }

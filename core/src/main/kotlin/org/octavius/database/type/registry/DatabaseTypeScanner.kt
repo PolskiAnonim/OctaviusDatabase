@@ -67,8 +67,6 @@ internal class DatabaseTypeScanner(
                 queryContext = QueryContext("", mapOf(), SQL_QUERY_ALL_TYPES, listOf(dbSchemas, dbSchemas)))
         }
 
-        val procedures = scanProcedures()
-
         return DatabaseScanResult(
             enums.mapValues { schemaMap -> 
                 schemaMap.value.mapValues { Triple(it.value.first, it.value.second, it.value.third.toList()) } 
@@ -76,49 +74,8 @@ internal class DatabaseTypeScanner(
             composites.mapValues { schemaMap -> 
                 schemaMap.value.mapValues { Triple(it.value.first, it.value.second, it.value.third.toMap()) } 
             },
-            procedures,
             allOidNames
         )
-    }
-
-    private fun scanProcedures(): Map<String, List<PgProcedureParam>> {
-        // Key by (procName, oid) to correctly separate overloaded procedures
-        val byOid = mutableMapOf<Pair<String, Long>, MutableList<PgProcedureParam>>()
-
-        try {
-            val schemas = dbSchemas.toTypedArray()
-            jdbcTemplate.query(SQL_QUERY_PROCEDURES, { rs, _ ->
-                val procName = rs.getString("proc_name")
-                val procOid = rs.getLong("proc_oid")
-                val paramName = rs.getString("param_name")
-                val paramType = rs.getString("param_type")
-                val paramMode = rs.getString("param_mode")
-                val key = procName to procOid
-
-                if (paramName != null) {
-                    val mode = when (paramMode) {
-                        "o" -> PgParamMode.OUT
-                        "b" -> PgParamMode.INOUT
-                        else -> PgParamMode.IN
-                    }
-                    byOid.getOrPut(key) { mutableListOf() }
-                        .add(PgProcedureParam(paramName, paramType, mode))
-                } else {
-                    byOid.getOrPut(key) { mutableListOf() }
-                }
-            }, schemas, schemas)
-        } catch (e: Exception) {
-            throw InitializationException(InitializationExceptionMessage.DB_QUERY_FAILED, cause = e, queryContext = QueryContext("", mapOf(), SQL_QUERY_PROCEDURES, listOf(dbSchemas, dbSchemas)))
-        }
-
-        // Group by name and detect overloads
-        val grouped = byOid.entries.groupBy({ it.key.first }, { it.value })
-        val overloaded = grouped.filter { it.value.size > 1 }.keys
-        if (overloaded.isNotEmpty()) {
-            logger.warn { "Overloaded procedures detected: $overloaded — these are excluded from dataAccess.call() and can only be invoked via rawQuery()" }
-        }
-
-        return grouped.filterNot { it.key in overloaded }.mapValues { it.value.single() }
     }
 
     fun fetchSearchPath(): List<String> {
@@ -184,61 +141,6 @@ internal class DatabaseTypeScanner(
 
         private const val SQL_QUERY_OID_NAMES = """
             SELECT oid, typname FROM pg_type
-        """
-
-        /**
-         * Scans stored procedures from pg_proc.
-         *
-         * PostgreSQL stores parameter metadata differently depending on the parameter modes:
-         * - **All-IN procedures**: `proargmodes` and `proallargtypes` are NULL.
-         *   Parameter names come from `proargnames`, types from `proargtypes` (oidvector).
-         * - **Procedures with OUT/INOUT**: `proargmodes` and `proallargtypes` are populated.
-         * - **Parameterless procedures**: `proargnames` is NULL, `proargtypes` is empty.
-         *   These emit a single row with NULLs so the procedure name is still registered.
-         */
-        private const val SQL_QUERY_PROCEDURES = """
-            SELECT proc_oid, proc_name, param_name, param_type, param_mode FROM (
-                -- Procedures WITH parameters
-                SELECT
-                    p.oid AS proc_oid,
-                    p.proname AS proc_name,
-                    args.param_name,
-                    t.typname AS param_type,
-                    args.param_mode,
-                    args.ordinal AS param_ordinal
-                FROM
-                    pg_proc p
-                    JOIN pg_namespace n ON p.pronamespace = n.oid
-                    CROSS JOIN LATERAL ROWS FROM (
-                        unnest(p.proargnames),
-                        unnest(COALESCE(p.proallargtypes, p.proargtypes::oid[])),
-                        unnest(COALESCE(p.proargmodes, array_fill('i'::"char", ARRAY[cardinality(COALESCE(p.proallargtypes, p.proargtypes::oid[]))])))
-                    ) WITH ORDINALITY AS args(param_name, param_oid, param_mode, ordinal)
-                    JOIN pg_type t ON t.oid = args.param_oid
-                WHERE
-                    p.prokind = 'p'
-                    AND p.proargnames IS NOT NULL
-                    AND n.nspname = ANY(?)
-
-                UNION ALL
-
-                -- Parameterless procedures
-                SELECT
-                    p.oid AS proc_oid,
-                    p.proname AS proc_name,
-                    NULL AS param_name,
-                    NULL AS param_type,
-                    NULL AS param_mode,
-                    0 AS param_ordinal
-                FROM
-                    pg_proc p
-                    JOIN pg_namespace n ON p.pronamespace = n.oid
-                WHERE
-                    p.prokind = 'p'
-                    AND p.proargnames IS NULL
-                    AND n.nspname = ANY(?)
-            ) sub
-            ORDER BY proc_name, param_ordinal
         """
     }
 }

@@ -211,24 +211,18 @@ val users = dataAccess.rawQuery("""
 > **Why use this?** Usually, to get a user with their profile in one query, you'd fetch flat columns (`user_id`, `user_name`, `profile_role`...) and manually map them, or create a database VIEW. With ad-hoc mapping, you construct the nested structure directly in SQL. The database does the packaging, Octavius does the unpacking — zero boilerplate.
 
 
-## Stored Procedures
+## Functions and Procedures
 
-Call PostgreSQL procedures with full type support for IN, OUT, and INOUT parameters:
+Octavius stays true to its SQL-first philosophy. Invoke functions and procedures directly using native PostgreSQL syntax:
 
 ```kotlin
-// Simple IN + OUT
-// CREATE PROCEDURE add_numbers(IN a int4, IN b int4, OUT result int4)
-val result = dataAccess.call("add_numbers")
-    .executeCall("a" to 17, "b" to 25)
-    .getOrThrow()  // { "result" to 42 }
+// Functions (SELECT * FROM func)
+val result = dataAccess.select("*").from("add_numbers(:a, :b)")
+    .toField<Int>("a" to 17, "b" to 25)
 
-// Complex types work seamlessly — composites, arrays, enums
-// CREATE PROCEDURE complex_proc(IN person test_person, IN tags text[], OUT summary text)
-val result = dataAccess.call("complex_proc").executeCall(
-    "person" to TestPerson("Bob", 25, "bob@test.com", true, emptyList()),
-    "tags" to listOf("dev", "senior")
-)
-result.getOrThrow()["summary"]  // "Bob [dev, senior]"
+// Procedures (CALL proc)
+val result = dataAccess.rawQuery("CALL my_proc(:a, NULL::text)")
+    .toSingleStrict("a" to 42)
 ```
 
 ## Safe Dynamic Filters
@@ -368,7 +362,7 @@ For detailed guides and examples, see the [full documentation](docs/README.md):
 
 - [Configuration](docs/configuration.md) - Initialization, Flyway, core types, DynamicDto strategy
 - [Query Builders](docs/query-builders.md) - SELECT, INSERT, UPDATE, DELETE, CTEs, subqueries, ON CONFLICT
-- [Stored Procedures](docs/stored-procedures.md) - CALL, IN/OUT/INOUT, composite & array expansion, functions vs procedures
+- [Functions & Procedures](docs/functions-and-procedures.md) - CALL, SELECT, IN/OUT, functions vs procedures
 - [Executing Queries](docs/executing-queries.md) - Terminal methods, DataResult, async, streaming
 - [Data Mapping](docs/data-mapping.md) - toMap(), toDataObject(), @MapKey, nested structures & strict typing
 - [ORM-Like Patterns](docs/orm-patterns.md) - CRUD patterns, real-world examples

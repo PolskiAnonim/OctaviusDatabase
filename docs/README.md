@@ -4,18 +4,18 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 
 ## Guides
 
-| Document                                  | Description                                                                         |
-|-------------------------------------------|-------------------------------------------------------------------------------------|
-| [Configuration](configuration.md)         | Initialization, DatabaseConfig, Flyway, core types, DynamicDto strategy             |
-| [Query Builders](query-builders.md)       | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT          |
-| [Stored Procedures](stored-procedures.md) | CALL, IN/OUT/INOUT parameters, composite & array expansion, functions vs procedures |
-| [Executing Queries](executing-queries.md) | Terminal methods, DataResult, assertNotNull, async execution, streaming             |
-| [Data Mapping](data-mapping.md)           | toMap(), toDataObject(), @MapKey - converting between objects and maps              |
-| [ORM-Like Patterns](orm-patterns.md)      | CRUD patterns, real-world examples, PostgreSQL composite types                      |
-| [Transactions](transactions.md)           | Transaction blocks, TransactionPlan, StepHandle, passing data between steps         |
-| [Notifications](notifications.md)         | PostgreSQL LISTEN/NOTIFY, PgChannelListener, Flow-based receiving                   |
-| [Error Handling](error-handling.md)       | Fatal errors vs. DataResult, Exception hierarchy, Statement/Constraint errors       |
-| [Type System](type-system.md)             | @PgEnum, @PgComposite, @DynamicallyMappable, PgTyped, standard type mappings        |
+| Document                                              | Description                                                                   |
+|-------------------------------------------------------|-------------------------------------------------------------------------------|
+| [Configuration](configuration.md)                     | Initialization, DatabaseConfig, Flyway, core types, DynamicDto strategy       |
+| [Query Builders](query-builders.md)                   | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT    |
+| [Functions & Procedures](functions-and-procedures.md) | Calling functions and procedures                                              |
+| [Executing Queries](executing-queries.md)             | Terminal methods, DataResult, assertNotNull, async execution, streaming       |
+| [Data Mapping](data-mapping.md)                       | toMap(), toDataObject(), @MapKey - converting between objects and maps        |
+| [ORM-Like Patterns](orm-patterns.md)                  | CRUD patterns, real-world examples, PostgreSQL composite types                |
+| [Transactions](transactions.md)                       | Transaction blocks, TransactionPlan, StepHandle, passing data between steps   |
+| [Notifications](notifications.md)                     | PostgreSQL LISTEN/NOTIFY, PgChannelListener, Flow-based receiving             |
+| [Error Handling](error-handling.md)                   | Fatal errors vs. DataResult, Exception hierarchy, Statement/Constraint errors |
+| [Type System](type-system.md)                         | @PgEnum, @PgComposite, @DynamicallyMappable, PgTyped, standard type mappings  |
 
 ## Quick Links
 
@@ -30,15 +30,10 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Row-Level Locking](query-builders.md#row-level-locking-for-update) - FOR UPDATE, FOR SHARE, SKIP LOCKED
 - [Auto Placeholders](query-builders.md#auto-generated-placeholders) - `values()`, `setValues()` auto-generation
 
-### Stored Procedures
-- [Basic Usage](stored-procedures.md#basic-usage) - `dataAccess.call("proc").executeCall(...)`
-- [Parameter Modes](stored-procedures.md#parameter-modes) - IN, OUT, INOUT
-- [Complex Parameters](stored-procedures.md#complex-parameters) - Composites, arrays, enums
-- [Advanced Execution Modes](stored-procedures.md#advanced-execution-modes) - toList(), toField() for procedures
-- [How It Works](stored-procedures.md#how-it-works) - PreparedStatement, NULL::type, ResultSet extraction
-- [OUT Type Overrides](stored-procedures.md#out-type-overrides) - Concrete types for pseudo-type OUT params (`anyarray`)
-- [Functions vs Procedures](stored-procedures.md#functions-vs-procedures) - CALL vs SELECT, when to use which
-- [Limitations](stored-procedures.md#limitations) - Overloaded procedures, rawQuery() fallback
+### Functions and Procedures
+- [Functions](functions-and-procedures.md#functions-create-function) - Calling functions via SELECT
+- [Procedures](functions-and-procedures.md#procedures-create-procedure) - Calling procedures via CALL
+- [Comparison](functions-and-procedures.md#comparison-functions-vs-procedures) - Functions vs Procedures comparison
 
 ### Executing Queries
 - [Terminal Methods](executing-queries.md#terminal-methods) - `toList()`, `toListOf()`, `toField()`, `execute()`
@@ -51,7 +46,6 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [toMap()](data-mapping.md#tomap---data-class-to-map) - Data class to snake_case map
 - [@MapKey](data-mapping.md#mapkey-annotation) - Custom property-to-column mapping
 - [Nested Structures](data-mapping.md#nested-structures--strict-type-checking) - How nested types are handled
-- [Manual Composite Mapping](data-mapping.md#manual-composite-mapping-pgcompositemapper) - Mapping without annotations
 
 ### ORM-Like Patterns
 - [Key Advantages](orm-patterns.md#key-advantages) - Why this approach works
@@ -88,6 +82,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Infinity Values](type-system.md#infinity-values-for-datetime) - Support for `infinity` in dates and durations
 - [@PgEnum](type-system.md#pgenum) - Map Kotlin enums to PostgreSQL ENUMs
 - [@PgComposite](type-system.md#pgcomposite) - Map data classes to COMPOSITE types
+- [PgCompositeMapper](type-system.md#manual-composite-mapping-pgcompositemapper) - Manual mapping of composite types
 - [Collections & Parameter Flattening](type-system.md#collections--parameter-flattening) - Serialization logic
 - [@DynamicallyMappable](type-system.md#dynamicallymappable) - Polymorphic storage with `dynamic_dto`
 - [PgTyped](type-system.md#explicit-type-casts-pgtyped) - Explicit type casts and resolution priority

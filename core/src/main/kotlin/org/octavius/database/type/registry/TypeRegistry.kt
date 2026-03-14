@@ -23,8 +23,6 @@ internal class TypeRegistry(
     private val enumsByOid: Map<Int, PgEnumDefinition>,
     private val compositesByOid: Map<Int, PgCompositeDefinition>,
     private val arraysByOid: Map<Int, PgArrayDefinition>,
-
-    private val procedures: Map<String, PgProcedureDefinition>,
     // Mappings for writing (Kotlin Class -> PgType)
     private val classToPgNameMap: Map<KClass<*>, QualifiedName>,
     // Dynamic mappings (Dynamic Key -> Kotlin Class)
@@ -74,14 +72,6 @@ internal class TypeRegistry(
 
     fun isPgType(kClass: KClass<*>): Boolean = 
         classToPgNameMap.containsKey(kClass)
-
-    // --- PROCEDURES ---
-
-    fun getProcedureDefinition(procedureName: String): PgProcedureDefinition =
-        procedures[procedureName] ?: throw TypeRegistryException(
-            TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
-            typeName = "$procedureName (expected PROCEDURE)"
-        )
 
     // --- HELPERS ---
 
