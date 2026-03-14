@@ -22,9 +22,16 @@ data class QualifiedName(
         if (this.isBlank()) return ""
         // If already quoted, we assume it's correctly escaped and return as is.
         if (this.startsWith('"') && this.endsWith('"')) return this
-        
-        // If it contains dots or quotes, we MUST quote it to preserve it as a single part.
-        if ("." in this || "\"" in this) {
+
+        // According to PostgreSQL rules, unquoted identifiers must start with a letter or underscore,
+        // and can contain letters, underscores, digits, or dollar signs.
+        // If it starts with a digit, or contains any other character (dots, spaces, quotes, dashes, etc.),
+        // it MUST be quoted to be handled correctly as a single identifier.
+        val shouldQuote = this[0].isDigit() || this.any { char ->
+            !(char.isLetter() || char == '_' || char == '$' || char.isDigit())
+        }
+
+        if (shouldQuote) {
             return buildString(this.length + 2) {
                 append('"')
                 for (c in this@quoteIdentifier) {
