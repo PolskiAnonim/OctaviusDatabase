@@ -1,5 +1,7 @@
 # ORM-Like Patterns
 
+*Rome was not built in a day, but its census was updated every five years without fail. The censors - Octavius Database's equivalent being these repository patterns — provided the machinery for keeping records of citizens, properties, and legions in perfect order, without the curia having to intervene in the details of every inscription.*
+
 Octavius is an Anti-ORM by design, but it provides utilities that enable convenient ORM-like patterns when you want them. This guide shows practical patterns for CRUD operations using [Data Mapping](data-mapping.md) utilities.
 
 ## Table of Contents
@@ -26,35 +28,37 @@ Unlike traditional ORMs that require specific base classes or annotations everyw
 - **Any kotlinx.serialization types** (JsonObject, etc.)
 
 ```kotlin
-data class ReportConfiguration(
-    val id: Int? = null,                          // Nullable with default
+data class LegionConfiguration(
+    val id: Int? = null,
     val name: String,
-    val reportName: String,
+    val legionName: String,
     val description: String? = null,
-    val isDefault: Boolean = false,               // Default value
-    val visibleColumns: List<String>,             // PostgreSQL ARRAY
-    val columnOrder: List<String>,
-    val sortOrder: List<SortConfiguration>,       // Array of COMPOSITE
-    val pageSize: Long,
-    val filters: List<FilterConfig>               // Complex nested types
+    val isElite: Boolean = false,
+    val assignedProvinces: List<String>,      // PostgreSQL ARRAY
+    val cohortOrder: List<String>,
+    val marchOrder: List<FormationConfig>,    // Array of COMPOSITE
+    val standardStrength: Long,
+    val supplyRequirements: List<SupplyConfig> // Complex nested types
 )
 
 @PgEnum
-enum class SortDirection {
-    Ascending,
-    Descending
+enum class Formation {
+    Testudo,
+    Wedge,
+    Line,
+    Skirmish
 }
 
 @PgComposite
-data class SortConfiguration(
-    val columnName: String,
-    val sortDirection: SortDirection              // Enum inside composite
+data class FormationConfig(
+    val cohortName: String,
+    val formation: Formation   // Enum inside composite
 )
 
 @PgComposite
-data class FilterConfig(
-    val columnName: String,
-    val config: JsonObject                        // JSONB inside composite
+data class SupplyConfig(
+    val itemName: String,
+    val requirements: JsonObject   // JSONB inside composite
 )
 ```
 
@@ -62,29 +66,29 @@ data class FilterConfig(
 
 ```kotlin
 @PgEnum
-enum class GameStatus : EnumWithFormatter<GameStatus> {
-    NotPlaying,
-    WithoutTheEnd,
-    Played,
-    ToPlay,
-    Playing;
+enum class LegionStatus : EnumWithFormatter<LegionStatus> {
+    Garrisoned,
+    OnMarch,
+    InBattle,
+    Disbanded,
+    Victorious;
 
     override fun toDisplayString(): String {
         return when (this) {
-            NotPlaying -> T.get("games.status.notPlaying")
-            WithoutTheEnd -> T.get("games.status.endless")
-            Played -> T.get("games.status.played")
-            ToPlay -> T.get("games.status.toPlay")
-            Playing -> T.get("games.status.playing")
+            Garrisoned -> T.get("legion.status.garrisoned")
+            OnMarch    -> T.get("legion.status.marching")
+            InBattle   -> T.get("legion.status.battle")
+            Disbanded  -> T.get("legion.status.disbanded")
+            Victorious -> T.get("legion.status.victorious")
         }
     }
 }
 
 // Works the same - enum values are mapped to PostgreSQL ENUM
-data class Game(
+data class Legion(
     val id: Int,
-    val title: String,
-    val status: GameStatus  // Interface methods available on the enum
+    val name: String,
+    val status: LegionStatus  // Interface methods available on the enum
 )
 ```
 
@@ -98,7 +102,7 @@ The pattern `values(map)` + `execute(map)` uses the **same map** for both:
 
 ```kotlin
 val data = entity.toMap("id")
-dataAccess.insertInto("table")
+dataAccess.insertInto("legions")
     .values(data)      // Defines: (col1, col2) VALUES (:col1, :col2)
     .execute(data)     // Provides: col1 -> value1, col2 -> value2
 ```
@@ -109,57 +113,57 @@ PostgreSQL automatically creates a composite type with the same name as each tab
 
 ```kotlin
 // Map Kotlin classes to table composite types using table name
-@PgComposite(name = "comments")
-data class Comment(
+@PgComposite(name = "dispatches")
+data class Dispatch(
     val id: Int,
-    val postId: Int,
+    val campaignId: Int,
     val content: String,
     val author: String,
-    val post: Post? = null  // Optional reference to parent
+    val campaign: Campaign? = null  // Optional reference to parent
 )
 
-@PgComposite(name = "posts")
-data class Post(
+@PgComposite(name = "campaigns")
+data class Campaign(
     val id: Int,
-    val title: String,
-    val content: String,
-    val comments: List<Comment> = emptyList()  // Will hold nested comments
+    val name: String,
+    val province: String,
+    val dispatches: List<Dispatch> = emptyList()  // Will hold nested dispatches
 )
 
-// Fetch posts with all their comments as nested arrays
+// Fetch campaigns with all their dispatches as nested arrays
 dataAccess.select(
-    "p.*",
-    "ARRAY(SELECT c FROM comments c WHERE c.post_id = p.id) AS comments"
-).from("posts p")
+    "c.*",
+    "ARRAY(SELECT d FROM dispatches d WHERE d.campaign_id = c.id) AS dispatches"
+).from("campaigns c")
  .limit(10)
- .toListOf<Post>()
+ .toListOf<Campaign>()
 ```
 
 **Different query patterns:**
 
 ```kotlin
-// Just post data - comments will be empty list (default value)
-dataAccess.select("p.*")
-    .from("posts p")
-    .where("id = :id")
-    .toSingleOf<Post>("id" to 1)
-
-// Comment with its parent post as nested composite
-dataAccess.select("p", "c.*")
-    .from("comments c JOIN posts p ON c.post_id = p.id")
-    .where("c.id = :id")
-    .toSingleOf<Comment>("id" to 1)
-
-// Just comment data - post will be null
+// Just campaign data - dispatches will be empty list (default value)
 dataAccess.select("c.*")
-    .from("comments c")
-    .where("c.id = :id")
-    .toSingleOf<Comment>("id" to 1)
+    .from("campaigns c")
+    .where("id = :id")
+    .toSingleOf<Campaign>("id" to 1)
+
+// Dispatch with its parent campaign as nested composite
+dataAccess.select("c", "d.*")
+    .from("dispatches d JOIN campaigns c ON d.campaign_id = c.id")
+    .where("d.id = :id")
+    .toSingleOf<Dispatch>("id" to 1)
+
+// Just dispatch data - campaign will be null
+dataAccess.select("d.*")
+    .from("dispatches d")
+    .where("d.id = :id")
+    .toSingleOf<Dispatch>("id" to 1)
 ```
 
 **Key points:**
 - `@PgComposite(name = "table_name")` maps class to table's automatic composite type
-- `SELECT c FROM table c` returns the whole row as a composite
+- `SELECT d FROM table d` returns the whole row as a composite
 - `SELECT alias` (without `.*`) returns the row as a composite type
 - `ARRAY(SELECT ...)` aggregates rows into a PostgreSQL array
 - Octavius deserializes composite arrays back to `List<T>`
@@ -169,27 +173,27 @@ dataAccess.select("c.*")
 
 ## Real-World Example
 
-A complete configuration manager showing the full power of these patterns:
+A complete legion configuration manager showing the full power of these patterns:
 
 ```kotlin
-class ReportConfigurationManager(private val dataAccess: DataAccess) {
+class LegionConfigurationManager(private val dataAccess: DataAccess) {
 
-    fun saveConfiguration(configuration: ReportConfiguration): Boolean {
+    fun saveConfiguration(configuration: LegionConfiguration): Boolean {
         // One line: convert to map, excluding auto-generated ID
         val flatValueMap = configuration.toMap("id")
 
-        val result = dataAccess.insertInto("report_configurations")
+        val result = dataAccess.insertInto("legion_configurations")
             .values(flatValueMap)  // Same map defines columns AND provides values
             .onConflict {
-                onColumns("name", "report_name")
+                onColumns("name", "legion_name")
                 doUpdate(
                     "description" to "EXCLUDED.description",
-                    "sort_order" to "EXCLUDED.sort_order",
-                    "visible_columns" to "EXCLUDED.visible_columns",
-                    "column_order" to "EXCLUDED.column_order",
-                    "page_size" to "EXCLUDED.page_size",
-                    "is_default" to "EXCLUDED.is_default",
-                    "filters" to "EXCLUDED.filters"
+                    "march_order" to "EXCLUDED.march_order",
+                    "assigned_provinces" to "EXCLUDED.assigned_provinces",
+                    "cohort_order" to "EXCLUDED.cohort_order",
+                    "standard_strength" to "EXCLUDED.standard_strength",
+                    "is_elite" to "EXCLUDED.is_elite",
+                    "supply_requirements" to "EXCLUDED.supply_requirements"
                 )
             }
             .execute(flatValueMap)  // Same map passed to execute
@@ -197,27 +201,27 @@ class ReportConfigurationManager(private val dataAccess: DataAccess) {
         return result is DataResult.Success
     }
 
-    fun loadDefaultConfiguration(reportName: String): ReportConfiguration? {
+    fun loadEliteConfiguration(legionName: String): LegionConfiguration? {
         return dataAccess.select("*")
-            .from("report_configurations")
-            .where("report_name = :report_name AND is_default = true")
-            .toSingleOf<ReportConfiguration>("report_name" to reportName)
+            .from("legion_configurations")
+            .where("legion_name = :legion_name AND is_elite = true")
+            .toSingleOf<LegionConfiguration>("legion_name" to legionName)
             .getOrNull()
     }
 
-    fun listConfigurations(reportName: String): List<ReportConfiguration> {
+    fun listConfigurations(legionName: String): List<LegionConfiguration> {
         return dataAccess.select("*")
-            .from("report_configurations")
-            .where("report_name = :report_name")
-            .orderBy("is_default DESC, name ASC")
-            .toListOf<ReportConfiguration>("report_name" to reportName)
+            .from("legion_configurations")
+            .where("legion_name = :legion_name")
+            .orderBy("is_elite DESC, name ASC")
+            .toListOf<LegionConfiguration>("legion_name" to legionName)
             .getOrDefault(emptyList())
     }
 
-    fun deleteConfiguration(name: String, reportName: String): Boolean {
-        return dataAccess.deleteFrom("report_configurations")
-            .where("name = :name AND report_name = :report_name")
-            .execute("name" to name, "report_name" to reportName)
+    fun deleteConfiguration(name: String, legionName: String): Boolean {
+        return dataAccess.deleteFrom("legion_configurations")
+            .where("name = :name AND legion_name = :legion_name")
+            .execute("name" to name, "legion_name" to legionName)
             .map { it > 0 }
             .getOrDefault(false)
     }
@@ -225,11 +229,11 @@ class ReportConfigurationManager(private val dataAccess: DataAccess) {
 ```
 
 **What's happening here:**
-- `ReportConfiguration` has 9 fields including arrays, composites, enums, and JSONB
+- `LegionConfiguration` has 9 fields including arrays, composites, enums, and JSONB
 - `toMap("id")` converts it all to a flat map, excluding the ID
-- `values(flatValueMap)` generates: `(name, report_name, description, ...) VALUES (:name, :report_name, :description, ...)`
+- `values(flatValueMap)` generates: `(name, legion_name, description, ...) VALUES (:name, :legion_name, :description, ...)`
 - `execute(flatValueMap)` provides all values with automatic type conversion
-- `toSingleOf<ReportConfiguration>()` deserializes back including all nested types
+- `toSingleOf<LegionConfiguration>()` deserializes back including all nested types
 
 **No boilerplate. No field mapping. No session management. Just SQL.**
 
@@ -240,58 +244,58 @@ class ReportConfigurationManager(private val dataAccess: DataAccess) {
 ### Full CRUD Example
 
 ```kotlin
-data class Product(
+data class Tribute(
     val id: Int? = null,
-    val sku: String,
-    val name: String,
-    val price: BigDecimal,
-    val stock: Int,
-    val createdAt: Instant? = null,
-    val updatedAt: Instant? = null
+    val province: String,
+    val type: String,
+    val amount: BigDecimal,
+    val quantity: Int,
+    val collectedAt: Instant? = null,
+    val recordedAt: Instant? = null
 )
 
-class ProductRepository(private val dataAccess: DataAccess) {
+class TributeRepository(private val dataAccess: DataAccess) {
 
-    fun create(product: Product): DataResult<Product> {
-        val data = product.toMap("id", "created_at", "updated_at")
+    fun record(tribute: Tribute): DataResult<Tribute> {
+        val data = tribute.toMap("id", "collected_at", "recorded_at")
 
-        return dataAccess.insertInto("products")
+        return dataAccess.insertInto("tributes")
             .values(data)
-            .valueExpression("created_at", "NOW()")
+            .valueExpression("collected_at", "NOW()")
             .returning("*")
-            .toSingleOf<Product>(data)
+            .toSingleOf<Tribute>(data)
     }
 
-    fun findById(id: Int): DataResult<Product?> {
+    fun findById(id: Int): DataResult<Tribute?> {
         return dataAccess.select("*")
-            .from("products")
+            .from("tributes")
             .where("id = :id")
-            .toSingleOf<Product>("id" to id)
+            .toSingleOf<Tribute>("id" to id)
     }
 
-    fun update(product: Product): DataResult<Product?> {
-        val data = product.toMap("id", "created_at", "updated_at")
+    fun update(tribute: Tribute): DataResult<Tribute?> {
+        val data = tribute.toMap("id", "collected_at", "recorded_at")
 
-        return dataAccess.update("products")
+        return dataAccess.update("tributes")
             .setValues(data)
-            .setExpression("updated_at", "NOW()")
+            .setExpression("recorded_at", "NOW()")
             .where("id = :id")
             .returning("*")
-            .toSingleOf<Product>(data + ("id" to product.id))
+            .toSingleOf<Tribute>(data + ("id" to tribute.id))
     }
 
-    fun delete(id: Int): DataResult<Int> {
-        return dataAccess.deleteFrom("products")
+    fun cancel(id: Int): DataResult<Int> {
+        return dataAccess.deleteFrom("tributes")
             .where("id = :id")
             .execute("id" to id)
     }
 
-    fun findAll(page: Long = 0, size: Long = 20): DataResult<List<Product>> {
+    fun findAll(page: Long = 0, size: Long = 20): DataResult<List<Tribute>> {
         return dataAccess.select("*")
-            .from("products")
-            .orderBy("created_at DESC")
+            .from("tributes")
+            .orderBy("collected_at DESC")
             .page(page, size)
-            .toListOf<Product>()
+            .toListOf<Tribute>()
     }
 }
 ```
@@ -299,23 +303,22 @@ class ProductRepository(private val dataAccess: DataAccess) {
 ### Upsert Pattern
 
 ```kotlin
-fun upsertProduct(product: Product): DataResult<Product?> {
-    val data = product.toMap("id", "created_at", "updated_at")
+fun upsertTribute(tribute: Tribute): DataResult<Tribute?> {
+    val data = tribute.toMap("id", "collected_at", "recorded_at")
 
-    return dataAccess.insertInto("products")
+    return dataAccess.insertInto("tributes")
         .values(data)
-        .valueExpression("created_at", "NOW()")
+        .valueExpression("collected_at", "NOW()")
         .onConflict {
-            onColumns("sku")
+            onColumns("province", "type")
             doUpdate(
-                "name" to "EXCLUDED.name",
-                "price" to "EXCLUDED.price",
-                "stock" to "EXCLUDED.stock",
-                "updated_at" to "NOW()"
+                "amount" to "EXCLUDED.amount",
+                "quantity" to "EXCLUDED.quantity",
+                "recorded_at" to "NOW()"
             )
         }
         .returning("*")
-        .toSingleOf<Product>(data)
+        .toSingleOf<Tribute>(data)
 }
 ```
 

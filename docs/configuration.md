@@ -1,5 +1,7 @@
 # Configuration
 
+*Before a legion can march, the Legate must issue orders: which roads to follow, which provinces to govern, which formations to hold. Octavius likewise demands its configuration before the first query may be sent forth.*
+
 This guide covers all configuration options for Octavius Database, including initialization, Flyway migrations, and core type setup.
 
 ## Table of Contents
@@ -25,12 +27,12 @@ Two ways to initialize Octavius Database:
 ```kotlin
 val dataAccess = OctaviusDatabase.fromConfig(
     DatabaseConfig(
-        dbUrl = "jdbc:postgresql://localhost:5432/mydb",
-        dbUsername = "postgres",
-        dbPassword = "secret",
-        dbSchemas = listOf("public", "myschema"),
+        dbUrl = "jdbc:postgresql://localhost:5432/roma",
+        dbUsername = "augustus",
+        dbPassword = "spqr",
+        dbSchemas = listOf("public", "cursus_honorum"),
         setSearchPath = true,
-        packagesToScan = listOf("com.myapp.domain", "com.myapp.dto")
+        packagesToScan = listOf("com.roma.domain", "com.roma.dto")
     )
 )
 ```
@@ -47,18 +49,18 @@ val dataAccess = OctaviusDatabase.fromConfig(
 
 ## DatabaseConfig Reference
 
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `dbUrl` | `String` | Yes | - | JDBC connection URL |
-| `dbUsername` | `String` | Yes | - | Database username |
-| `dbPassword` | `String` | Yes | - | Database password |
-| `dbSchemas` | `List<String>` | Yes | - | Schemas to handle |
-| `setSearchPath` | `Boolean` | No | `true` | Set `search_path` on connection init |
-| `packagesToScan` | `List<String>` | Yes | - | Packages to scan for type annotations |
-| `dynamicDtoStrategy` | `DynamicDtoSerializationStrategy` | No | `AUTOMATIC_WHEN_UNAMBIGUOUS` | How to handle @DynamicallyMappable |
-| `flywayBaselineVersion` | `String?` | No | `null` | Baseline version for existing schemas |
-| `disableFlyway` | `Boolean` | No | `false` | Disable automatic migrations |
-| `disableCoreTypeInitialization` | `Boolean` | No | `false` | Disable `dynamic_dto` type creation |
+| Property                        | Type                              | Required | Default                      | Description                           |
+|---------------------------------|-----------------------------------|----------|------------------------------|---------------------------------------|
+| `dbUrl`                         | `String`                          | Yes      | -                            | JDBC connection URL                   |
+| `dbUsername`                    | `String`                          | Yes      | -                            | Database username                     |
+| `dbPassword`                    | `String`                          | Yes      | -                            | Database password                     |
+| `dbSchemas`                     | `List<String>`                    | Yes      | -                            | Schemas to handle                     |
+| `setSearchPath`                 | `Boolean`                         | No       | `true`                       | Set `search_path` on connection init  |
+| `packagesToScan`                | `List<String>`                    | Yes      | -                            | Packages to scan for type annotations |
+| `dynamicDtoStrategy`            | `DynamicDtoSerializationStrategy` | No       | `AUTOMATIC_WHEN_UNAMBIGUOUS` | How to handle @DynamicallyMappable    |
+| `flywayBaselineVersion`         | `String?`                         | No       | `null`                       | Baseline version for existing schemas |
+| `disableFlyway`                 | `Boolean`                         | No       | `false`                      | Disable automatic migrations          |
+| `disableCoreTypeInitialization` | `Boolean`                         | No       | `false`                      | Disable `dynamic_dto` type creation   |
 
 ---
 
@@ -68,11 +70,11 @@ Create `database.properties` in `src/main/resources`:
 
 ```properties
 # Required
-db.url=jdbc:postgresql://localhost:5432/mydb
-db.username=postgres
-db.password=secret
-db.schemas=public,myschema
-db.packagesToScan=com.myapp.domain,com.myapp.dto
+db.url=jdbc:postgresql://localhost:5432/roma
+db.username=augustus
+db.password=spqr
+db.schemas=public,cursus_honorum
+db.packagesToScan=com.roma.domain,com.roma.dto
 
 # Optional
 db.setSearchPath=true
@@ -86,12 +88,12 @@ db.disableCoreTypeInitialization=false
 
 **`db.schemas`** - Comma-separated list of schemas:
 ```properties
-db.schemas=public,inventory,sales
+db.schemas=public,aerarium
 ```
 
 **`db.packagesToScan`** - Packages containing your `@PgEnum`, `@PgComposite`, `@DynamicallyMappable` classes:
 ```properties
-db.packagesToScan=com.myapp.domain.types,com.myapp.dto
+db.packagesToScan=com.roma.domain.types,com.roma.dto
 ```
 
 ---
@@ -110,10 +112,10 @@ Octavius integrates [Flyway](https://flywaydb.org/) for schema migrations.
 
 ```
 src/main/resources/db/migration/
-├── V1__create_users_table.sql
-├── V2__create_orders_table.sql
-├── V3__add_order_status_enum.sql
-└── V4__create_audit_log.sql
+├── V1__create_citizens_table.sql
+├── V2__create_legions_table.sql
+├── V3__add_magistrature_enum.sql
+└── V4__create_province_audit_log.sql
 ```
 
 ### Disabling Migrations
@@ -163,7 +165,7 @@ On startup, Octavius automatically creates the `dynamic_dto` type and helper fun
 ```sql
 -- Composite type for polymorphic storage
 CREATE TYPE public.dynamic_dto AS (
-    type_name    TEXT,     -- Discriminator key (e.g., "user_profile")
+    type_name    TEXT,     -- Discriminator key (e.g., "citizen_profile")
     data_payload JSONB     -- Serialized data
 );
 
@@ -194,7 +196,7 @@ $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 
 ### Idempotent
 
-The initialization is idempotent - safe to run on every startup:
+The initialization is idempotent — safe to run on every startup:
 - Uses `IF NOT EXISTS` for type creation
 - Uses `CREATE OR REPLACE` for functions
 
@@ -241,14 +243,14 @@ Controls how classes with `@DynamicallyMappable` are serialized.
 A class can have both `@DynamicallyMappable` AND `@PgComposite`:
 
 ```kotlin
-@DynamicallyMappable(typeName = "address")
+@DynamicallyMappable(typeName = "province")
 @PgComposite
 @Serializable
-data class Address(val street: String, val city: String)
+data class Province(val name: String, val capital: String)
 ```
 
 This allows:
-- Storing in `address` COMPOSITE column (uses `@PgComposite`)
+- Storing in `province` COMPOSITE column (uses `@PgComposite`)
 - Storing in `dynamic_dto` column (uses `@DynamicallyMappable`)
 
 ### Strategy Behavior
@@ -256,7 +258,7 @@ This allows:
 **`EXPLICIT_ONLY`:**
 ```kotlin
 // Must wrap explicitly
-dataAccess.insertInto("table")
+dataAccess.insertInto("records")
     .values(listOf("data"))
     .execute("data" to DynamicDto.from(myObject))  // Explicit
 ```
@@ -264,31 +266,31 @@ dataAccess.insertInto("table")
 **`AUTOMATIC_WHEN_UNAMBIGUOUS`:**
 ```kotlin
 // Auto-converts if class ONLY has @DynamicallyMappable
-@DynamicallyMappable(typeName = "note")
+@DynamicallyMappable(typeName = "edict")
 @Serializable
-data class Note(val text: String)
+data class Edict(val text: String)
 
-dataAccess.insertInto("table")
+dataAccess.insertInto("records")
     .values(listOf("data"))
-    .execute("data" to Note("Hello"))  // Auto-converted to dynamic_dto
+    .execute("data" to Edict("Let it be known..."))  // Auto-converted to dynamic_dto
 
 // But if class also has @PgComposite, uses COMPOSITE by default
-@DynamicallyMappable(typeName = "address")
+@DynamicallyMappable(typeName = "province")
 @PgComposite
 @Serializable
-data class Address(val street: String, val city: String)
+data class Province(val name: String, val capital: String)
 
-dataAccess.insertInto("table")
-    .values(listOf("addr"))
-    .execute("addr" to Address("Main St", "NYC"))  // Uses COMPOSITE
+dataAccess.insertInto("records")
+    .values(listOf("prov"))
+    .execute("prov" to Province("Gallia", "Lugdunum"))  // Uses COMPOSITE
 ```
 
 **`PREFER_DYNAMIC_DTO`:**
 ```kotlin
 // Always uses dynamic_dto for @DynamicallyMappable, even with @PgComposite
-dataAccess.insertInto("table")
-    .values(listOf("addr"))
-    .execute("addr" to Address("Main St", "NYC"))  // Uses dynamic_dto
+dataAccess.insertInto("records")
+    .values(listOf("prov"))
+    .execute("prov" to Province("Gallia", "Lugdunum"))  // Uses dynamic_dto
 ```
 
 ### Configuration
@@ -313,7 +315,7 @@ db.dynamicDtoStrategy=EXPLICIT_ONLY
 ```kotlin
 DatabaseConfig(
     // ...
-    dbSchemas = listOf("public", "inventory", "sales"),
+    dbSchemas = listOf("public", "aerarium", "annona"),
     setSearchPath = true  // Sets search_path on each connection
 )
 ```
@@ -323,11 +325,11 @@ DatabaseConfig(
 When `setSearchPath = true`, each connection executes:
 
 ```sql
-SET search_path TO public, inventory, sales
+SET search_path TO public, aerarium
 ```
 
 This allows:
-- Referencing tables without schema prefix: `users` instead of `public.users`
+- Referencing tables without schema prefix: `citizens` instead of `public.citizens`
 - Type registry finds types across all listed schemas
 
 ### Disabling search_path
@@ -343,7 +345,7 @@ DatabaseConfig(
 
 Then use full paths in queries:
 ```kotlin
-dataAccess.select("*").from("inventory.products").toListOf<Product>()
+dataAccess.select("*").from("aerarium.tributes").toListOf<Tribute>()
 ```
 
 ---
@@ -355,11 +357,11 @@ When you have an existing `DataSource` (e.g., from Spring Boot, Quarkus):
 ```kotlin
 val dataAccess = OctaviusDatabase.fromDataSource(
     dataSource = existingDataSource,
-    packagesToScan = listOf("com.myapp.domain"),
+    packagesToScan = listOf("com.roma.domain"),
     dbSchemas = listOf("public"),
     dynamicDtoStrategy = DynamicDtoSerializationStrategy.AUTOMATIC_WHEN_UNAMBIGUOUS,
     flywayBaselineVersion = null,
-    disableFlyway = true,           // Let the framework manage migrations
+    disableFlyway = true,
     disableCoreTypeInitialization = false
 )
 ```
@@ -374,7 +376,7 @@ class OctaviusConfig {
     fun dataAccess(dataSource: DataSource): DataAccess {
         return OctaviusDatabase.fromDataSource(
             dataSource = dataSource,
-            packagesToScan = listOf("com.myapp.domain"),
+            packagesToScan = listOf("com.roma.domain"),
             dbSchemas = listOf("public"),
             disableFlyway = true  // Spring manages Flyway
         )
@@ -404,10 +406,10 @@ The `listenerConnectionFactory` parameter is a `() -> Connection` lambda invoked
 
 **`fromDataSource(dataSource = ...)`** — auto-resolved based on the `DataSource` type:
 
-| DataSource type | Default behavior |
-|---|---|
-| `HikariDataSource` | Uses `DriverManager` with the pool's URL/credentials (bypasses pool) |
-| Any other type | Falls back to `dataSource.connection` with a warning - should provide a custom factory |
+| DataSource type    | Default behavior                                                                       |
+|--------------------|----------------------------------------------------------------------------------------|
+| `HikariDataSource` | Uses `DriverManager` with the pool's URL/credentials (bypasses pool)                   |
+| Any other type     | Falls back to `dataSource.connection` with a warning - should provide a custom factory |
 
 ### Providing a Custom Factory
 
@@ -416,10 +418,10 @@ Pass a custom factory when using a non-HikariCP `DataSource`, or when you need s
 ```kotlin
 val dataAccess = OctaviusDatabase.fromDataSource(
     dataSource = existingDataSource,
-    packagesToScan = listOf("com.myapp.domain"),
+    packagesToScan = listOf("com.roma.domain"),
     dbSchemas = listOf("public"),
     listenerConnectionFactory = {
-        DriverManager.getConnection("jdbc:postgresql://localhost:5432/mydb", "postgres", "secret")
+        DriverManager.getConnection("jdbc:postgresql://localhost:5432/roma", "augustus", "spqr")
     }
 )
 ```
@@ -433,7 +435,7 @@ Spring Boot's default auto-configured `DataSource` is a `HikariDataSource`, so a
 fun dataAccess(dataSource: DataSource): DataAccess {
     return OctaviusDatabase.fromDataSource(
         dataSource = dataSource,
-        packagesToScan = listOf("com.myapp.domain"),
+        packagesToScan = listOf("com.roma.domain"),
         dbSchemas = listOf("public"),
         disableFlyway = true
         // listenerConnectionFactory auto-resolved from HikariDataSource
@@ -459,9 +461,9 @@ Each `PgChannelListener` holds exactly one connection opened by the factory. The
 
 ```kotlin
 dataAccess.createChannelListener().use { listener ->
-    listener.listen("orders")
+    listener.listen("senate_decrees")
     listener.notifications()
-        .collect { notification -> handleNotification(notification) }
+        .collect { notification -> handleDecree(notification) }
 }
 // Connection is closed here
 ```

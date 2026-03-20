@@ -1,5 +1,7 @@
 # Octavius Database Documentation
 
+*Veni, vidi, quaesivi — I came, I saw, I queried. These pages are the tabularium of Octavius Database: the official record of every feature, every pattern, and every configuration option. Consult them as you would consult the XII Tables — with the confidence that what is written here is law.*
+
 Detailed documentation for Octavius Database - an SQL-first data access layer for Kotlin & PostgreSQL.
 
 ## Guides
@@ -98,5 +100,5 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 ## API Reference
 
 For detailed API documentation, see the KDoc:
-- [API Module KDoc](https://polskianonim.github.io/OctaviusDatabase/api)
-- [Core Module KDoc](https://polskianonim.github.io/OctaviusDatabase/core)
+- [API Module KDoc](https://octavius-framework.github.io/octavius-database/api)
+- [Core Module KDoc](https://octavius-framework.github.io/octavius-database/core)

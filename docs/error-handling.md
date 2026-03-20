@@ -1,5 +1,7 @@
 # Error Handling
 
+*The Roman jurist distinguished carefully between errors of fact and errors of law, between fatal defects in a contract and minor irregularities that could be remedied. Octavius makes the same distinction: some errors are fatal and must halt execution immediately, while others are returned safely so the calling code may decide how to proceed.*
+
 Octavius Database divides errors into two simple categories: **Database Execution Errors** (returned safely) and **Fatal/Setup Errors** (thrown immediately).
 
 * **Database Execution (Returned):** If a query goes to the database, it **never throws**. Whether it's a bad SQL syntax, a constraint violation, or a missing table, `DataResult.Failure<DatabaseException>` is always returned. This forces explicit error handling.
@@ -46,7 +48,7 @@ These errors should be caught during development and never occur in production. 
 
 ```kotlin
 // This throws BuilderException immediately
-dataAccess.deleteFrom("users")
+dataAccess.deleteFrom("citizens")
     .execute() // Fails: missing .where()
 ```
 
@@ -242,7 +244,7 @@ All Octavius exceptions have a standardized `toString()` override that prints th
 
 ```kotlin
 result.onFailure { error ->
-    logger.error(error.toString()) 
+    logger.error(error.toString())
 }
 ```
 
@@ -255,28 +257,28 @@ Octavius uses a double-line frame to clearly separate the execution context from
 ║ DATABASE EXECUTION CONTEXT                                                   ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ HIGH-LEVEL SQL:                                                              ║
-║   INSERT INTO users (email, name) VALUES (:email, :name)                     ║
+║   INSERT INTO citizens (name, tribe) VALUES (:name, :tribe)                  ║
 ╟──────────────────────────────────────────────────────────────────────────────╢
 ║ PARAMETERS:                                                                  ║
-║   email = john@example.com                                                   ║
-║   name = John                                                                ║
+║   name = Marcus Tullius                                                      ║
+║   tribe = Cornelia                                                           ║
 ╟──────────────────────────────────────────────────────────────────────────────╢
 ║ DATABASE-LEVEL SQL (SENT TO DB):                                             ║
-║   INSERT INTO users (email, name) VALUES ($1, $2)                            ║
+║   INSERT INTO citizens (name, tribe) VALUES ($1, $2)                         ║
 ╟──────────────────────────────────────────────────────────────────────────────╢
 ║ DATABASE-LEVEL PARAMETERS:                                                   ║
-║   john@example.com                                                           ║
-║   John                                                                       ║
+║   Marcus Tullius                                                             ║
+║   Cornelia                                                                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 ------------------------------------------------------------
 | ERROR: ConstraintViolationException
 | MESSAGE: UNIQUE_CONSTRAINT_VIOLATION
 | DETAILS: 
-| message: Unique constraint violation in table 'users'.
-| table: users
-| column: email
-| constraint: users_email_key
+| message: Unique constraint violation in table 'citizens'.
+| table: citizens
+| column: name
+| constraint: citizens_name_tribe_key
 ------------------------------------------------------------
 | CAUSE: 
 |   org.postgresql.util.PSQLException: ERROR: duplicate key value ...

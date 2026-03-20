@@ -1,5 +1,7 @@
 # Data Mapping
 
+*The Roman scribe did not receive a raw census tablet and hand it to the consul unprocessed — he transcribed it, organized it, and rendered it into the proper form for governance. Data mapping in Octavius follows the same principle: raw database rows are shaped into the Kotlin types your application understands.*
+
 Octavius provides utilities for converting between Kotlin data classes and `Map<String, Any?>` representations. This enables convenient patterns for database operations while keeping full SQL control.
 
 ## Table of Contents
@@ -19,15 +21,15 @@ Converts a `Map<String, Any?>` (typically a database row) to a data class instan
 ```kotlin
 // Basic usage
 val row: Map<String, Any?> = mapOf(
-    "user_id" to 1,
-    "first_name" to "John",
-    "created_at" to Instant.now()
+    "citizen_id" to 1,
+    "first_name" to "Marcus",
+    "enrolled_at" to Instant.now()
 )
 
 // snake_case keys are automatically matched to camelCase properties
-data class User(val userId: Int, val firstName: String, val createdAt: Instant)
+data class Citizen(val citizenId: Int, val firstName: String, val enrolledAt: Instant)
 
-val user: User = row.toDataObject()
+val citizen: Citizen = row.toDataObject()
 ```
 
 ### Requirements
@@ -53,24 +55,24 @@ The Map contains **fully instantiated objects**, not raw values or JSON strings.
 
 ```kotlin
 @PgComposite
-data class Address(val city: String)
+data class Province(val name: String, val capital: String)
 
-data class User(val name: String, val address: Address)
+data class Senator(val name: String, val homeProvince: Province)
 
 // Query returns a Map with typed values
-val rowMap = dataAccess.select("name", "address")
-    .from("users")
+val rowMap = dataAccess.select("name", "home_province")
+    .from("senate")
     .toSingle()
     .getOrThrow()!!
 
 // rowMap structure is ALREADY typed:
 // {
-//   "name": "John" (String),
-//   "address": Address(city="London") (Instance of Address, NOT a Map!)
+//   "name": "Cicero" (String),
+//   "home_province": Province(name="Arpinum", capital="Arpinum") (Instance of Province, NOT a Map!)
 // }
 
 // Conversion to Data Object works seamlessly
-val user = rowMap.toDataObject<User>()
+val senator = rowMap.toDataObject<Senator>()
 ```
 
 **Strict type checking:**
@@ -79,11 +81,11 @@ Because the Map holds specific types, `toDataObject()` performs a **strict mappi
 
 ```kotlin
 // ❌ FAILS: Type Mismatch
-// The map contains an Address object, but this class expects a String
-data class UserWrong(val name: String, val address: String)
+// The map contains a Province object, but this class expects a String
+data class SenatorWrong(val name: String, val homeProvince: String)
 
-rowMap.toDataObject<UserWrong>()
-// Throws ConversionException: Expected String for field 'address' but got Address
+rowMap.toDataObject<SenatorWrong>()
+// Throws ConversionException: Expected String for field 'homeProvince' but got Province
 ```
 
 This ensures type safety: if the structure of your Data Class doesn't match the structure returned by the database (including nested composites, enums, and arrays), the operation fails fast rather than producing incorrect data.
@@ -95,14 +97,14 @@ This ensures type safety: if the structure of your Data Class doesn't match the 
 Converts a data class to a `Map<String, Any?>` with snake_case keys.
 
 ```kotlin
-val user = User(userId = 1, firstName = "John", createdAt = Instant.now())
+val senator = Senator(senatorId = 1, firstName = "Gaius", enrolledAt = Instant.now())
 
-val map = user.toMap()
-// Result: {"user_id" to 1, "first_name" to "John", "created_at" to ...}
+val map = senator.toMap()
+// Result: {"senator_id" to 1, "first_name" to "Gaius", "enrolled_at" to ...}
 
 // Exclude specific keys (e.g., auto-generated ID)
-val mapWithoutId = user.toMap("user_id")
-// Result: {"first_name" to "John", "created_at" to ...}
+val mapWithoutId = senator.toMap("senator_id")
+// Result: {"first_name" to "Gaius", "enrolled_at" to ...}
 ```
 
 ### Requirements
@@ -115,14 +117,14 @@ val mapWithoutId = user.toMap("user_id")
 
 ```kotlin
 // Exclude by field names (vararg) - RECOMMENDED
-entity.toMap("id", "created_at", "updated_at")
+entity.toMap("id", "enrolled_at", "last_census_at")
 
 // Exclude computed/derived fields
-val EXCLUDE_ON_UPDATE = setOf("id", "created_at", "version")
+val EXCLUDE_ON_UPDATE = setOf("id", "enrolled_at", "version")
 entity.toMap(*EXCLUDE_ON_UPDATE.toTypedArray())
 
 // Exclude based on external configuration
-val immutableFields = config.getImmutableFieldsFor("users")
+val immutableFields = config.getImmutableFieldsFor("citizens")
 entity.toMap(*immutableFields.toTypedArray())
 
 // Filter after conversion - NOT RECOMMENDED (less efficient, iterates twice)
@@ -138,23 +140,23 @@ Prefer excluding keys directly in `toMap()` - it skips excluded fields during co
 Override the default naming convention for specific properties.
 
 ```kotlin
-data class UserProfile(
+data class CitizenProfile(
     val id: Int,
-    val userName: String,           // Maps to "user_name" by default
-    @MapKey("user")
-    val userId: Int,                // Maps to "user" instead of "user_id"
-    @MapKey("external_reference")
-    val externalRef: String         // Maps to "external_reference" instead of "external_ref"
+    val citizenName: String,        // Maps to "citizen_name" by default
+    @MapKey("citizen")
+    val citizenId: Int,             // Maps to "citizen" instead of "citizen_id"
+    @MapKey("external_registry")
+    val externalRef: String         // Maps to "external_registry" instead of "external_ref"
 )
 
 // toMap() uses @MapKey names
-val profile = UserProfile(1, "john", 42, "EXT-123")
+val profile = CitizenProfile(1, "Marcus Tullius", 42, "REG-123")
 profile.toMap()
-// Result: {"id" to 1, "user_name" to "john", "user" to 42, "external_reference" to "EXT-123"}
+// Result: {"id" to 1, "citizen_name" to "Marcus Tullius", "citizen" to 42, "external_registry" to "REG-123"}
 
 // toDataObject() also respects @MapKey
-val row = mapOf("id" to 1, "user_name" to "john", "user" to 42, "external_reference" to "EXT-123")
-val restored: UserProfile = row.toDataObject()
+val row = mapOf("id" to 1, "citizen_name" to "Marcus Tullius", "citizen" to 42, "external_registry" to "REG-123")
+val restored: CitizenProfile = row.toDataObject()
 ```
 
 ### Use Cases for @MapKey
@@ -172,31 +174,31 @@ The real power comes from combining `toMap()` with auto-placeholder functions.
 ### Insert from Object
 
 ```kotlin
-data class CreateUserRequest(val name: String, val email: String, val role: UserRole)
+data class RegisterCitizenRequest(val name: String, val tribe: String, val rank: Magistrature)
 
-fun createUser(request: CreateUserRequest): DataResult<Int> {
+fun registerCitizen(request: RegisterCitizenRequest): DataResult<Int> {
     // Convert once - toMap() uses reflection, so avoid calling it multiple times
     val data = request.toMap()
 
-    return dataAccess.insertInto("users")
+    return dataAccess.insertInto("citizens")
         .values(data)
         .returning("id")
         .toField<Int>(data)
 }
 
 // Usage
-val newUserId = createUser(CreateUserRequest("John", "john@example.com", UserRole.USER))
+val newCitizenId = registerCitizen(RegisterCitizenRequest("Gaius Julius", "Cornelia", Magistrature.Quaestor))
 ```
 
 ### Update from Object
 
 ```kotlin
-data class UpdateUserRequest(val id: Int, val name: String, val email: String)
+data class UpdateCitizenRequest(val id: Int, val name: String, val tribe: String)
 
-fun updateUser(request: UpdateUserRequest): DataResult<Int> {
+fun updateCitizen(request: UpdateCitizenRequest): DataResult<Int> {
     val data = request.toMap("id")  // Exclude ID from SET clause
 
-    return dataAccess.update("users")
+    return dataAccess.update("citizens")
         .setValues(data)
         .where("id = :id")
         .execute(data + ("id" to request.id))
@@ -207,20 +209,20 @@ fun updateUser(request: UpdateUserRequest): DataResult<Int> {
 
 ```kotlin
 // Only update provided fields
-data class PatchUserRequest(
+data class PatchCitizenRequest(
     val id: Int,
     val name: String? = null,
-    val email: String? = null
+    val tribe: String? = null
 )
 
-fun patchUser(request: PatchUserRequest): DataResult<Int> {
+fun patchCitizen(request: PatchCitizenRequest): DataResult<Int> {
     val data = request.toMap("id").filterValues { it != null }
 
     if (data.isEmpty()) {
         return DataResult.Success(0)
     }
 
-    return dataAccess.update("users")
+    return dataAccess.update("citizens")
         .setValues(data)
         .where("id = :id")
         .execute(data + ("id" to request.id))
@@ -235,7 +237,7 @@ The pattern `values(map)` + `execute(map)` uses the **same map** for both:
 
 ```kotlin
 val data = entity.toMap("id")
-dataAccess.insertInto("table")
+dataAccess.insertInto("citizens")
     .values(data)      // Defines: (col1, col2) VALUES (:col1, :col2)
     .execute(data)     // Provides: col1 -> value1, col2 -> value2
 ```

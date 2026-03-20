@@ -1,5 +1,7 @@
 # Transactions
 
+*The Roman Twelve Tables established that a contract, once entered into, must be honoured in full — or voided entirely. There is no partial compliance in Roman law. Transactions in Octavius follow the same principle: all steps succeed together, or none of them take effect.*
+
 Octavius Database provides two approaches to transaction management:
 
 1. **Transaction Blocks** - Imperative transactions using `transaction { }`
@@ -30,18 +32,18 @@ The simplest way to execute multiple operations atomically.
 ```kotlin
 val result = dataAccess.transaction { tx ->
     // All operations use 'tx' context
-    val userId = tx.insertInto("users")
-        .values(listOf("name", "email"))
+    val citizenId = tx.insertInto("citizens")
+        .values(listOf("name", "tribe"))
         .returning("id")
-        .toField<Int>("name" to "John", "email" to "john@example.com")
+        .toField<Int>("name" to "Marcus Tullius", "tribe" to "Cornelia")
         .getOrElse { return@transaction DataResult.Failure(it) }
 
-    tx.insertInto("profiles")
-        .values(listOf("user_id", "bio"))
-        .execute("user_id" to userId, "bio" to "Hello!")
+    tx.insertInto("citizen_profiles")
+        .values(listOf("citizen_id", "biography"))
+        .execute("citizen_id" to citizenId, "biography" to "Born in Arpinum.")
         .getOrElse { return@transaction DataResult.Failure(it) }
 
-    DataResult.Success(userId)
+    DataResult.Success(citizenId)
 }
 ```
 
@@ -79,25 +81,25 @@ Transaction plans are useful when:
 ```kotlin
 val plan = TransactionPlan()
 
-// Step 1: Insert order, get ID
-val orderIdHandle = plan.add(
-    dataAccess.insertInto("orders")
-        .values(listOf("user_id", "total"))
+// Step 1: Record the edict, get ID
+val edictIdHandle = plan.add(
+    dataAccess.insertInto("edicts")
+        .values(listOf("issuer_id", "tribute_total"))
         .returning("id")
         .asStep()
-        .toField<Int>("user_id" to userId, "total" to orderTotal)
+        .toField<Int>("issuer_id" to consulId, "tribute_total" to tributeTotal)
 )
 
-// Step 2: Insert order items using the order ID
-for (item in cartItems) {
+// Step 2: Assign levy items using the edict ID
+for (item in levyItems) {
     plan.add(
-        dataAccess.insertInto("order_items")
-            .values(listOf("order_id", "product_id", "quantity"))
+        dataAccess.insertInto("levy_items")
+            .values(listOf("edict_id", "province_id", "amount"))
             .asStep()
             .execute(
-                "order_id" to orderIdHandle.field(),  // Reference to Step 1 result
-                "product_id" to item.productId,
-                "quantity" to item.quantity
+                "edict_id" to edictIdHandle.field(),  // Reference to Step 1 result
+                "province_id" to item.provinceId,
+                "amount" to item.amount
             )
     )
 }
@@ -112,25 +114,25 @@ Convert any query builder to a step using `.asStep()`:
 
 ```kotlin
 // Step returning a single value
-val insertStep = dataAccess.insertInto("users")
-    .values(userData)
+val insertStep = dataAccess.insertInto("citizens")
+    .values(citizenData)
     .returning("id")
     .asStep()           // Convert to step builder
     .toField<Int>(params)  // Terminal method creates TransactionStep
 
 // Step returning rows
 val selectStep = dataAccess.select("id", "name")
-    .from("users")
+    .from("legionnaires")
     .where("active = true")
     .asStep()
     .toList()
 
 // Step for modification only
-val updateStep = dataAccess.update("users")
-    .setValue("last_login")
+val updateStep = dataAccess.update("citizens")
+    .setValue("last_census")
     .where("id = :id")
     .asStep()
-    .execute("last_login" to now, "id" to userId)
+    .execute("last_census" to now, "id" to citizenId)
 ```
 
 ### Step Terminal Methods
@@ -171,26 +173,26 @@ All methods have default parameter values where applicable (`rowIndex` defaults 
 val plan = TransactionPlan()
 
 // Step returning single value (toField)
-val idHandle = plan.add(
-    dataAccess.insertInto("users")
+val citizenIdHandle = plan.add(
+    dataAccess.insertInto("citizens")
         .values(listOf("name"))
         .returning("id")
         .asStep()
-        .toField<Int>("name" to "John")
+        .toField<Int>("name" to "Gaius Julius")
 )
 
 // Reference the scalar value
 plan.add(
-    dataAccess.insertInto("profiles")
-        .values(listOf("user_id"))
+    dataAccess.insertInto("citizen_profiles")
+        .values(listOf("citizen_id"))
         .asStep()
-        .execute("user_id" to idHandle.field())  // Gets the ID
+        .execute("citizen_id" to citizenIdHandle.field())  // Gets the ID
 )
 
 // Step returning rows (toList)
 val rowsHandle = plan.add(
-    dataAccess.select("id", "name", "email")
-        .from("users")
+    dataAccess.select("id", "name", "tribe")
+        .from("citizens")
         .where("active = true")
         .asStep()
         .toList()
@@ -198,24 +200,24 @@ val rowsHandle = plan.add(
 
 // Reference specific column from first row
 plan.add(
-    dataAccess.rawQuery("SELECT notify_user(:email)")
+    dataAccess.rawQuery("SELECT notify_censor(:tribe)")
         .asStep()
-        .execute("email" to rowsHandle.field("email", rowIndex = 0))
+        .execute("tribe" to rowsHandle.field("tribe", rowIndex = 0))
 )
 
 // Step returning column (toColumn)
 val idsHandle = plan.add(
     dataAccess.select("id")
-        .from("users")
-        .where("needs_update = true")
+        .from("citizens")
+        .where("needs_census = true")
         .asStep()
         .toColumn<Int>()
 )
 
 // Reference entire column for batch operation
 plan.add(
-    dataAccess.update("users")
-        .setExpression("updated_at", "NOW()")
+    dataAccess.update("citizens")
+        .setExpression("last_census_at", "NOW()")
         .where("id = ANY(:ids)")
         .asStep()
         .execute("ids" to idsHandle.column())
@@ -258,22 +260,22 @@ val upperName = someHandle.field("name").map { (it as String).uppercase() }
 Most common case - passing an ID from INSERT to subsequent operations:
 
 ```kotlin
-val userIdHandle = plan.add(
-    dataAccess.insertInto("users")
+val citizenIdHandle = plan.add(
+    dataAccess.insertInto("citizens")
         .values(listOf("name"))
         .returning("id")
         .asStep()
-        .toField<Int>("name" to userName)
+        .toField<Int>("name" to citizenName)
 )
 
 // Use in next step
 plan.add(
-    dataAccess.insertInto("accounts")
-        .values(listOf("user_id", "balance"))
+    dataAccess.insertInto("citizen_profiles")
+        .values(listOf("citizen_id", "biography"))
         .asStep()
         .execute(
-            "user_id" to userIdHandle.field(),  // Reference to the ID
-            "balance" to 0
+            "citizen_id" to citizenIdHandle.field(),  // Reference to the ID
+            "biography" to "Enrolled in the year of consul Gaius."
         )
 )
 ```
@@ -281,22 +283,22 @@ plan.add(
 ### Multiple Values from Different Columns
 
 ```kotlin
-val userHandle = plan.add(
-    dataAccess.select("id", "email", "name")
-        .from("users")
+val citizenHandle = plan.add(
+    dataAccess.select("id", "name", "tribe")
+        .from("citizens")
         .where("id = :id")
         .asStep()
-        .toSingle("id" to userId)
+        .toSingle("id" to citizenId)
 )
 
 plan.add(
-    dataAccess.insertInto("notifications")
-        .values(listOf("user_id", "recipient_email", "message"))
+    dataAccess.insertInto("census_notifications")
+        .values(listOf("citizen_id", "tribe", "message"))
         .asStep()
         .execute(
-            "user_id" to userHandle.field("id"),
-            "recipient_email" to userHandle.field("email"),
-            "message" to "Welcome!"
+            "citizen_id" to citizenHandle.field("id"),
+            "tribe" to citizenHandle.field("tribe"),
+            "message" to "Census due."
         )
 )
 ```
@@ -308,19 +310,19 @@ Use `row()` when you want to pass all columns from a previous step. The executor
 ```kotlin
 // Fetch a row
 val sourceHandle = plan.add(
-    dataAccess.select("name", "email", "role")
-        .from("users")
+    dataAccess.select("name", "tribe", "rank")
+        .from("citizens")
         .where("id = :id")
         .asStep()
-        .toSingle("id" to templateUserId)
+        .toSingle("id" to templateCitizenId)
 )
 
 // Copy row to another table - parameters are spread from the row map
 plan.add(
-    dataAccess.insertInto("user_templates")
-        .values(listOf("name", "email", "role"))
+    dataAccess.insertInto("citizen_templates")
+        .values(listOf("name", "tribe", "rank"))
         .asStep()
-        .execute(sourceHandle.row())  // Spreads {name: ..., email: ..., role: ...}
+        .execute(sourceHandle.row())  // Spreads {name: ..., tribe: ..., rank: ...}
 )
 ```
 
@@ -330,13 +332,13 @@ You can combine `row()` with additional parameters:
 
 ```kotlin
 plan.add(
-    dataAccess.insertInto("archived_users")
-        .values(listOf("name", "email", "role", "archived_at", "archived_by"))
+    dataAccess.insertInto("archived_citizens")
+        .values(listOf("name", "tribe", "rank", "archived_at", "archived_by"))
         .asStep()
         .execute(
-            "row" to sourceHandle.row(),           // Spreads name, email, role - row disappears
+            "row" to sourceHandle.row(),          // Spreads name, tribe, rank - row disappears
             "archived_at" to Instant.now(),
-            "archived_by" to currentUserId
+            "archived_by" to currentCensorId
         )
 )
 ```
@@ -346,21 +348,21 @@ plan.add(
 Use `column()` for batch operations with `ANY()` or `UNNEST()`:
 
 ```kotlin
-val productIdsHandle = plan.add(
-    dataAccess.select("product_id")
-        .from("cart_items")
-        .where("cart_id = :cartId")
+val conscriptIdsHandle = plan.add(
+    dataAccess.select("citizen_id")
+        .from("conscription_queue")
+        .where("legion_id = :legionId")
         .asStep()
-        .toColumn<Int>("cartId" to cartId)
+        .toColumn<Int>("legionId" to legionId)
 )
 
 // Use in WHERE ... ANY()
 plan.add(
-    dataAccess.update("products")
-        .setExpression("reserved", "reserved + 1")
-        .where("id = ANY(:productIds)")
+    dataAccess.update("citizens")
+        .setExpression("status", "'enlisted'")
+        .where("id = ANY(:citizenIds)")
         .asStep()
-        .execute("productIds" to productIdsHandle.column())
+        .execute("citizenIds" to conscriptIdsHandle.column())
 )
 ```
 
@@ -371,18 +373,18 @@ Transform values before passing to next step:
 ```kotlin
 val nameHandle = plan.add(
     dataAccess.select("name")
-        .from("users")
+        .from("citizens")
         .where("id = :id")
         .asStep()
-        .toField<String>("id" to userId)
+        .toField<String>("id" to citizenId)
 )
 
 plan.add(
-    dataAccess.insertInto("audit_log")
+    dataAccess.insertInto("senate_audit")
         .values(listOf("message"))
         .asStep()
         .execute(
-            "message" to nameHandle.field().map { name -> "User $name logged in" }
+            "message" to nameHandle.field().map { name -> "Citizen $name enrolled in the census" }
         )
 )
 ```
@@ -396,16 +398,16 @@ After executing a plan, retrieve results using the step handles:
 ```kotlin
 val plan = TransactionPlan()
 
-val userIdHandle = plan.add(/* ... */)
-val orderIdHandle = plan.add(/* ... */)
+val citizenIdHandle = plan.add(/* ... */)
+val edictIdHandle = plan.add(/* ... */)
 
 val result = dataAccess.executeTransactionPlan(plan)
 
 result.onSuccess { planResult: TransactionPlanResult ->
-    val userId: Int = planResult.get(userIdHandle)
-    val orderId: Int = planResult.get(orderIdHandle)
+    val citizenId: Int = planResult.get(citizenIdHandle)
+    val edictId: Int = planResult.get(edictIdHandle)
 
-    println("Created user $userId with order $orderId")
+    println("Enrolled citizen $citizenId under edict $edictId")
 }
 ```
 
@@ -415,10 +417,10 @@ Merge multiple plans together:
 
 ```kotlin
 val mainPlan = TransactionPlan()
-val userIdHandle = mainPlan.add(/* create user */)
+val citizenIdHandle = mainPlan.add(/* enroll citizen */)
 
-val ordersPlan = buildOrdersPlan(userIdHandle)  // Returns TransactionPlan
-mainPlan.addPlan(ordersPlan)
+val levyPlan = buildLevyPlan(citizenIdHandle)  // Returns TransactionPlan
+mainPlan.addPlan(levyPlan)
 
 dataAccess.executeTransactionPlan(mainPlan)
 ```
@@ -433,15 +435,15 @@ Nullability in terminal methods is controlled by the type parameter. Use non-nul
 
 ```kotlin
 val result = dataAccess.transaction { tx ->
-    // Non-nullable — Failure if user not found
-    val user = tx.select("*")
-        .from("users")
+    // Non-nullable — Failure if citizen not found
+    val citizen = tx.select("*")
+        .from("citizens")
         .where("id = :id")
-        .toSingleOf<User>("id" to userId)
+        .toSingleOf<Citizen>("id" to citizenId)
         .getOrElse { return@transaction DataResult.Failure(it) }
 
-    // user is guaranteed non-null here
-    DataResult.Success(user)
+    // citizen is guaranteed non-null here
+    DataResult.Success(citizen)
 }
 ```
 
@@ -453,28 +455,28 @@ When using `TransactionPlanResult.get()`, the returned value is typed based on t
 val plan = TransactionPlan()
 
 // Non-nullable — step fails if no rows
-val userHandle = plan.add(
+val citizenHandle = plan.add(
     dataAccess.select("*")
-        .from("users")
+        .from("citizens")
         .where("id = :id")
         .asStep()
-        .toSingleOf<User>("id" to userId)
+        .toSingleOf<Citizen>("id" to citizenId)
 )
 
 // Nullable — step succeeds with null if no rows
-val maybeUserHandle = plan.add(
+val maybeCitizenHandle = plan.add(
     dataAccess.select("*")
-        .from("users")
+        .from("citizens")
         .where("id = :id")
         .asStep()
-        .toSingleOf<User?>("id" to userId)
+        .toSingleOf<Citizen?>("id" to citizenId)
 )
 
 val result = dataAccess.executeTransactionPlan(plan)
 
 result.onSuccess { planResult ->
-    val user: User = planResult.get(userHandle)             // guaranteed non-null by step
-    val maybeUser: User? = planResult.get(maybeUserHandle)  // may be null
+    val citizen: Citizen = planResult.get(citizenHandle)             // guaranteed non-null
+    val maybeCitizen: Citizen? = planResult.get(maybeCitizenHandle)  // may be null
 }
 ```
 
@@ -520,20 +522,20 @@ dataAccess.transaction { tx ->
 }
 ```
 
-**Use case**: Audit logging that must succeed even if main operation fails:
+**Use case**: Senate audit logging that must succeed even if the main operation fails:
 
 ```kotlin
 dataAccess.transaction { tx ->
-    val result = tx.update("accounts")
+    val result = tx.update("aerarium")
         .setExpression("balance", "balance - :amount")
-        .where("id = :id")
-        .execute("amount" to amount, "id" to accountId)
+        .where("province = :province")
+        .execute("amount" to amount, "province" to province)
 
-    // Log in separate transaction - persists even if main transaction fails
+    // Log in separate transaction — persists even if main transaction fails
     dataAccess.transaction(TransactionPropagation.REQUIRES_NEW) { auditTx ->
-        auditTx.insertInto("audit_log")
-            .values(logData)
-            .execute(logData)
+        auditTx.insertInto("aerarium_audit")
+            .values(auditData)
+            .execute(auditData)
     }
 
     result
@@ -548,18 +550,16 @@ dataAccess.transaction { tx ->
 
 ```kotlin
 dataAccess.transaction { tx ->
-    tx.insertInto("orders").values(orderData).execute(orderData)
+    tx.insertInto("campaigns").values(campaignData).execute(campaignData)
 
     // Try optional operation with savepoint
     val optionalResult = dataAccess.transaction(TransactionPropagation.NESTED) { nestedTx ->
-        nestedTx.insertInto("optional_feature")
-            .values(featureData)
-            .execute(featureData)
+        nestedTx.insertInto("campaign_insignia")
+            .values(insigniaData)
+            .execute(insigniaData)
     }
 
-    // Even if nested failed, order is still inserted
-    // Outer transaction can continue
-
+    // Even if nested failed, campaign is still inserted
     DataResult.Success(Unit)
 }
 ```

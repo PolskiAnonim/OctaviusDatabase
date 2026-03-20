@@ -1,5 +1,7 @@
 # Type System
 
+*The Roman mint at Lugdunum produced coins in gold, silver, and bronze — each a precise weight, stamped with the emperor's image, immediately recognizable as genuine. Octavius's type system does the same for data: each value moving between PostgreSQL and Kotlin is stamped with its true type, validated, and mapped without ambiguity. Counterfeits — type mismatches — are rejected at the boundary.*
+
 Octavius Database provides automatic bidirectional mapping between PostgreSQL and Kotlin types. This includes support for:
 
 - **Standard types** - primitives, dates, JSON, arrays.
@@ -82,11 +84,11 @@ Arrays of all standard types are supported and naturally map to `List<T>`:
 ```kotlin
 import org.octavius.data.type.DISTANT_FUTURE
 
-dataAccess.insertInto("contracts")
+dataAccess.insertInto("mandates")
     .values(listOf("start_date", "end_date"))
     .execute(
-        "start_date" to LocalDate.parse("2024-01-01"),
-        "end_date" to LocalDate.DISTANT_FUTURE  // Stored as 'infinity'
+        "start_date" to LocalDate.parse("0027-01-16"),
+        "end_date" to LocalDate.DISTANT_FUTURE  // Stored as 'infinity' — the eternal mandate
     )
 ```
 
@@ -117,13 +119,13 @@ PostgreSQL `INTERVAL` values (without a specific date anchor point) are converte
 
 When collections, arrays, or composite types are passed as named parameters (`:param`), Octavius **serializes** them into a single PostgreSQL text-format literal. This is sent as a **single JDBC parameter**.
 
-| Kotlin value                             | SQL fragment    | JDBC params consumed |
-|------------------------------------------|-----------------|----------------------|
-| `"hello"` (scalar)                       | `?::text`       | **1**                |
-| `Address("Main St", "NYC")`              | `?::address`    | **1**                |
-| `listOf(1, 2, 3)`                        | `?::int4[]`     | **1**                |
-| `listOf(addr1, addr2)` (composite array) | `?::address[]`  | **1**                |
-| `arrayOf("a", "b", "c")` (typed array)   | `?`             | **1**                |
+| Kotlin value                             | SQL fragment     | JDBC params consumed |
+|------------------------------------------|------------------|----------------------|
+| `"Cornelia"` (scalar)                    | `?::text`        | **1**                |
+| `Province("Gallia", "Lugdunum")`         | `?::province`    | **1**                |
+| `listOf(1, 2, 3)`                        | `?::int4[]`      | **1**                |
+| `listOf(prov1, prov2)` (composite array) | `?::province[]`  | **1**                |
+| `arrayOf("a", "b", "c")` (typed array)   | `?`              | **1**                |
 
 ### List vs Array
 
@@ -136,7 +138,7 @@ When collections, arrays, or composite types are passed as named parameters (`:p
 
 ### OID-Based Result Mapping
 
-When reading results from the database, Octavius uses PostgreSQL's internal **Object Identifiers (OIDs)** rather than string-based type names. The JDBC `ResultSet` metadata provides the exact OID for each column. Octavius cross-references this OID with its internal `TypeRegistry` to map the incoming data directly to the correct Kotlin class. 
+When reading results from the database, Octavius uses PostgreSQL's internal **Object Identifiers (OIDs)** rather than string-based type names. The JDBC `ResultSet` metadata provides the exact OID for each column. Octavius cross-references this OID with its internal `TypeRegistry` to map the incoming data directly to the correct Kotlin class.
 
 This OID-based resolution:
 - **Eliminates Ambiguity:** Bypasses issues with identical type names existing in multiple schemas.
@@ -163,8 +165,8 @@ val data = jsonElement.withPgType("json")
 val ids = listOf<Int?>(null).withPgType("int4", isArray = true)
 
 // Safe usage in queries
-dataAccess.rawQuery("SELECT * FROM users WHERE id = ANY(:ids)")
-    .toListOf<User>("ids" to listOf(1, 2, 3).withPgType(PgStandardType.INT4_ARRAY))
+dataAccess.rawQuery("SELECT * FROM legionnaires WHERE id = ANY(:ids)")
+    .toListOf<Legionnaire>("ids" to listOf(1, 7, 13).withPgType(PgStandardType.INT4_ARRAY))
 ```
 
 ### Type Resolution Priority
@@ -196,14 +198,15 @@ Maps a Kotlin `enum class` to a PostgreSQL `ENUM`.
 **Example:**
 ```kotlin
 @PgEnum(
-    schema = "public",                               // Explicit schema
-    pgConvention = CaseConvention.SNAKE_CASE_LOWER,  // stored as 'credit_card'
-    kotlinConvention = CaseConvention.PASCAL_CASE    // defined as CreditCard
-) // name defaults to transaction_type
-enum class TransactionType { CreditCard, BankTransfer }
+    schema = "cursus_honorum",
+    pgConvention = CaseConvention.SNAKE_CASE_LOWER,  // stored as 'pro_consul'
+    kotlinConvention = CaseConvention.PASCAL_CASE    // defined as ProConsul
+) // name defaults to magistrature
+enum class Magistrature { Quaestor, Aedile, Praetor, Consul, ProConsul, Censor }
 
-// PostgreSQL Migration: 
-// CREATE TYPE public.transaction_type AS ENUM ('credit_card', 'bank_transfer');
+// PostgreSQL Migration:
+// CREATE TYPE cursus_honorum.magistrature AS ENUM
+//   ('quaestor', 'aedile', 'praetor', 'consul', 'pro_consul', 'censor');
 ```
 
 ### @PgComposite
@@ -219,11 +222,11 @@ Maps a Kotlin `data class` to a PostgreSQL `COMPOSITE` type.
 
 **Example:**
 ```kotlin
-@PgComposite(name = "address_type") // explicit name
-data class Address(val street: String, val city: String)
+@PgComposite(name = "province_type") // explicit name
+data class Province(val name: String, val capital: String)
 
-// PostgreSQL Migration: 
-// CREATE TYPE address AS (street TEXT, city TEXT);
+// PostgreSQL Migration:
+// CREATE TYPE province_type AS (name TEXT, capital TEXT);
 ```
 
 Composites fully support nesting and arrays:
@@ -231,10 +234,10 @@ Composites fully support nesting and arrays:
 @PgComposite // name defaults to geo_location
 data class GeoLocation(val lat: Double, val lng: Double)
 
-@PgComposite(schema = "public") // name defaults to address_wtih_geo
-data class AddressWithGeo(val street: String, val location: GeoLocation)
+@PgComposite(schema = "public") // name defaults to fortified_position
+data class FortifiedPosition(val name: String, val location: GeoLocation)
 
-data class Company(val id: Int, val branches: List<AddressWithGeo>)
+data class LegionaryFort(val id: Int, val outposts: List<FortifiedPosition>)
 ```
 
 ---
@@ -251,62 +254,60 @@ By default, Octavius uses reflection for mapping between data classes and Postgr
 Define an object or class implementing `PgCompositeMapper<T>` and reference it in the `@PgComposite` annotation.
 
 ```kotlin
-@PgComposite(name = "user_stats", mapper = StatsMapper::class)
-data class Stats(val strength: Int, val agility: Int)
+@PgComposite(name = "legion_stats", mapper = LegionStatsMapper::class)
+data class LegionStats(val strength: Int, val morale: Int)
 
-object StatsMapper : PgCompositeMapper<Stats> {
-    override fun fromMap(map: Map<String, Any?>) = Stats(
+object LegionStatsMapper : PgCompositeMapper<LegionStats> {
+    override fun fromMap(map: Map<String, Any?>) = LegionStats(
         strength = map["strength"] as Int,
-        agility = map["agility"] as Int
+        morale = map["morale"] as Int
     )
 
-    override fun toMap(obj: Stats) = mapOf(
+    override fun toMap(obj: LegionStats) = mapOf(
         "strength" to obj.strength,
-        "agility" to obj.agility
+        "morale" to obj.morale
     )
 }
 ```
 
 ### Type Transformation: Collection Conversion
 
-Octavius default mapping always returns collections as `List<T>`. If your data class requires a primitive array (e.g., for high-performance math), use a mapper to perform the conversion.
+Octavius default mapping always returns collections as `List<T>`. If your data class requires a primitive array (e.g., for high-performance calculations), use a mapper to perform the conversion.
 
 ```kotlin
-@PgComposite(name = "signal_data", mapper = SignalMapper::class)
-data class Signal(val id: Int, val samples: DoubleArray)
+@PgComposite(name = "battle_signal", mapper = BattleSignalMapper::class)
+data class BattleSignal(val legionId: Int, val drumBeats: DoubleArray)
 
-object SignalMapper : PgCompositeMapper<Signal> {
-    override fun fromMap(map: Map<String, Any?>) = Signal(
-        id = map["id"] as Int,
+object BattleSignalMapper : PgCompositeMapper<BattleSignal> {
+    override fun fromMap(map: Map<String, Any?>) = BattleSignal(
+        legionId = map["legion_id"] as Int,
         // PostgreSQL array comes as List<Double>, convert it to DoubleArray
-        samples = (map["samples"] as List<Double>).toDoubleArray()
+        drumBeats = (map["drum_beats"] as List<Double>).toDoubleArray()
     )
 
-    override fun toMap(obj: Signal) = mapOf(
-        "id" to obj.id,
-        "samples" to obj.samples.toList()
+    override fun toMap(obj: BattleSignal) = mapOf(
+        "legion_id" to obj.legionId,
+        "drum_beats" to obj.drumBeats.toList()
     )
 }
 ```
 
 ### Type Transformation: Custom Logic
 
-You can also use mappers to handle types that don't have a direct 1:1 mapping or require special logic.
-
+Mappers can be used to handle types that don't have a direct 1:1 mapping or require special logic.
 ```kotlin
-@PgComposite(name = "event_info", mapper = EventMapper::class)
-data class Event(val name: String, val timestamp: Instant)
+@PgComposite(name = "senate_event", mapper = SenateEventMapper::class)
+data class SenateEvent(val title: String, val occurredAt: Instant)
 
-object EventMapper : PgCompositeMapper<Event> {
-    override fun fromMap(map: Map<String, Any?>) = Event(
-        name = map["name"] as String,
-        // Map from raw Long (epoch millis) to Instant
-        timestamp = Instant.fromEpochMilliseconds(map["timestamp"] as Long)
+object SenateEventMapper : PgCompositeMapper<SenateEvent> {
+    override fun fromMap(map: Map<String, Any?>) = SenateEvent(
+        title = map["title"] as String,
+        occurredAt = Instant.fromEpochMilliseconds(map["occurred_at"] as Long)
     )
 
-    override fun toMap(obj: Event) = mapOf(
-        "name" to obj.name,
-        "timestamp" to obj.timestamp.toEpochMilliseconds()
+    override fun toMap(obj: SenateEvent) = mapOf(
+        "title" to obj.title,
+        "occurred_at" to obj.occurredAt.toEpochMilliseconds()
     )
 }
 ```
@@ -327,31 +328,31 @@ Enables dynamic type mapping via the `dynamic_dto` PostgreSQL type. This allows 
 Annotated classes must also be `@Serializable` (`kotlinx.serialization`).
 
 ```kotlin
-@DynamicallyMappable(typeName = "text_note")
+@DynamicallyMappable(typeName = "inscription")
 @Serializable
-data class TextNote(val content: String)
+data class Inscription(val text: String, val language: String)
 
-@DynamicallyMappable(typeName = "image_note")
+@DynamicallyMappable(typeName = "relief")
 @Serializable
-data class ImageNote(val url: String)
+data class Relief(val subject: String, val material: String)
 ```
 
 **Polymorphic Storage Example:**
 ```sql
 -- PostgreSQL Table
-CREATE TABLE notebooks (
+CREATE TABLE monuments (
     id SERIAL PRIMARY KEY,
-    notes dynamic_dto[]  -- Can contain BOTH TextNote and ImageNote
+    records dynamic_dto[]  -- Can contain BOTH Inscription and Relief
 );
 ```
 ```kotlin
 // Read back with automatic deserialization
-data class Notebook(val id: Int, val notes: List<Any>)
+data class Monument(val id: Int, val records: List<Any>)
 
-val notebook = dataAccess.select("id", "notes")
-    .from("notebooks")
-    .toSingleOf<Notebook>()
-// notes contains: [TextNote("Hello"), ImageNote("https://...")]
+val monument = dataAccess.select("id", "records")
+    .from("monuments")
+    .toSingleOf<Monument>()
+// records contains: [Inscription("SPQR", "Latin"), Relief("Dacian Wars", "Marble")]
 ```
 
 ### Enum Serialization in dynamic_dto
@@ -360,26 +361,27 @@ When using enums inside `@DynamicallyMappable` classes, `kotlinx.serialization` 
 
 ```kotlin
 // 1. Create a serializer
-object OrderStatusSerializer : DynamicDtoEnumSerializer<OrderStatus>(
-    serialName = "OrderStatus",
-    entries = OrderStatus.entries,
-    pgConvention = CaseConvention.SNAKE_CASE_UPPER
+object MagistratureSerializer : DynamicDtoEnumSerializer<Magistrature>(
+    serialName = "Magistrature",
+    entries = Magistrature.entries,
+    pgConvention = CaseConvention.SNAKE_CASE_LOWER
 )
 
 // 2. Attach it to your Enum
-@Serializable(with = OrderStatusSerializer::class)
-@PgEnum(pgConvention = CaseConvention.SNAKE_CASE_UPPER)
-enum class OrderStatus { Pending, InProgress }
+@Serializable(with = MagistratureSerializer::class)
+@PgEnum(pgConvention = CaseConvention.SNAKE_CASE_LOWER)
+enum class Magistrature { Quaestor, Aedile, Praetor, Consul }
 
 // 3. Use in DTO
-@DynamicallyMappable(typeName = "order_update")
+@DynamicallyMappable(typeName = "appointment_record")
 @Serializable
-data class OrderUpdate(val newStatus: OrderStatus)
-// JSON Output: {"newStatus": "IN_PROGRESS"} (instead of "InProgress")
+data class AppointmentRecord(val office: Magistrature)
+// JSON Output: {"office": "pro_consul"} (instead of "ProConsul")
 ```
+
 #### Why Is This Necessary?
 
-This serializer is required because of how kotlinx.serialization works. When you have an enum property inside a `@Serializable` class, the compiler plugin generates a serializer for that class at compile time. For enum properties, **it uses the default enum serializer** which simply outputs the Kotlin enum name (e.g., `"InProgress"`).
+This serializer is required because of how kotlinx.serialization works. When you have an enum property inside a `@Serializable` class, the compiler plugin generates a serializer for that class at compile time. For enum properties, **it uses the default enum serializer** which simply outputs the Kotlin enum name (e.g., `"ProConsul"`).
 
 The library cannot intercept or modify this behavior internally — the serializer is already baked into the generated code. The only way to change how the enum is serialized is to explicitly specify a custom serializer using `@Serializable(with = ...)` on the enum class itself.
 
@@ -390,13 +392,13 @@ Octavius provides `BigDecimalAsNumberSerializer` to serialize `java.math.BigDeci
 ```kotlin
 import org.octavius.data.helper.BigDecimalAsNumberSerializer
 
-@DynamicallyMappable(typeName = "price_data")
+@DynamicallyMappable(typeName = "tribute_record")
 @Serializable
-data class PriceData(
+data class TributeRecord(
     @Serializable(with = BigDecimalAsNumberSerializer::class)
-    val price: BigDecimal
+    val amount: BigDecimal
 )
-// JSONB Output: {"price": 199.99} (number, not string)
+// JSONB Output: {"amount": 42000.00} (number, not string)
 ```
 
 ---

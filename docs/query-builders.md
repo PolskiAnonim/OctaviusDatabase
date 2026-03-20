@@ -1,5 +1,7 @@
 # Query Builders
 
+*The Roman surveyor does not lay roads at random — he studies the terrain, selects his instruments, and drives his groma into the earth with purpose. So too should queries be constructed: deliberately, precisely, with full knowledge of what lies ahead.*
+
 Octavius Database provides fluent query builders for all CRUD operations. Each builder supports:
 - **CTE (Common Table Expressions)** via `with()` and `recursive()`
 - **Named parameters** using `:param` syntax
@@ -50,32 +52,32 @@ Builds SQL SELECT queries with full support for all standard clauses.
 
 ```kotlin
 // Basic SELECT
-val users = dataAccess.select("id", "name", "email")
-    .from("users")
+val senators = dataAccess.select("id", "name", "province")
+    .from("senate")
     .where("active = true")
-    .orderBy("created_at DESC")
-    .toListOf<User>()
+    .orderBy("appointed_at DESC")
+    .toListOf<Senator>()
 
 // With pagination
 val page = dataAccess.select("*")
-    .from("products")
-    .where("category = :category")
-    .orderBy("price ASC")
+    .from("tributes")
+    .where("province = :province")
+    .orderBy("amount ASC")
     .page(page = 0, size = 20)
-    .toListOf<Product>("category" to "electronics")
+    .toListOf<Tribute>("province" to "Aegyptus")
 
 // With GROUP BY and HAVING
-val stats = dataAccess.select("category", "COUNT(*) as count", "AVG(price) as avg_price")
-    .from("products")
-    .groupBy("category")
-    .having("COUNT(*) > 5")
-    .toListOf<CategoryStats>()
+val stats = dataAccess.select("province", "COUNT(*) as legion_count", "AVG(strength) as avg_strength")
+    .from("legions")
+    .groupBy("province")
+    .having("COUNT(*) > 2")
+    .toListOf<ProvinceStats>()
 
 // With JOINs (in FROM clause)
-val ordersWithUsers = dataAccess.select("o.id", "o.total", "u.name as user_name")
-    .from("orders o JOIN users u ON o.user_id = u.id")
-    .where("o.status = :status")
-    .toListOf<OrderWithUser>("status" to "completed")
+val campaignsWithCommanders = dataAccess.select("c.id", "c.name", "l.name as commander_name")
+    .from("campaigns c JOIN legionnaires l ON c.commander_id = l.id")
+    .where("c.status = :status")
+    .toListOf<CampaignWithCommander>("status" to "active")
 ```
 
 ---
@@ -102,41 +104,41 @@ Builds SQL INSERT queries with support for values, expressions, SELECT source, a
 
 ```kotlin
 // Basic INSERT
-dataAccess.insertInto("users")
-    .values(listOf("name", "email", "created_at"))
+dataAccess.insertInto("citizens")
+    .values(listOf("name", "tribe", "enrolled_at"))
     .execute(mapOf(
-        "name" to "John",
-        "email" to "john@example.com",
-        "created_at" to Clock.System.now()
+        "name" to "Gaius Julius",
+        "tribe" to "Cornelia",
+        "enrolled_at" to Clock.System.now()
     ))
 
 // INSERT with RETURNING
-val newId = dataAccess.insertInto("users")
+val newId = dataAccess.insertInto("citizens")
     .value("name")
-    .value("email")
+    .value("tribe")
     .returning("id")
-    .toField<Int>("name" to "John", "email" to "john@example.com")
+    .toField<Int>("name" to "Marcus Tullius", "tribe" to "Cornelia")
 
 // Using expressions (e.g., NOW(), DEFAULT)
-dataAccess.insertInto("audit_log")
+dataAccess.insertInto("senate_audit")
     .valueExpression("action", ":action")
-    .valueExpression("timestamp", "NOW()")
-    .valueExpression("user_id", "COALESCE(:user_id, 0)")
-    .execute("action" to "login", "user_id" to userId)
+    .valueExpression("recorded_at", "NOW()")
+    .valueExpression("senator_id", "COALESCE(:senator_id, 0)")
+    .execute("action" to "vote_cast", "senator_id" to senatorId)
 
 // INSERT from SELECT (with explicit columns)
-dataAccess.insertInto("archive_orders")
-    .columns("id", "total", "archived_at")
+dataAccess.insertInto("archived_campaigns")
+    .columns("id", "tribute_total", "archived_at")
     .fromSelect("""
-        SELECT id, total, NOW()
-        FROM orders
-        WHERE created_at < :cutoff
+        SELECT id, tribute_total, NOW()
+        FROM campaigns
+        WHERE ended_at < :cutoff
     """)
     .execute("cutoff" to cutoffDate)
 
 // INSERT from SELECT (columns inferred by database)
-dataAccess.insertInto("archive_orders")
-    .fromSelect("SELECT id, total, NOW() FROM orders WHERE created_at < :cutoff")
+dataAccess.insertInto("archived_campaigns")
+    .fromSelect("SELECT id, tribute_total, NOW() FROM campaigns WHERE ended_at < :cutoff")
     .execute("cutoff" to cutoffDate)
 ```
 
@@ -163,31 +165,31 @@ Builds SQL UPDATE queries. **WHERE clause is mandatory** for safety.
 
 ```kotlin
 // Basic UPDATE
-dataAccess.update("users")
-    .setValues(listOf("name", "email"))
+dataAccess.update("citizens")
+    .setValues(listOf("name", "tribe"))
     .where("id = :id")
-    .execute(mapOf("name" to "Jane", "email" to "jane@example.com", "id" to 123))
+    .execute(mapOf("name" to "Livia Augusta", "tribe" to "Claudia", "id" to 42))
 
 // UPDATE with expression
-dataAccess.update("products")
-    .setExpression("stock", "stock - :quantity")
-    .setExpression("updated_at", "NOW()")
+dataAccess.update("legion_supplies")
+    .setExpression("quantity", "quantity - :consumed")
+    .setExpression("last_resupply", "NOW()")
     .where("id = :id")
-    .execute("quantity" to 5, "id" to productId)
+    .execute("consumed" to 5, "id" to supplyId)
 
 // UPDATE with FROM (for JOINs)
-dataAccess.update("orders")
+dataAccess.update("campaigns")
     .setExpression("status", ":newStatus")
-    .from("users u")
-    .where("orders.user_id = u.id AND u.banned = true")
-    .execute("newStatus" to "cancelled")
+    .from("citizens c")
+    .where("campaigns.commander_id = c.id AND c.exiled = true")
+    .execute("newStatus" to "suspended")
 
 // UPDATE with RETURNING
-val updated = dataAccess.update("users")
-    .setValue("last_login")
+val updated = dataAccess.update("citizens")
+    .setValue("last_census")
     .where("id = :id")
-    .returning("id", "name", "last_login")
-    .toSingleOf<User>("last_login" to now, "id" to userId)
+    .returning("id", "name", "last_census")
+    .toSingleOf<Citizen>("last_census" to now, "id" to citizenId)
 ```
 
 ---
@@ -208,21 +210,21 @@ Builds SQL DELETE queries. **WHERE clause is mandatory** for safety.
 
 ```kotlin
 // Basic DELETE
-dataAccess.deleteFrom("sessions")
+dataAccess.deleteFrom("expired_mandates")
     .where("expires_at < NOW()")
     .execute()
 
 // DELETE with USING (JOIN-like)
-dataAccess.deleteFrom("order_items")
-    .using("orders o")
-    .where("order_items.order_id = o.id AND o.status = :status")
-    .execute("status" to "cancelled")
+dataAccess.deleteFrom("campaign_legions")
+    .using("campaigns c")
+    .where("campaign_legions.campaign_id = c.id AND c.status = :status")
+    .execute("status" to "disbanded")
 
 // DELETE with RETURNING
-val deleted = dataAccess.deleteFrom("users")
+val expelled = dataAccess.deleteFrom("senate")
     .where("id = :id")
-    .returning("id", "email")
-    .toSingleOf<DeletedUser>("id" to userId)
+    .returning("id", "name")
+    .toSingleOf<ExpelledSenator>("id" to senatorId)
 ```
 
 ---
@@ -237,24 +239,24 @@ Executes arbitrary SQL queries. Use when the fluent builders don't cover your us
 // Complex query with raw SQL
 val results = dataAccess.rawQuery("""
     SELECT
-        u.id,
-        u.name,
-        COUNT(o.id) as order_count,
-        COALESCE(SUM(o.total), 0) as total_spent
-    FROM users u
-    LEFT JOIN orders o ON o.user_id = u.id
-    WHERE u.created_at > :since
-    GROUP BY u.id, u.name
-    HAVING COUNT(o.id) > :minOrders
-    ORDER BY total_spent DESC
-""").toListOf<UserStats>("since" to startDate, "minOrders" to 5)
+        c.id,
+        c.name,
+        COUNT(cam.id) as campaign_count,
+        COALESCE(SUM(cam.tribute_collected), 0) as total_tribute
+    FROM citizens c
+    LEFT JOIN campaigns cam ON cam.commander_id = c.id
+    WHERE c.enrolled_at > :since
+    GROUP BY c.id, c.name
+    HAVING COUNT(cam.id) > :minCampaigns
+    ORDER BY total_tribute DESC
+""").toListOf<CitizenStats>("since" to startDate, "minCampaigns" to 2)
 
-// Raw INSERT/UPDATE/DELETE
+// Raw UPDATE
 val affected = dataAccess.rawQuery("""
-    UPDATE products
-    SET price = price * 1.1
-    WHERE category = :cat AND price < :maxPrice
-""").execute("cat" to "electronics", "maxPrice" to 100)
+    UPDATE tributes
+    SET amount = amount * 1.1
+    WHERE province = :province AND amount < :maxAmount
+""").execute("province" to "Britannia", "maxAmount" to 1000)
 ```
 
 ---
@@ -278,47 +280,47 @@ data class QueryFragment(
 To keep your code readable, the library provides handy `infix` functions for creating fragments:
 ```kotlin
 // Single parameter
-val f1 = "age = :age" withParam ("age" to 18)
+val f1 = "rank_order >= :rank" withParam ("rank" to 3)
 
 // Multiple parameters
-val f2 = "age BETWEEN :min AND :max" withParams mapOf("min" to 18, "max" to 65)
+val f2 = "tribute BETWEEN :min AND :max" withParams mapOf("min" to 100, "max" to 5000)
 
 // No parameters
-val f3 = QueryFragment("updated_at = NOW()") 
+val f3 = QueryFragment("last_census_at = NOW()")
 ```
 
 ### Joining Fragments
 
 You can combine a list of fragments using the `.join()` extension method. This is powerful because it:
-1.  **Merges Parameters Safely**: Collects all parameters into a single map, throwing an error if duplicate keys have conflicting values.
-2.  **Handles Logic Grouping**: By default, wraps each fragment in parentheses (e.g., `(A) AND (B)`) to preserve operator precedence.
-3.  **Applies Prefix/Postfix**: Useful for constructing specific clauses (like `WHERE ...` or `SET ...`).
+1. **Merges Parameters Safely**: Collects all parameters into a single map, throwing an error if duplicate keys have conflicting values.
+2. **Handles Logic Grouping**: By default, wraps each fragment in parentheses (e.g., `(A) AND (B)`) to preserve operator precedence.
+3. **Applies Prefix/Postfix**: Useful for constructing specific clauses (like `WHERE ...` or `SET ...`).
 
 ### Example: Dynamic WHERE Clause
 
 Using `listOfNotNull` combined with the Elvis operator or `?.let` is the cleanest way to build conditional filters.
 
 ```kotlin
-fun searchUsers(name: String?, minAge: Int?, active: Boolean?): List<User> {
-    
+fun searchCitizens(name: String?, minAge: Int?, tribe: String?): List<Citizen> {
+
     // 1. Build list of fragments based on non-null inputs
     val fragments = listOfNotNull(
-        name?.let { "name LIKE :name" withParam ("name" to "%$it%") },
+        name?.let { "name ILIKE :name" withParam ("name" to "%$it%") },
         minAge?.let { "age >= :minAge" withParam ("minAge" to it) },
-        active?.let { "active = :active" withParam ("active" to it) }
+        tribe?.let { "tribe = :tribe" withParam ("tribe" to it) }
     )
 
     // 2. Join them
     // If list is empty, returns empty fragment.
-    // addParenthesis = true (default) ensures safety: (name LIKE...) AND (age >=...)
+    // addParenthesis = true (default) ensures safety: (name ILIKE...) AND (age >=...)
     val whereClause = fragments.join(separator = " AND ")
 
     // 3. Apply to builder
     // Note: We pass whereClause.sql to the builder and whereClause.params to the executor
     return dataAccess.select("*")
-        .from("users")
-        .where(whereClause.sql) // Builder ignores empty string
-        .toListOf<User>(whereClause.params)
+        .from("citizens")
+        .where(whereClause.sql)
+        .toListOf<Citizen>(whereClause.params)
 }
 ```
 
@@ -328,9 +330,9 @@ fun searchUsers(name: String?, minAge: Int?, active: Boolean?): List<User> {
 
 ```kotlin
 val updates = listOfNotNull(
-    newStatus?.let { "status = :status" withParam ("status" to it) },
-    newRole?.let { "role = :role" withParam ("role" to it) },
-    QueryFragment("updated_at = NOW()") // Always update timestamp
+    newRank?.let { "rank = :rank" withParam ("rank" to it) },
+    newTribe?.let { "tribe = :tribe" withParam ("tribe" to it) },
+    QueryFragment("last_census_at = NOW()") // Always update census timestamp
 )
 
 val setClause = updates.join(
@@ -339,9 +341,9 @@ val setClause = updates.join(
     addParenthesis = false // Don't wrap SET assignments in ()
 )
 
-// Result SQL: "UPDATE users SET status = :status, role = :role, updated_at = NOW() WHERE id = :id"
-dataAccess.rawQuery("UPDATE users ${setClause.sql} WHERE id = :id")
-    .execute(setClause.params + ("id" to userId))
+// Result SQL: "UPDATE citizens SET rank = :rank, tribe = :tribe, last_census_at = NOW() WHERE id = :id"
+dataAccess.rawQuery("UPDATE citizens ${setClause.sql} WHERE id = :id")
+    .execute(setClause.params + ("id" to citizenId))
 ```
 
 ---
@@ -353,50 +355,50 @@ All builders support CTEs via `with()` and `recursive()`.
 ### Basic CTE
 
 ```kotlin
-val activeUsers = dataAccess.select("*")
-    .with("active_users", "SELECT * FROM users WHERE active = true")
-    .from("active_users")
-    .where("last_login > :since")
-    .toListOf<User>("since" to lastWeek)
+val activeLegionnaires = dataAccess.select("*")
+    .with("active_legionnaires", "SELECT * FROM legionnaires WHERE active = true")
+    .from("active_legionnaires")
+    .where("last_campaign > :since")
+    .toListOf<Legionnaire>("since" to lastDecade)
 ```
 
 ### Multiple CTEs
 
 ```kotlin
 val report = dataAccess.select("*")
-    .with("recent_orders", "SELECT * FROM orders WHERE created_at > :since")
-    .with("order_totals", "SELECT user_id, SUM(total) as total FROM recent_orders GROUP BY user_id")
-    .from("users u JOIN order_totals ot ON u.id = ot.user_id")
-    .orderBy("ot.total DESC")
-    .toListOf<UserOrderReport>("since" to lastMonth)
+    .with("recent_campaigns", "SELECT * FROM campaigns WHERE started_at > :since")
+    .with("campaign_totals", "SELECT commander_id, SUM(tribute_collected) as total FROM recent_campaigns GROUP BY commander_id")
+    .from("citizens c JOIN campaign_totals ct ON c.id = ct.commander_id")
+    .orderBy("ct.total DESC")
+    .toListOf<CommanderReport>("since" to lastYear)
 ```
 
 ### Recursive CTE
 
 ```kotlin
-// Tree traversal (e.g., category hierarchy)
+// Tree traversal (e.g., provincial hierarchy)
 val hierarchy = dataAccess.select("*")
-    .with("category_tree", """
+    .with("province_tree", """
         SELECT id, name, parent_id, 1 as depth
-        FROM categories
+        FROM provinces
         WHERE id = :rootId
         UNION ALL
-        SELECT c.id, c.name, c.parent_id, ct.depth + 1
-        FROM categories c
-        JOIN category_tree ct ON c.parent_id = ct.id
+        SELECT p.id, p.name, p.parent_id, pt.depth + 1
+        FROM provinces p
+        JOIN province_tree pt ON p.parent_id = pt.id
     """)
     .recursive()
-    .from("category_tree")
+    .from("province_tree")
     .orderBy("depth, name")
-    .toListOf<CategoryNode>("rootId" to rootCategoryId)
+    .toListOf<ProvinceNode>("rootId" to rootProvinceId)
 ```
 
 ### CTE with INSERT
 
 ```kotlin
-val archivedCount = dataAccess.insertInto("archive")
+val archivedCount = dataAccess.insertInto("campaign_archive")
     .columns("id", "data", "archived_at")
-    .with("to_archive", "SELECT id, data FROM records WHERE status = 'completed'")
+    .with("to_archive", "SELECT id, data FROM campaigns WHERE status = 'concluded'")
     .fromSelect("SELECT id, data, NOW() FROM to_archive")
     .execute()
 ```
@@ -408,23 +410,23 @@ val archivedCount = dataAccess.insertInto("archive")
 ### In FROM clause
 
 ```kotlin
-val stats = dataAccess.select("category", "avg_price")
+val stats = dataAccess.select("province", "avg_tribute")
     .fromSubquery("""
-        SELECT category, AVG(price) as avg_price
-        FROM products
-        GROUP BY category
-    """, alias = "category_stats")
-    .where("avg_price > :minAvg")
-    .toListOf<CategoryStats>("minAvg" to 50.0)
+        SELECT province, AVG(amount) as avg_tribute
+        FROM tributes
+        GROUP BY province
+    """, alias = "province_stats")
+    .where("avg_tribute > :minAvg")
+    .toListOf<ProvinceStats>("minAvg" to 500.0)
 ```
 
 ### In WHERE clause (as part of condition string)
 
 ```kotlin
-val users = dataAccess.select("*")
-    .from("users")
-    .where("id IN (SELECT user_id FROM orders WHERE total > :minTotal)")
-    .toListOf<User>("minTotal" to 1000)
+val commanders = dataAccess.select("*")
+    .from("citizens")
+    .where("id IN (SELECT commander_id FROM campaigns WHERE tribute_collected > :minTribute)")
+    .toListOf<Citizen>("minTribute" to 10000)
 ```
 
 ---
@@ -448,51 +450,51 @@ The `onConflict` builder allows configuring PostgreSQL's ON CONFLICT clause for 
 
 ```kotlin
 // DO NOTHING on conflict
-dataAccess.insertInto("users")
-    .values(listOf("email", "name"))
+dataAccess.insertInto("citizens")
+    .values(listOf("name", "tribe"))
     .onConflict {
-        onColumns("email")
+        onColumns("name")
         doNothing()
     }
-    .execute("email" to "john@example.com", "name" to "John")
+    .execute("name" to "Marcus Aurelius", "tribe" to "Aurelia")
 
 // DO UPDATE (upsert)
-dataAccess.insertInto("user_stats")
-    .values(listOf("user_id", "login_count", "last_login"))
+dataAccess.insertInto("citizen_census")
+    .values(listOf("citizen_id", "census_count", "last_recorded"))
     .onConflict {
-        onColumns("user_id")
+        onColumns("citizen_id")
         doUpdate(
-            "login_count" to "user_stats.login_count + 1",
-            "last_login" to "EXCLUDED.last_login"
+            "census_count" to "citizen_census.census_count + 1",
+            "last_recorded" to "EXCLUDED.last_recorded"
         )
     }
     .execute(
-        "user_id" to userId,
-        "login_count" to 1,
-        "last_login" to now
+        "citizen_id" to citizenId,
+        "census_count" to 1,
+        "last_recorded" to now
     )
 
 // Using EXCLUDED to reference attempted insert values
-dataAccess.insertInto("products")
-    .values(listOf("sku", "name", "price", "stock"))
+dataAccess.insertInto("tributes")
+    .values(listOf("province", "year", "amount", "goods"))
     .onConflict {
-        onColumns("sku")
+        onColumns("province", "year")
         doUpdate(
-            "price" to "EXCLUDED.price",
-            "stock" to "products.stock + EXCLUDED.stock",
-            whereCondition = "products.price != EXCLUDED.price OR products.stock != EXCLUDED.stock"
+            "amount" to "EXCLUDED.amount",
+            "goods" to "tributes.goods + EXCLUDED.goods",
+            whereCondition = "tributes.amount != EXCLUDED.amount OR tributes.goods != EXCLUDED.goods"
         )
     }
-    .execute(productData)
+    .execute(tributeData)
 
 // Using constraint name
-dataAccess.insertInto("orders")
-    .values(orderData)
+dataAccess.insertInto("senate_records")
+    .values(senateData)
     .onConflict {
-        onConstraint("orders_external_id_key")
+        onConstraint("senate_records_session_key")
         doNothing()
     }
-    .execute(orderData)
+    .execute(senateData)
 ```
 
 ---
@@ -522,52 +524,52 @@ Controls what happens if another transaction already holds a lock on one of the 
 ### Examples
 
 ```kotlin
-// Basic FOR UPDATE - lock the row, then update it
+// Basic FOR UPDATE - lock the campaign, then update it
 dataAccess.transaction { tx ->
     val result = tx.select("*")
-        .from("orders")
+        .from("campaigns")
         .where("id = :id")
         .forUpdate()
-        .toSingleOf<Order>("id" to orderId)
+        .toSingleOf<Campaign>("id" to campaignId)
 
-    result.onSuccess { order ->
-        dataAccess.update("orders")
+    result.onSuccess { campaign ->
+        dataAccess.update("campaigns")
             .setExpression("status", ":status")
             .where("id = :id")
-            .execute("status" to "processing", "id" to order?.id)
+            .execute("status" to "marching", "id" to campaign?.id)
     }
 }
 
 // FOR UPDATE OF - lock only the specified table in a JOIN query
 dataAccess.transaction { tx ->
-    tx.select("o.id", "o.total", "a.balance")
-        .from("orders o JOIN accounts a ON o.account_id = a.id")
-        .where("o.id = :id")
-        .forUpdate(of = "o")  // only lock rows in 'orders', not 'accounts'
-        .toSingleOf<OrderWithBalance>("id" to orderId)
+    tx.select("c.id", "c.tribute_total", "a.balance")
+        .from("campaigns c JOIN aerarium a ON c.province_id = a.province_id")
+        .where("c.id = :id")
+        .forUpdate(of = "c")  // only lock rows in 'campaigns', not 'aerarium'
+        .toSingleOf<CampaignWithBalance>("id" to campaignId)
 }
 
 // FOR UPDATE NOWAIT - return Failure immediately if row is already locked
 dataAccess.transaction { tx ->
     tx.select("*")
-        .from("seats")
+        .from("grain_depots")
         .where("id = :id AND status = 'available'")
         .forUpdate(mode = LockWaitMode.NOWAIT)
-        .toSingleOf<Seat>("id" to seatId)
-        .onSuccess { seat -> /* reserve it */ }
-        .onFailure { error -> /* row locked by another transaction */ }
+        .toSingleOf<GrainDepot>("id" to depotId)
+        .onSuccess { depot -> /* requisition it */ }
+        .onFailure { error -> /* depot claimed by another legion */ }
 }
 
-// FOR UPDATE SKIP LOCKED - job queue / task processing pattern
+// FOR UPDATE SKIP LOCKED - levy queue / conscription processing pattern
 dataAccess.transaction { tx ->
     tx.select("*")
-        .from("jobs")
+        .from("conscription_queue")
         .where("status = 'pending'")
-        .orderBy("created_at")
+        .orderBy("enrolled_at")
         .limit(10)
-        .forUpdate(mode = LockWaitMode.SKIP_LOCKED) // skip rows claimed by other workers
-        .toListOf<Job>()
-        .onSuccess { jobs -> /* process jobs safely */ }
+        .forUpdate(mode = LockWaitMode.SKIP_LOCKED) // skip recruits claimed by other centurions
+        .toListOf<Conscript>()
+        .onSuccess { recruits -> /* process conscription */ }
 }
 ```
 
@@ -581,16 +583,16 @@ Generates `:key` placeholders automatically for INSERT queries.
 
 ```kotlin
 // Using List - generates placeholders for each column name
-dataAccess.insertInto("users")
-    .values(listOf("name", "email", "created_at"))
-    // Generated: INSERT INTO users (name, email, created_at) VALUES (:name, :email, :created_at)
-    .execute("name" to "John", "email" to "john@example.com", "created_at" to now)
+dataAccess.insertInto("citizens")
+    .values(listOf("name", "tribe", "enrolled_at"))
+    // Generated: INSERT INTO citizens (name, tribe, enrolled_at) VALUES (:name, :tribe, :enrolled_at)
+    .execute("name" to "Gaius Octavius", "tribe" to "Iulia", "enrolled_at" to now)
 
 // Using Map - uses map keys as column names
-val data = mapOf("name" to "John", "email" to "john@example.com")
-dataAccess.insertInto("users")
+val data = mapOf("name" to "Gaius Octavius", "tribe" to "Iulia")
+dataAccess.insertInto("citizens")
     .values(data)
-    // Generated: INSERT INTO users (name, email) VALUES (:name, :email)
+    // Generated: INSERT INTO citizens (name, tribe) VALUES (:name, :tribe)
     .execute(data)
 ```
 
@@ -600,15 +602,15 @@ Generates `:key` placeholders automatically for UPDATE queries.
 
 ```kotlin
 // Using List
-dataAccess.update("users")
-    .setValues(listOf("name", "email"))
-    // Generated: UPDATE users SET name = :name, email = :email WHERE ...
+dataAccess.update("citizens")
+    .setValues(listOf("name", "tribe"))
+    // Generated: UPDATE citizens SET name = :name, tribe = :tribe WHERE ...
     .where("id = :id")
-    .execute("name" to "Jane", "email" to "jane@example.com", "id" to 1)
+    .execute("name" to "Livia Drusilla", "tribe" to "Claudia", "id" to 1)
 
 // Using Map
-val updates = mapOf("name" to "Jane", "email" to "jane@example.com")
-dataAccess.update("users")
+val updates = mapOf("name" to "Livia Drusilla", "tribe" to "Claudia")
+dataAccess.update("citizens")
     .setValues(updates)
     .where("id = :id")
     .execute(updates + ("id" to 1))
@@ -618,16 +620,16 @@ dataAccess.update("users")
 
 ```kotlin
 // For INSERT
-dataAccess.insertInto("users")
+dataAccess.insertInto("citizens")
     .value("name")
-    .value("email")
-// Generated: INSERT INTO users (name, email) VALUES (:name, :email)
+    .value("tribe")
+// Generated: INSERT INTO citizens (name, tribe) VALUES (:name, :tribe)
 
 // For UPDATE
-dataAccess.update("users")
+dataAccess.update("citizens")
     .setValue("name")
-    .setValue("email")
-// Generated: UPDATE users SET name = :name, email = :email WHERE ...
+    .setValue("tribe")
+// Generated: UPDATE citizens SET name = :name, tribe = :tribe WHERE ...
 ```
 
 ---
@@ -643,12 +645,12 @@ Convert to a `TransactionStep` for use in `TransactionPlan`:
 ```kotlin
 val plan = TransactionPlan()
 
-val orderIdHandle = plan.add(
-    dataAccess.insertInto("orders")
-        .values(listOf("user_id", "total"))
+val edictIdHandle = plan.add(
+    dataAccess.insertInto("edicts")
+        .values(listOf("issuer_id", "tribute_total"))
         .returning("id")
         .asStep()
-        .toField<Int>("user_id" to userId, "total" to total)
+        .toField<Int>("issuer_id" to consulId, "tribute_total" to total)
 )
 
 // Use handle in subsequent steps...
@@ -670,10 +672,10 @@ Create a deep copy of the builder for creating variants:
 
 ```kotlin
 val baseQuery = dataAccess.select("id", "name")
-    .from("users")
+    .from("legionnaires")
     .orderBy("name")
 
 // Create variants without modifying the original
-val activeUsers = baseQuery.copy().where("active = true").toListOf<User>()
-val inactiveUsers = baseQuery.copy().where("active = false").toListOf<User>()
+val activeLegionnaires = baseQuery.copy().where("active = true").toListOf<Legionnaire>()
+val retiredLegionnaires = baseQuery.copy().where("active = false").toListOf<Legionnaire>()
 ```

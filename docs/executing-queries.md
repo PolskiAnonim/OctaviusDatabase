@@ -1,5 +1,7 @@
 # Executing Queries
 
+*A legatus does not merely issue commands — he awaits dispatches confirming their execution, and must know how to respond when a messenger returns with ill tidings. Handle every result. Acknowledge every failure. The Republic depends on it.*
+
 Once you've built a query using the [Query Builders](query-builders.md), you need to execute it and handle the results. This guide covers terminal methods, the `DataResult` pattern, async execution, and streaming.
 
 ## Table of Contents
@@ -58,14 +60,14 @@ Parameters can be passed as `Map` or `vararg Pair`:
 
 ```kotlin
 // Using Map
-dataAccess.select("*").from("users")
+dataAccess.select("*").from("citizens")
     .where("id = :id")
-    .toSingleOf<User>(mapOf("id" to 123))
+    .toSingleOf<Citizen>(mapOf("id" to 123))
 
 // Using vararg (more concise)
-dataAccess.select("*").from("users")
+dataAccess.select("*").from("citizens")
     .where("id = :id")
-    .toSingleOf<User>("id" to 123)
+    .toSingleOf<Citizen>("id" to 123)
 ```
 
 ---
@@ -105,25 +107,25 @@ sealed class DataResult<out T> {
 ### Basic Usage
 
 ```kotlin
-val result: DataResult<List<User>> = dataAccess.select("*")
-    .from("users")
-    .toListOf<User>()
+val result: DataResult<List<Citizen>> = dataAccess.select("*")
+    .from("citizens")
+    .toListOf<Citizen>()
 
 // Pattern 1: Callbacks
 result
-    .onSuccess { users -> println("Found ${users.size} users") }
-    .onFailure { error -> println("Error: ${error.message}") }
+    .onSuccess { citizens -> println("Found ${citizens.size} citizens") }
+    .onFailure { error -> println("Census failed: ${error.message}") }
 
 // Pattern 2: Transform
-val names: DataResult<List<String>> = result.map { users ->
-    users.map { it.name }
+val names: DataResult<List<String>> = result.map { citizens ->
+    citizens.map { it.name }
 }
 
 // Pattern 3: Get with default
-val users: List<User> = result.getOrElse { emptyList() }
+val citizens: List<Citizen> = result.getOrElse { emptyList() }
 
 // Pattern 4: Get or throw (careful!)
-val users: List<User> = result.getOrThrow()  // Throws on failure
+val citizens: List<Citizen> = result.getOrThrow()  // Throws on failure
 ```
 
 ### Null Handling via Type Parameter
@@ -131,30 +133,30 @@ val users: List<User> = result.getOrThrow()  // Throws on failure
 Nullability is determined by the type parameter you pass:
 
 ```kotlin
-// Non-nullable — Failure if user not found (0 rows)
-val user: DataResult<User> = dataAccess.select("*")
-    .from("users")
+// Non-nullable — Failure if citizen not found (0 rows)
+val citizen: DataResult<Citizen> = dataAccess.select("*")
+    .from("citizens")
     .where("id = :id")
-    .toSingleOf<User>("id" to userId)
+    .toSingleOf<Citizen>("id" to citizenId)
 
-// Nullable — Success(null) if user not found
-val maybeUser: DataResult<User?> = dataAccess.select("*")
-    .from("users")
+// Nullable — Success(null) if citizen not found
+val maybeCitizen: DataResult<Citizen?> = dataAccess.select("*")
+    .from("citizens")
     .where("id = :id")
-    .toSingleOf<User?>("id" to userId)
+    .toSingleOf<Citizen?>("id" to citizenId)
 
 // Common pattern: non-nullable + getOrThrow
-val user: User = dataAccess.select("*")
-    .from("users")
+val citizen: Citizen = dataAccess.select("*")
+    .from("citizens")
     .where("id = :id")
-    .toSingleOf<User>("id" to userId)
+    .toSingleOf<Citizen>("id" to citizenId)
     .getOrThrow()  // Guaranteed non-null
 
 // For untyped map results, use toSingleStrict
 val row: DataResult<Map<String, Any?>> = dataAccess.select("*")
-    .from("users")
+    .from("citizens")
     .where("id = :id")
-    .toSingleStrict("id" to userId)  // Failure if no rows
+    .toSingleStrict("id" to citizenId)  // Failure if no rows
 ```
 
 ### Terminal Method Behavior Matrix
@@ -185,44 +187,44 @@ Key patterns:
 ```kotlin
 val result = dataAccess.transaction { tx ->
     // Option 1: Early return on error
-    val user = tx.select("*")
-        .from("users")
+    val citizen = tx.select("*")
+        .from("citizens")
         .where("id = :id")
-        .toSingleOf<User>("id" to userId)
+        .toSingleOf<Citizen>("id" to citizenId)
         .getOrElse { error ->
             return@transaction DataResult.Failure(error)
         }
 
     // Option 2: Check and handle
-    val insertResult = tx.insertInto("logs")
-        .values(logData)
-        .execute(logData)
+    val insertResult = tx.insertInto("senate_audit")
+        .values(auditData)
+        .execute(auditData)
 
     if (insertResult is DataResult.Failure) {
         return@transaction insertResult
     }
 
-    DataResult.Success(user)
+    DataResult.Success(citizen)
 }
 ```
 
 ### Chaining Multiple Operations
 
 ```kotlin
-fun getOrderWithItems(orderId: Int): DataResult<OrderWithItems> {
-    val orderResult = dataAccess.select("*")
-        .from("orders")
+fun getCampaignWithLegions(campaignId: Int): DataResult<CampaignWithLegions> {
+    val campaignResult = dataAccess.select("*")
+        .from("campaigns")
         .where("id = :id")
-        .toSingleOf<Order>("id" to orderId)
+        .toSingleOf<Campaign>("id" to campaignId)
 
-    return orderResult.map { order ->
-        val items = dataAccess.select("*")
-            .from("order_items")
-            .where("order_id = :orderId")
-            .toListOf<OrderItem>("orderId" to orderId)
+    return campaignResult.map { campaign ->
+        val legions = dataAccess.select("*")
+            .from("campaign_legions")
+            .where("campaign_id = :campaignId")
+            .toListOf<Legion>("campaignId" to campaignId)
             .getOrElse { return DataResult.Failure(it) }
 
-        OrderWithItems(order, items)
+        CampaignWithLegions(campaign, legions)
     }
 }
 ```
@@ -235,13 +237,13 @@ When using Spring or other frameworks with global exception handling:
 
 ```kotlin
 @Service
-class UserService(private val dataAccess: DataAccess) {
+class CitizenService(private val dataAccess: DataAccess) {
 
-    fun getUser(id: Int): User {
+    fun getCitizen(id: Int): Citizen {
         return dataAccess.select("*")
-            .from("users")
+            .from("citizens")
             .where("id = :id")
-            .toSingleOf<User>("id" to id)
+            .toSingleOf<Citizen>("id" to id)
             .getOrThrow()  // Let global handler deal with errors
     }
 }
@@ -261,16 +263,16 @@ class GlobalExceptionHandler {
 
 ```kotlin
 // Empty list on error
-val users = dataAccess.select("*")
-    .from("users")
-    .toListOf<User>()
+val citizens = dataAccess.select("*")
+    .from("citizens")
+    .toListOf<Citizen>()
     .getOrElse { emptyList() }
 
 // Null on error
-val user = dataAccess.select("*")
-    .from("users")
+val citizen = dataAccess.select("*")
+    .from("citizens")
     .where("id = :id")
-    .toSingleOf<User>("id" to userId)
+    .toSingleOf<Citizen>("id" to citizenId)
     .getOrElse { null }
 ```
 
@@ -283,7 +285,7 @@ PostgreSQL functions that return `void` (e.g. `pg_notify`, `pg_advisory_lock`, c
 ```kotlin
 // Call a void function — result is DataResult<Unit>
 dataAccess.rawQuery("SELECT pg_notify(:channel, :payload)")
-    .toField<Unit>("channel" to "orders", "payload" to "order_99")
+    .toField<Unit>("channel" to "senate_decrees", "payload" to "edict_99")
 
 // Also works inside transactions
 dataAccess.transaction { tx ->
@@ -309,15 +311,13 @@ Execute queries asynchronously using coroutines.
 ```kotlin
 // Requires a CoroutineScope (e.g., viewModelScope)
 val job = dataAccess.select("*")
-    .from("users")
-    .where("active = true")
+    .from("citizens")
+    .where("tribe = :tribe")
     .async(viewModelScope)
-    .toListOf<User> { result ->
-        result.onSuccess { users ->
-            // Handle success on the calling scope
-            updateUI(users)
+    .toListOf<Citizen> { result ->
+        result.onSuccess { citizens ->
+            updateUI(citizens)
         }.onFailure { error ->
-            // Handle error
             showError(error)
         }
     }
@@ -348,9 +348,9 @@ interface AsyncTerminalMethods {
 
 ```kotlin
 dataAccess.select("*")
-    .from("users")
-    .async(scope, ioDispatcher = Dispatchers.Default)  // Use different dispatcher
-    .toListOf<User> { /* ... */ }
+    .from("citizens")
+    .async(scope, ioDispatcher = Dispatchers.Default)
+    .toListOf<Citizen> { /* ... */ }
 ```
 
 ---
@@ -370,27 +370,25 @@ Both `forEachRow` and `forEachRowOf` return `DataResult<Unit>` and accept an opt
 ```kotlin
 dataAccess.transaction {
     val result = dataAccess.select("*")
-        .from("large_table")
-        .where("created_at > :since")
-        .asStream(fetchSize = 500)  // Fetch 500 rows at a time
+        .from("census_records")
+        .where("recorded_at > :since")
+        .asStream(fetchSize = 500)
         .forEachRow("since" to startDate) { row: Map<String, Any?> ->
-            // Process each row individually
-            processRow(row)
+            processCensusRow(row)
         }
 
-    // Handle potential errors
     result.onFailure { error ->
-        logger.error("Streaming failed: ${error.message}")
+        logger.error("Census stream failed: ${error.message}")
     }
 }
 
 // With data class mapping (params defaults to emptyMap())
 dataAccess.transaction {
     dataAccess.select("*")
-        .from("audit_log")
+        .from("province_audit_log")
         .asStream(fetchSize = 1000)
-        .forEachRowOf<AuditEntry> { entry ->  // No params needed
-            archiveEntry(entry)
+        .forEachRowOf<AuditEntry> { entry ->
+            archiveProvinceRecord(entry)
         }
         .onFailure { error ->
             logger.error("Archive failed: ${error.message}")

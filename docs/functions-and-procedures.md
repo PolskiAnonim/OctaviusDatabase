@@ -1,5 +1,7 @@
 # Calling Functions and Procedures
 
+*The Roman state did not administer its provinces through improvised orders shouted across the forum — it relied on established procedures, standing functions of governance, and known protocols. Octavius treats database functions and procedures with the same respect: call them by name, pass your arguments, and receive what is due.*
+
 Octavius stays true to its SQL-first philosophy. Instead of magic wrappers, you invoke functions and procedures directly using native PostgreSQL syntax.
 
 ## Functions (`CREATE FUNCTION`)
@@ -9,10 +11,10 @@ Functions are called like any standard table or view. PostgreSQL returns them as
 ### Basic Usage
 Functions can be invoked directly in the `FROM` clause of a `SelectQueryBuilder`:
 ```kotlin
-// SELECT * FROM add_numbers(a, b)
-val result = dataAccess.select("*").from("add_numbers(:a, :b)")
-    .toField<Int>("a" to 17, "b" to 25)
-    .getOrThrow() // 42
+// SELECT * FROM calculate_tribute(province, year)
+val tribute = dataAccess.select("*").from("calculate_tribute(:province, :year)")
+    .toField<Int>("province" to "Aegyptus", "year" to 44)
+    .getOrThrow() // 42000
 ```
 
 ### Void Functions (e.g., `pg_notify`)
@@ -20,33 +22,34 @@ If a function returns `void`, you can call it and map the result to `Unit`. This
 ```kotlin
 // Using RawQueryBuilder
 dataAccess.rawQuery("SELECT pg_notify(:channel, :payload)")
-    .toField<Unit>("channel" to "orders", "payload" to "new_order")
+    .toField<Unit>("channel" to "senate_decrees", "payload" to "new_edict")
 
 // Or using SelectQueryBuilder
 dataAccess.select("pg_notify(:channel, :payload)")
-    .toField<Unit>("channel" to "orders", "payload" to "new_order")
+    .toField<Unit>("channel" to "senate_decrees", "payload" to "new_edict")
 ```
 
 ### Set-Returning Functions (Table Functions)
 Functions that return `SETOF type` or `TABLE(...)` behave exactly like tables. You can select specific columns, apply `WHERE` clauses, and map the multiple resulting rows using `toListOf()`:
 ```kotlin
-// CREATE FUNCTION get_active_users(min_score int) RETURNS TABLE(id int, name text, score int)
-val activeUsers = dataAccess.select("id", "name", "score")
-    .from("get_active_users(:minScore)")
-    .where("score > 100")
-    .toListOf<User>("minScore" to 50)
+// CREATE FUNCTION get_active_legionnaires(min_campaigns int)
+//   RETURNS TABLE(id int, name text, campaigns_fought int)
+val veterans = dataAccess.select("id", "name", "campaigns_fought")
+    .from("get_active_legionnaires(:minCampaigns)")
+    .where("campaigns_fought > 5")
+    .toListOf<Legionnaire>("minCampaigns" to 2)
 ```
 
 ### Multiple OUT Parameters
 Functions with multiple OUT parameters return a single row with multiple columns:
 ```kotlin
-// CREATE FUNCTION split_text(input text, OUT left text, OUT right text)
-val result = dataAccess.rawQuery("SELECT * FROM split_text(:input)")
-    .toSingle("input" to "abcdef")
+// CREATE FUNCTION assess_province(name text, OUT tribute_due int, OUT grain_quota int)
+val assessment = dataAccess.rawQuery("SELECT * FROM assess_province(:name)")
+    .toSingle("name" to "Britannia")
     .getOrThrow()
 
-result!!["left"]  // "abc"
-result["right"]   // "def"
+assessment!!["tribute_due"]  // 8000
+assessment["grain_quota"]    // 3200
 ```
 
 ---
@@ -61,33 +64,33 @@ Because of this, **you can use any standard terminal method** (`toSingleOf()`, `
 For `OUT` parameters, you must explicitly provide a `NULL` placeholder with a type cast in your SQL query:
 
 ```kotlin
-// CALL my_proc(IN a int, OUT result text)
-val result = dataAccess.rawQuery("CALL my_proc(:a, NULL::text)")
-    .toSingleStrict("a" to 42)
+// CALL conscript_legionnaire(IN legion_id int, OUT new_rank text)
+val result = dataAccess.rawQuery("CALL conscript_legionnaire(:legion_id, NULL::text)")
+    .toSingleStrict("legion_id" to 7)
     .getOrThrow()
 
-result["result"] // "some value"
+result["new_rank"] // "Miles"
 ```
 
 ### INOUT Parameters
 `INOUT` parameters are passed as named parameters and are also returned in the result:
 ```kotlin
-// CREATE PROCEDURE increment(INOUT counter int4, IN step int4)
-val result = dataAccess.rawQuery("CALL increment(:counter, :step)")
-    .toSingleStrict("counter" to 10, "step" to 3)
+// CREATE PROCEDURE promote_legionnaire(INOUT current_rank text, IN years_served int)
+val result = dataAccess.rawQuery("CALL promote_legionnaire(:current_rank, :years_served)")
+    .toSingleStrict("current_rank" to "Miles", "years_served" to 5)
     .getOrThrow()
 
-result["counter"] // 13
+result["current_rank"] // "Optio"
 ```
 
 ### Mapping to Data Objects
 Since `CALL` returns a standard row, you can map the `OUT`/`INOUT` parameters directly into a Kotlin Data Class:
 ```kotlin
-data class ProcResult(val resultStr: String, val resultInt: Int)
+data class EnlistmentResult(val assignedLegion: String, val enlistmentBonus: Int)
 
-// CALL complex_proc(OUT result_str text, OUT result_int int)
-val result = dataAccess.rawQuery("CALL complex_proc(NULL::text, NULL::int)")
-    .toSingleOf<ProcResult>()
+// CALL enlist_volunteer(OUT assigned_legion text, OUT enlistment_bonus int)
+val result = dataAccess.rawQuery("CALL enlist_volunteer(NULL::text, NULL::int)")
+    .toSingleOf<EnlistmentResult>()
 ```
 
 ---

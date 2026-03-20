@@ -1,5 +1,7 @@
 # Notifications (LISTEN / NOTIFY)
 
+*The Roman cursus publicus — the imperial postal relay — could carry a message from Rome to the furthest province in days, not months. PostgreSQL's LISTEN/NOTIFY is the cursus publicus of your database: asynchronous, lightweight, and remarkably fast. Octavius gives you a Flow-based interface to receive these dispatches as they arrive.*
+
 Octavius Database provides first-class support for PostgreSQL's asynchronous notification mechanism via `LISTEN` and `NOTIFY`.
 
 ## Table of Contents
@@ -32,14 +34,14 @@ Common use cases: cache invalidation, real-time UI updates, cross-service events
 
 ```kotlin
 // With payload
-dataAccess.notify("orders", "order_id:42")
+dataAccess.notify("legion_dispatch", "legion_id:VII")
 
 // Without payload
-dataAccess.notify("pings")
+dataAccess.notify("senate_bell")
 
 // Returns DataResult — always handle errors
-dataAccess.notify("orders", payload)
-    .onFailure { error -> logger.error { "Notify failed: $error" } }
+dataAccess.notify("senate_decrees", payload)
+    .onFailure { error -> logger.error { "Dispatch failed: $error" } }
 ```
 
 **Signature:**
@@ -57,7 +59,7 @@ The payload is limited to **8000 bytes** (PostgreSQL constraint). For larger dat
 
 ```kotlin
 dataAccess.createChannelListener().use { listener ->
-    listener.listen("orders")
+    listener.listen("legion_dispatch")
 
     listener.notifications()
         .collect { notification ->
@@ -86,14 +88,14 @@ A single listener can subscribe to any number of channels:
 
 ```kotlin
 dataAccess.createChannelListener().use { listener ->
-    listener.listen("orders", "inventory", "payments")
+    listener.listen("legion_dispatch", "senate_decrees", "aerarium_transfers")
 
     listener.notifications()
         .collect { notification ->
             when (notification.channel) {
-                "orders"    -> handleOrder(notification.payload)
-                "inventory" -> handleInventory(notification.payload)
-                "payments"  -> handlePayment(notification.payload)
+                "legion_dispatch"      -> handleDispatch(notification.payload)
+                "senate_decrees"       -> handleDecree(notification.payload)
+                "aerarium_transfers"   -> handleTransfer(notification.payload)
             }
         }
 }
@@ -107,7 +109,7 @@ Unsubscribe from specific channels without closing the listener. All methods ret
 
 ```kotlin
 // Unsubscribe from one channel
-listener.unlisten("orders")
+listener.unlisten("legion_dispatch")
 
 // Unsubscribe from all channels at once
 listener.unlistenAll()
@@ -124,11 +126,11 @@ The listener can be reused — call `listen()` again to subscribe to new channel
 ```kotlin
 // Notification is delivered only if the transaction commits
 dataAccess.transaction { tx ->
-    tx.insertInto("orders").values(listOf("product_id", "quantity"))
-        .execute("product_id" to 1, "quantity" to 5)
+    tx.insertInto("edicts").values(listOf("issuer_id", "text"))
+        .execute("issuer_id" to 1, "text" to "Let it be known throughout the provinces...")
         .getOrElse { return@transaction DataResult.Failure(it) }
 
-    dataAccess.notify("orders", "new_order")  // delivered on commit
+    dataAccess.notify("senate_decrees", "new_edict")  // delivered on commit
     DataResult.Success(Unit)
 }
 ```
@@ -163,15 +165,15 @@ try {
 ### Typical Pattern in a Service
 
 ```kotlin
-class OrderEventService(private val db: DataAccess) {
+class SenateEventService(private val db: DataAccess) {
 
     fun startListening(scope: CoroutineScope): Job = scope.launch {
         db.createChannelListener().use { listener ->
-            listener.listen("orders")
+            listener.listen("senate_decrees")
             listener.notifications()
-                .catch { e -> logger.error(e) { "Listener error" } }
+                .catch { e -> logger.error(e) { "Dispatch listener error" } }
                 .collect { notification ->
-                    processOrder(notification.payload)
+                    processDecree(notification.payload)
                 }
         }
     }

@@ -16,7 +16,9 @@
 
 ## Philosophy (The Pax Romana of Data)
 
-Octavius was built to bring order to the chaotic republic of database interactions. It rejects the unpredictable "magic" of traditional ORMs and return the power to the rightful ruler: **SQL**.
+*Just as Augustus brought order to a republic torn apart by the chaos of unchecked power, Octavius brings order to the chaotic republic of database interactions. The Senate of abstraction is dissolved. SQL rules supreme.*
+
+Octavius was built to bring order to the chaotic republic of database interactions. It rejects the unpredictable "magic" of traditional ORMs and returns the power to the rightful ruler: **SQL**.
 
 | Principle                   | Description                                                       |
 |-----------------------------|-------------------------------------------------------------------|
@@ -52,29 +54,29 @@ val legionnaires = dataAccess.select("id", "name", "rank")
 
 ```kotlin
 // SELECT with pagination
-val users = dataAccess.select("id", "name", "email")
-    .from("users")
+val senators = dataAccess.select("id", "name", "province")
+    .from("senate")
     .where("active = true")
-    .orderBy("created_at DESC")
+    .orderBy("appointed_at DESC")
     .limit(10)
     .offset(20)
-    .toListOf<User>()
+    .toListOf<Senator>()
 
 // INSERT with RETURNING
-val newId = dataAccess.insertInto("users")
+val newId = dataAccess.insertInto("citizens")
     .value("name")
-    .value("email")
+    .value("tribe")
     .returning("id")
-    .toField<Int>(mapOf("name" to "John", "email" to "john@example.com"))
+    .toField<Int>(mapOf("name" to "Marcus Aurelius", "tribe" to "Cornelia"))
 
 // UPDATE with expressions
-dataAccess.update("products")
-    .setExpression("stock", "stock - 1")
+dataAccess.update("legion_supplies")
+    .setExpression("quantity", "quantity - 1")
     .where("id = :id")
-    .execute("id" to productId)
+    .execute("id" to supplyId)
 
 // DELETE
-dataAccess.deleteFrom("sessions")
+dataAccess.deleteFrom("expired_mandates")
     .where("expires_at < NOW()")
     .execute()
 ```
@@ -116,18 +118,18 @@ Arrays of all standard types are supported and map to `List<T>`.
 ```kotlin
 // PostgreSQL COMPOSITE TYPE → Kotlin data class
 @PgComposite
-data class Address(val street: String, val city: String, val zipCode: String)
+data class Province(val name: String, val capital: String, val governor: String)
 
 // PostgreSQL ENUM → Kotlin enum
-@PgEnum(schema = "catalog")
-enum class OrderStatus { Pending, Processing, Shipped, Delivered }
+@PgEnum(schema = "cursus_honorum")
+enum class Magistrature { Quaestor, Aedile, Praetor, Consul, Censor }
 
 // Works seamlessly in queries
-data class Order(val id: Int, val status: OrderStatus, val shippingAddress: Address)
+data class Senator(val id: Int, val rank: Magistrature, val homeProvince: Province)
 
-val orders = dataAccess.select("id", "status", "shipping_address")
-    .from("orders")
-    .toListOf<Order>()  // Types converted automatically
+val senators = dataAccess.select("id", "rank", "home_province")
+    .from("senate")
+    .toListOf<Senator>()  // Types converted automatically
 ```
 
 ## Dynamic Type System
@@ -155,30 +157,30 @@ $$ LANGUAGE plpgsql;
 Store different types in a single column or array. The framework deserializes each element to its correct Kotlin class based on `type_name`.
 
 ```kotlin
-@DynamicallyMappable(typeName = "text_note")
+@DynamicallyMappable(typeName = "inscription")
 @Serializable
-data class TextNote(val content: String)
+data class Inscription(val text: String, val language: String)
 
-@DynamicallyMappable(typeName = "image_note")
+@DynamicallyMappable(typeName = "relief")
 @Serializable
-data class ImageNote(val url: String, val caption: String?)
+data class Relief(val subject: String, val depictedBattle: String?)
 
-// Database: CREATE TABLE notebooks (id INT, notes dynamic_dto[]);
+// Database: CREATE TABLE monuments (id INT, records dynamic_dto[]);
 
-val notes: List<Any> = listOf(
-    TextNote("Hello world"),
-    ImageNote("https://example.com/img.png", "A photo")
+val records: List<Any> = listOf(
+    Inscription("SENATUS POPULUSQUE ROMANUS", "Latin"),
+    Relief("Triumph of Trajan", "Dacian Wars")
 )
 
-dataAccess.insertInto("notebooks")
-    .value("notes")
-    .execute("notes" to notes)
+dataAccess.insertInto("monuments")
+    .value("records")
+    .execute("records" to records)
 
 // Read back — each element deserialized to its correct type
-val notebook = dataAccess.select("notes")
-    .from("notebooks")
+val monument = dataAccess.select("records")
+    .from("monuments")
     .where("id = 1")
-    .toField<List<Any>>()  // Returns [TextNote(...), ImageNote(...)]
+    .toField<List<Any>>()  // Returns [Inscription(...), Relief(...)]
 ```
 
 ### 2. Ad-hoc Object Mapping
@@ -186,29 +188,29 @@ val notebook = dataAccess.select("notes")
 Construct Kotlin objects directly in SQL using `jsonb_build_object` — no need to define PostgreSQL COMPOSITE types. Perfect for JOINs and projections where you want nested results without schema changes.
 
 ```kotlin
-@DynamicallyMappable(typeName = "user_profile")
+@DynamicallyMappable(typeName = "citizen_profile")
 @Serializable
-data class UserProfile(val role: String, val permissions: List<String>)
+data class CitizenProfile(val tribe: String, val rights: List<String>)
 
-data class UserWithProfile(val id: Int, val name: String, val profile: UserProfile)
+data class CitizenWithProfile(val id: Int, val name: String, val profile: CitizenProfile)
 
-val users = dataAccess.rawQuery("""
+val citizens = dataAccess.rawQuery("""
     SELECT
-        u.id,
-        u.name,
+        c.id,
+        c.name,
         dynamic_dto(
-            'user_profile',
+            'citizen_profile',
             jsonb_build_object(
-                'role', p.role,
-                'permissions', p.permissions
+                'tribe', p.tribe,
+                'rights', p.rights
             )
         ) AS profile
-    FROM users u
-    JOIN profiles p ON p.user_id = u.id
-""").toListOf<UserWithProfile>()
+    FROM citizens c
+    JOIN citizen_profiles p ON p.citizen_id = c.id
+""").toListOf<CitizenWithProfile>()
 ```
 
-> **Why use this?** Usually, to get a user with their profile in one query, you'd fetch flat columns (`user_id`, `user_name`, `profile_role`...) and manually map them, or create a database VIEW. With ad-hoc mapping, you construct the nested structure directly in SQL. The database does the packaging, Octavius does the unpacking — zero boilerplate.
+> **Why use this?** Usually, to get a citizen with their profile in one query, you'd fetch flat columns (`citizen_id`, `citizen_name`, `profile_tribe`...) and manually map them, or create a database VIEW. With ad-hoc mapping, you construct the nested structure directly in SQL. The database does the packaging, Octavius does the unpacking — zero boilerplate.
 
 
 ## Functions and Procedures
@@ -217,12 +219,12 @@ Octavius stays true to its SQL-first philosophy. Invoke functions and procedures
 
 ```kotlin
 // Functions (SELECT * FROM func)
-val result = dataAccess.select("*").from("add_numbers(:a, :b)")
-    .toField<Int>("a" to 17, "b" to 25)
+val result = dataAccess.select("*").from("calculate_tribute(:province, :year)")
+    .toField<Int>("province" to "Britannia", "year" to 43)
 
 // Procedures (CALL proc)
-val result = dataAccess.rawQuery("CALL my_proc(:a, NULL::text)")
-    .toSingleStrict("a" to 42)
+val result = dataAccess.rawQuery("CALL register_conscript(:legion_id, NULL::text)")
+    .toSingleStrict("legion_id" to 7)
 ```
 
 ## Safe Dynamic Filters
@@ -230,17 +232,17 @@ val result = dataAccess.rawQuery("CALL my_proc(:a, NULL::text)")
 Build complex `WHERE` clauses without SQL injection risks:
 
 ```kotlin
-fun buildFilters(name: String?, minPrice: Int?, category: Category?) = listOfNotNull(
+fun buildFilters(name: String?, minRank: Int?, province: Province?) = listOfNotNull(
     name?.let { "name ILIKE :name" withParam ("name" to "%$it%") },
-    minPrice?.let { "price >= :minPrice" withParam ("minPrice" to it) },
-    category?.let { "category = :cat" withParam ("cat" to it) }
+    minRank?.let { "rank_order >= :minRank" withParam ("minRank" to it) },
+    province?.let { "home_province = :province" withParam ("province" to it) }
 ).join(" AND ")
 
-val filter = buildFilters(name = "Pro", minPrice = 100, category = null)
-val products = dataAccess.select("*")
-    .from("products")
+val filter = buildFilters(name = "Julius", minRank = 3, province = null)
+val senators = dataAccess.select("*")
+    .from("senate")
     .where(filter.sql)
-    .toListOf<Product>(filter.params)
+    .toListOf<Senator>(filter.params)
 ```
 
 ## Transaction Plans
@@ -250,28 +252,28 @@ Execute multi-step operations atomically with dependencies between steps:
 ```kotlin
 val plan = TransactionPlan()
 
-// Step 1: Create order, get handle to future ID
-val orderIdHandle = plan.add(
-    dataAccess.insertInto("orders")
-        .values(listOf("user_id", "total"))
+// Step 1: Record the edict, get handle to future ID
+val edictIdHandle = plan.add(
+    dataAccess.insertInto("edicts")
+        .values(listOf("issuer_id", "total_tribute"))
         .returning("id")
         .asStep()
-        .toField<Int>(mapOf("user_id" to userId, "total" to total))
+        .toField<Int>(mapOf("issuer_id" to consulId, "total_tribute" to tribute))
 )
 
-// Step 2: Create order items using the handle
-for (item in cartItems) {
-    val orderItem: Map<String, Any?> = mapOf(
-        "order_id" to orderIdHandle.field(),  // Reference future value
-        "product_id" to item.productId,
-        "quantity" to item.quantity
+// Step 2: Assign levy items using the handle
+for (item in levyItems) {
+    val levyItem: Map<String, Any?> = mapOf(
+        "edict_id" to edictIdHandle.field(),  // Reference future value
+        "province_id" to item.provinceId,
+        "amount" to item.amount
     )
-    
+
     plan.add(
-        dataAccess.insertInto("order_items")
-            .values(orderItem)
+        dataAccess.insertInto("edict_items")
+            .values(levyItem)
             .asStep()
-            .execute(orderItem)
+            .execute(levyItem)
     )
 }
 
@@ -285,17 +287,17 @@ Subscribe to PostgreSQL channels and receive real-time notifications as a Kotlin
 
 ```kotlin
 // Send a notification
-dataAccess.notify("orders", "order_id:42")
+dataAccess.notify("legion_dispatch", "legion_id:VII")
 
 // Listen on a dedicated connection (outside the HikariCP pool)
 dataAccess.createChannelListener().use { listener ->
-    listener.listen("orders", "inventory")
+    listener.listen("legion_dispatch", "senate_decrees")
 
     listener.notifications()
         .collect { notification ->
             when (notification.channel) {
-                "orders"    -> handleOrder(notification.payload)
-                "inventory" -> handleInventory(notification.payload)
+                "legion_dispatch" -> handleDispatch(notification.payload)
+                "senate_decrees"  -> handleDecree(notification.payload)
             }
         }
 }
@@ -310,11 +312,11 @@ Each `PgChannelListener` holds its own dedicated JDBC connection, separate from 
 Create a `database.properties` file in `src/main/resources`:
 
 ```properties
-db.url=jdbc:postgresql://localhost:5432/mydb
-db.username=postgres
-db.password=secret
-db.schemas=public,myschema
-db.packagesToScan=com.myapp.domain,com.myapp.dto
+db.url=jdbc:postgresql://localhost:5432/roma
+db.username=augustus
+db.password=spqr
+db.schemas=public,cursus_honorum
+db.packagesToScan=com.roma.domain,com.roma.dto
 
 # Optional settings
 db.setSearchPath=true
@@ -337,11 +339,11 @@ val dataAccess = OctaviusDatabase.fromConfig(
 ```kotlin
 val dataAccess = OctaviusDatabase.fromConfig(
     DatabaseConfig(
-        dbUrl = "jdbc:postgresql://localhost:5432/mydb",
-        dbUsername = "user",
-        dbPassword = "pass",
+        dbUrl = "jdbc:postgresql://localhost:5432/roma",
+        dbUsername = "augustus",
+        dbPassword = "spqr",
         dbSchemas = listOf("public"),
-        packagesToScan = listOf("com.myapp.domain")
+        packagesToScan = listOf("com.roma.domain")
     )
 )
 
