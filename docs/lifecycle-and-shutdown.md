@@ -2,14 +2,17 @@
 
 *Every campaign must end. When Caesar returned from Gaul, he did not leave his legions camped on the banks of the Rubicon indefinitely — he issued the order to disband, the soldiers were paid and released, and the land stopped feeding idle men. A `DataAccess` instance is no different: when your application's work is done, the connection pool should be formally dismissed.*
 
-The `DataAccess` interface implements `AutoCloseable`. Properly closing the instance is essential to gracefully shut down the underlying database connection pool, release TCP connections, and terminate background threads.
+The `DataAccess` interface implements `AutoCloseable`. While modern Operating Systems and PostgreSQL are excellent at reclaiming resources from terminated processes, closing the instance explicitly is considered **best practice for resource hygiene**.
 
-### Why is it important?
-When you initialize Octavius using `fromConfig()`, it creates an internal HikariCP connection pool. If you don't close it when your application stops, you may experience database connection leaks, `unexpected EOF` errors on the PostgreSQL side, or prevent the JVM from shutting down cleanly.
+### Why bother?
+If you are running a simple CLI tool or a local dev environment, the OS will clean up after you. However, in production environments, calling `.close()` ensures:
+*   **Clean Logs:** You avoid `unexpected EOF` noise in your PostgreSQL logs.
+*   **Prompt Shutdown:** Background threads (like Hikari’s housekeeper) are terminated immediately, allowing the JVM to exit without a 5-second "hang."
+*   **Test Stability:** In large integration test suites, it prevents you from hitting connection limits by leaking pools between test cases.
 
 ### Standard Usage
 
-For short-lived scripts, background jobs, or CLI applications, take advantage of Kotlin's standard `.use {}` block:
+For short-lived scripts or jobs, use Kotlin's `.use {}` block to handle the cleanup automatically:
 
 ```kotlin
 OctaviusDatabase.fromConfig(config).use { dataAccess ->
@@ -18,9 +21,9 @@ OctaviusDatabase.fromConfig(config).use { dataAccess ->
 } // The internal HikariCP pool is automatically closed here
 ```
 
-### Common Integration Patterns
+### Integration Patterns
 
-In long-running applications or services, you should tie the `close()` method to your application's lifecycle manager or dependency injection container.
+In long-running services, tie the lifecycle to your framework of choice.
 
 **Ktor (Server):**
 If you are using `ktor-server`, tie the closure to the application's stop event via the environment monitor:
@@ -34,20 +37,10 @@ environment.monitor.subscribe(ApplicationStopped) {
 ```
 
 **Spring Boot:**
-Spring automatically detects `AutoCloseable` beans. If you expose `DataAccess` as a `@Bean`, no extra code is required for shutdown:
+Spring is "AutoCloseable-aware." If you register `DataAccess` as a `@Bean`, Spring will automatically call `close()` during the application context shutdown. No extra code needed.
 
-```kotlin
-@Bean
-fun dataAccess(): DataAccess {
-    return OctaviusDatabase.fromConfig(
-        DatabaseConfig.loadFromFile("database.properties")
-    )
-}
-```
-
-**Koin (Dependency Injection):**
-For manual lifecycle management in Koin, use the `onClose` hook in your module definition. This is especially useful in CLI tools or desktop apps where you manually call `stopKoin()`:
-
+**Koin:**
+If you manage your lifecycle manually via Koin, use the `onClose` hook:
 ```kotlin
 val appModule = module {
     single<DataAccess> { 
