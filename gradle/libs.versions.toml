@@ -1,6 +1,6 @@
 [versions]
 dokka = "2.1.0"
-kotlin = "2.3.10"
+kotlin = "2.3.20"
 kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.10.0"
 kotlinx-datetime = "0.7.1"
@@ -8,8 +8,8 @@ kotlinx-datetime = "0.7.1"
 classgraph = "4.8.184"
 postgres = "42.7.10"
 hikari = "7.0.2"
-spring-jdbc = "7.0.5"
-flyway = "12.0.2"
+spring-jdbc = "7.0.6"
+flyway = "12.1.1"
 # test/log
 junit = "6.0.3"
 assertj-core = "4.0.0-M1"
