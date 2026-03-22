@@ -53,3 +53,30 @@ tasks.withType<Test> {
         events("passed", "skipped", "failed")
     }
 }
+
+val generateVersionKotlin = tasks.register("generateVersionKotlin") {
+    val outputDir = layout.buildDirectory.dir("generated/kotlin")
+
+    outputs.dir(outputDir)
+
+    inputs.property("version", project.version)
+
+    doLast {
+        val packagePath = "org/octavius/database/config"
+        val fileDir = outputDir.get().dir(packagePath).asFile
+        fileDir.mkdirs()
+
+        val outputFile = fileDir.resolve("AppInfo.kt")
+        outputFile.writeText("""
+            package org.octavius.database.config
+
+            object AppInfo {
+                const val VERSION = "${project.version}"
+            }
+        """.trimIndent())
+    }
+}
+
+kotlin.sourceSets.main {
+    kotlin.srcDir(generateVersionKotlin)
+}

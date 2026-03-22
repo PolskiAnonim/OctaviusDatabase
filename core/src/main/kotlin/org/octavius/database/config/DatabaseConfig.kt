@@ -31,6 +31,7 @@ data class DatabaseConfig(
     val flywayBaselineVersion: String? = null,
     val disableFlyway: Boolean = false,
     val disableCoreTypeInitialization: Boolean = false,
+    val showBanner: Boolean = true,
     val hikariProperties: Map<String, String> = emptyMap(),
 ) {
     companion object {
@@ -90,6 +91,7 @@ data class DatabaseConfig(
             val flywayBaselineVersion: String? = props.getProperty("db.flywayBaselineVersion")
             val disableFlyway: Boolean = props.getProperty("db.disableFlyway").toBoolean()
             val disableCoreTypeInitialization: Boolean = props.getProperty("db.disableCoreTypeInitialization").toBoolean()
+            val showBanner: Boolean = props.getProperty("db.showBanner", "true").toBoolean()
 
             // --- HikariCP specific configuration ---
             val hikariProperties = props.stringPropertyNames()
@@ -120,6 +122,7 @@ data class DatabaseConfig(
                 flywayBaselineVersion = flywayBaselineVersion,
                 disableFlyway = disableFlyway,
                 disableCoreTypeInitialization = disableCoreTypeInitialization,
+                showBanner = showBanner,
                 hikariProperties = hikariProperties
             )
         }

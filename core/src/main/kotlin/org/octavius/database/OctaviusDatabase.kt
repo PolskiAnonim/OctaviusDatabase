@@ -8,6 +8,7 @@ import org.octavius.data.DataAccess
 import org.octavius.data.exception.InitializationException
 import org.octavius.data.exception.InitializationExceptionMessage
 import org.octavius.data.exception.QueryContext
+import org.octavius.database.config.AppInfo
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
 import org.octavius.database.type.KotlinToPostgresConverter
@@ -87,6 +88,7 @@ object OctaviusDatabase {
             flywayBaselineVersion = config.flywayBaselineVersion,
             disableFlyway = config.disableFlyway,
             disableCoreTypeInitialization = config.disableCoreTypeInitialization,
+            showBanner = config.showBanner,
             onClose = {
                 logger.info { "Closing internal HikariDataSource..." }
                 dataSource.close()
@@ -102,6 +104,7 @@ object OctaviusDatabase {
         flywayBaselineVersion: String? = null,
         disableFlyway: Boolean = false,
         disableCoreTypeInitialization: Boolean = false,
+        showBanner: Boolean = true,
         listenerConnectionFactory: (() -> Connection)? = null,
         onClose: (() -> Unit)? = null
     ): DataAccess {
@@ -140,7 +143,10 @@ object OctaviusDatabase {
         val kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry, dynamicDtoStrategy)
         val resolvedListenerConnectionFactory = listenerConnectionFactory ?: resolveListenerConnectionFactory(dataSource)
 
-        logger.info { "OctaviusDatabase initialization completed." }
+        if (showBanner) {
+            printBanner()
+        }
+
         return DatabaseAccess(
             jdbcTemplate,
             transactionManager,
@@ -197,5 +203,20 @@ object OctaviusDatabase {
                 cause = e
             )
         }
+    }
+
+    private fun printBanner() {
+        val banner = """
+           ____   _____ _______  __      _______ _    _  _____ 
+          / __ \ / ____|__   __|/\ \    / /_   _| |  | |/ ____|
+         | |  | | |       | |  /  \ \  / /  | | | |  | | (___  
+         | |  | | |       | | / /\ \ \/ /   | | | |  | |\___ \ 
+         | |__| | |____   | |/ ____ \  /   _| |_| |__| |____) |
+          \____/ \_____|  |_/_/    \_\/   |_____|\____/|_____/ 
+        --------------------------------------------------------
+         OCTAVIUS DATABASE :: ROME v${AppInfo.VERSION}
+        --------------------------------------------------------
+        """.trimIndent()
+        println(banner)
     }
 }
