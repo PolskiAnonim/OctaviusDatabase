@@ -1,6 +1,6 @@
 # Lifecycle & Shutdown
 
-*Every campaign must end. When Caesar returned from Gaul, he did not leave his legions camped on the banks of the Rubicon indefinitely — he issued the order to disband, the soldiers were paid and released, and the land stopped feeding idle men. A `DataAccess` instance is no different: when your application's work is done, the connection pool should be formally dismissed.*
+*Every campaign must end. When Octavian finally brought peace to Rome after Actium, he did not keep sixty legions standing indefinitely — he demobilized over half of them, settling veterans on farm land and saving the treasury from ruin. A DataAccess instance is no different: when your application's work is done, the connection pool should be formally dismissed.*
 
 The `DataAccess` interface implements `AutoCloseable`. While modern Operating Systems and PostgreSQL are excellent at reclaiming resources from terminated processes, closing the instance explicitly is considered **best practice for resource hygiene**.
 
