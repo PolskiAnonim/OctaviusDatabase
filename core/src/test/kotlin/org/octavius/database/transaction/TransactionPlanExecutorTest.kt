@@ -3,6 +3,7 @@ package org.octavius.database.transaction
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
@@ -13,6 +14,7 @@ import org.octavius.data.DataResult
 import org.octavius.data.builder.execute
 import org.octavius.data.builder.toColumn
 import org.octavius.data.builder.toField
+import org.octavius.data.exception.BuilderException
 import org.octavius.data.exception.ConstraintViolationException
 import org.octavius.data.exception.StepDependencyException
 import org.octavius.data.transaction.TransactionPlan
@@ -236,5 +238,47 @@ class TransactionPlanExecutorTest {
         assertThat(userCount).isEqualTo(1)
         assertThat(logCount).isEqualTo(1)
         assertThat(profileCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `should throw BuilderException during validation if a step is invalid`() {
+        val plan = TransactionPlan()
+
+        // DELETE without WHERE should throw BuilderException when toSql() is called
+        val invalidStep = dataAccess.deleteFrom("users")
+            .asStep()
+            .execute()
+
+        plan.add(invalidStep)
+
+        // Act & Assert
+        assertThatThrownBy {
+            dataAccess.executeTransactionPlan(plan)
+        }.isInstanceOf(BuilderException::class.java)
+            .hasMessageContaining("Error in transaction step 0")
+            .hasMessageContaining("Cannot build a DELETE statement without a WHERE clause")
+    }
+
+    @Test
+    fun `should throw BuilderException for second step being invalid`() {
+        val plan = TransactionPlan()
+
+        // Step 0: Valid
+        plan.add(dataAccess.insertInto("users").value("name").asStep().execute("name" to "Valid"))
+
+        // Step 1: Invalid (UPDATE without SET)
+        val invalidStep = dataAccess.update("users")
+            .where("id = 1")
+            .asStep()
+            .execute()
+
+        plan.add(invalidStep)
+
+        // Act & Assert
+        assertThatThrownBy {
+            dataAccess.executeTransactionPlan(plan)
+        }.isInstanceOf(BuilderException::class.java)
+            .hasMessageContaining("Error in transaction step 1")
+            .hasMessageContaining("Cannot build an UPDATE statement without a SET clause")
     }
 }

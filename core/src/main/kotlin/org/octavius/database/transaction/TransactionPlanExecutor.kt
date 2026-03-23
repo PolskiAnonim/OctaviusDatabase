@@ -88,15 +88,25 @@ internal class TransactionPlanExecutor(
 
     private fun validatePlan(stepsWithHandles: List<Pair<StepHandle<*>, TransactionStep<*>>>): Map<StepHandle<*>, Int> {
         val handleToIndexMap = stepsWithHandles.withIndex().associate { (index, pair) -> pair.first to index }
-        //TODO - validate for BuilderExceptions
+
         for ((currentIndex, pair) in stepsWithHandles.withIndex()) {
             val step = pair.second
+            val builder = step.builder as AbstractQueryBuilder<*>
+
+            // Step 1: Validate SQL generation (triggers BuilderException early)
+            val sql = try {
+                builder.toSql()
+            } catch (e: BuilderException) {
+                // If it's a BuilderException, we wrap it to provide the step index
+                throw BuilderException("Error in transaction step $currentIndex: ${e.message}", e)
+            }
+
+            // Step 2: Validate parameter dependencies
             try {
                 for (paramValue in step.params.values) {
                     validateTransactionValue(paramValue, currentIndex, handleToIndexMap)
                 }
             } catch (e: StepDependencyException) {
-                val sql = (step.builder as AbstractQueryBuilder<*>).toSql()
                 throw e.withContext(
                     QueryContext(
                         sql = sql,

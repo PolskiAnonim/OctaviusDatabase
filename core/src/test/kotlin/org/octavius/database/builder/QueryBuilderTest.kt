@@ -6,6 +6,7 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.octavius.data.builder.LockWaitMode
+import org.octavius.data.exception.BuilderException
 import org.octavius.database.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.springframework.jdbc.core.JdbcTemplate
@@ -198,7 +199,7 @@ class QueryBuilderTest {
         fun `should throw exception if WHERE clause is missing`() {
             assertThatThrownBy {
                 TestQueryBuilderFactory.update("users").setValue("name").toSql()
-            }.isInstanceOf(IllegalStateException::class.java)
+            }.isInstanceOf(BuilderException::class.java)
                 .hasMessageContaining("without a WHERE clause")
         }
     }
@@ -233,7 +234,7 @@ class QueryBuilderTest {
         fun `should throw exception if WHERE clause is missing`() {
             assertThatThrownBy {
                 TestQueryBuilderFactory.delete("users").toSql()
-            }.isInstanceOf(IllegalStateException::class.java)
+            }.isInstanceOf(BuilderException::class.java)
                 .hasMessageContaining("without a WHERE clause")
         }
     }

@@ -1,6 +1,7 @@
 package org.octavius.database.builder
 
 import org.octavius.data.builder.DeleteQueryBuilder
+import org.octavius.data.exception.checkBuilder
 import org.octavius.database.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.springframework.jdbc.core.JdbcTemplate
@@ -25,7 +26,7 @@ internal class DatabaseDeleteQueryBuilder(
     }
 
     override fun buildSql(): String {
-        check(!whereClause.isNullOrBlank()) { "Cannot build a DELETE statement without a WHERE clause for safety." }
+        checkBuilder(!whereClause.isNullOrBlank()) { "Cannot build a DELETE statement without a WHERE clause for safety." }
 
         val sql = StringBuilder(buildWithClause())
         sql.append("DELETE FROM $table")
