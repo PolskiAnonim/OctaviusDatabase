@@ -248,13 +248,12 @@ internal class TypeRegistryLoader(
 
         // Handle Standard Array Types
         PgStandardType.entries.filter { it.isArray }.forEach { pgType ->
-            val baseName = pgType.typeName.removeSuffix("[]")
-            val elementOid = standardOids[QualifiedName("", baseName)] ?: 0
-            if (elementOid != 0) {
-                val arrayQualifiedName = QualifiedName("", baseName, isArray = true)
-                arrayDefinitions[arrayQualifiedName] = PgArrayDefinition(pgType.oid, arrayQualifiedName.toString(), elementOid)
-                pgNameToOidMap[arrayQualifiedName] = pgType.oid
-            }
+            val elementOid = standardOids.getValue(QualifiedName("", pgType.typeName))
+
+            val arrayQualifiedName = QualifiedName("", pgType.typeName, isArray = true)
+            arrayDefinitions[arrayQualifiedName] =
+                PgArrayDefinition(pgType.oid, arrayQualifiedName.toString(), elementOid)
+            pgNameToOidMap[arrayQualifiedName] = pgType.oid
         }
 
         return arrayDefinitions to pgNameToOidMap

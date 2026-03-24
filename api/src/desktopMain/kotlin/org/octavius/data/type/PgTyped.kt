@@ -16,7 +16,7 @@ data class PgTyped(val value: Any?, val pgType: QualifiedName)
  * in a type-safe manner.
  */
 fun Any?.withPgType(pgType: PgStandardType): PgTyped = 
-    PgTyped(this, QualifiedName("", pgType.typeName))
+    PgTyped(this, QualifiedName("", pgType.typeName, isArray = pgType.isArray))
 
 /**
  * Wraps a value in PgTyped with explicit schema and name.

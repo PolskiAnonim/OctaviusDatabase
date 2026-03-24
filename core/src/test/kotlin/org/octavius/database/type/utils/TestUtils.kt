@@ -110,7 +110,7 @@ internal fun createFakeTypeRegistry(): TypeRegistry {
 
     // 2. Tablice standardowe (używane w testach)
     PgStandardType.entries.filter { it.isArray }.forEach { pgType ->
-        val baseName = pgType.typeName.removeSuffix("[]")
+        val baseName = pgType.typeName
         val baseType = PgStandardType.entries.find { !it.isArray && it.typeName == baseName }
             ?: throw IllegalStateException("Base type not found for array: ${pgType.typeName}")
         

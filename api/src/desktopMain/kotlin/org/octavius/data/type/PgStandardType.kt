@@ -40,27 +40,27 @@ enum class PgStandardType(val typeName: String, val isArray: Boolean = false, va
     UUID("uuid", oid = 2950),
     BYTEA("bytea", oid = 17),
 
-    // --- Array types (generated automatically) ---
-    INT2_ARRAY("int2[]", true, oid = 1005),
-    INT4_ARRAY("int4[]", true, oid = 1007),
-    INT8_ARRAY("int8[]", true, oid = 1016),
-    FLOAT4_ARRAY("float4[]", true, oid = 1021),
-    FLOAT8_ARRAY("float8[]", true, oid = 1022),
-    NUMERIC_ARRAY("numeric[]", true, oid = 1231),
-    VARCHAR_ARRAY("varchar[]", true, oid = 1015),
-    BPCHAR_ARRAY("bpchar[]", true, oid = 1014),
-    TEXT_ARRAY("text[]", true, oid = 1009),
-    DATE_ARRAY("date[]", true, oid = 1182),
-    TIMESTAMP_ARRAY("timestamp[]", true, oid = 1115),
-    TIMESTAMPTZ_ARRAY("timestamptz[]", true, oid = 1185),
-    TIME_ARRAY("time[]", true, oid = 1183),
-    TIMETZ_ARRAY("timetz[]", true, oid = 1270),
-    INTERVAL_ARRAY("interval[]", true, oid = 1187),
-    JSON_ARRAY("json[]", true, oid = 199),
-    JSONB_ARRAY("jsonb[]", true, oid = 3807),
-    BOOL_ARRAY("bool[]", true, oid = 1000),
-    UUID_ARRAY("uuid[]", true, oid = 2951),
-    BYTEA_ARRAY("bytea[]", true, oid = 1001)
+    // --- Array types ---
+    INT2_ARRAY("int2", true, oid = 1005),
+    INT4_ARRAY("int4", true, oid = 1007),
+    INT8_ARRAY("int8", true, oid = 1016),
+    FLOAT4_ARRAY("float4", true, oid = 1021),
+    FLOAT8_ARRAY("float8", true, oid = 1022),
+    NUMERIC_ARRAY("numeric", true, oid = 1231),
+    VARCHAR_ARRAY("varchar", true, oid = 1015),
+    BPCHAR_ARRAY("bpchar", true, oid = 1014),
+    TEXT_ARRAY("text", true, oid = 1009),
+    DATE_ARRAY("date", true, oid = 1182),
+    TIMESTAMP_ARRAY("timestamp", true, oid = 1115),
+    TIMESTAMPTZ_ARRAY("timestamptz", true, oid = 1185),
+    TIME_ARRAY("time", true, oid = 1183),
+    TIMETZ_ARRAY("timetz", true, oid = 1270),
+    INTERVAL_ARRAY("interval", true, oid = 1187),
+    JSON_ARRAY("json", true, oid = 199),
+    JSONB_ARRAY("jsonb", true, oid = 3807),
+    BOOL_ARRAY("bool", true, oid = 1000),
+    UUID_ARRAY("uuid", true, oid = 2951),
+    BYTEA_ARRAY("bytea", true, oid = 1001)
 }
 
 
