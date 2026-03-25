@@ -45,7 +45,7 @@ data class Legionnaire(val id: Int, val name: String, val rank: String)
 // Query with named parameters
 val legionnaires = dataAccess.select("id", "name", "rank")
     .from("legions")
-    .where("enlisted_year > :year")
+    .where("enlisted_year > @year")
     .orderBy("name")
     .toListOf<Legionnaire>("year" to 24)
 ```
@@ -72,7 +72,7 @@ val newId = dataAccess.insertInto("citizens")
 // UPDATE with expressions
 dataAccess.update("legion_supplies")
     .setExpression("quantity", "quantity - 1")
-    .where("id = :id")
+    .where("id = @id")
     .execute("id" to supplyId)
 
 // DELETE
@@ -219,11 +219,11 @@ Octavius stays true to its SQL-first philosophy. Invoke functions and procedures
 
 ```kotlin
 // Functions (SELECT * FROM func)
-val result = dataAccess.select("*").from("calculate_tribute(:province, :year)")
+val result = dataAccess.select("*").from("calculate_tribute(@province, @year)")
     .toField<Int>("province" to "Britannia", "year" to 43)
 
 // Procedures (CALL proc)
-val result = dataAccess.rawQuery("CALL register_conscript(:legion_id, NULL::text)")
+val result = dataAccess.rawQuery("CALL register_conscript(@legion_id, NULL::text)")
     .toSingleStrict("legion_id" to 7)
 ```
 
@@ -233,9 +233,9 @@ Build complex `WHERE` clauses without SQL injection risks:
 
 ```kotlin
 fun buildFilters(name: String?, minRank: Int?, province: Province?) = listOfNotNull(
-    name?.let { "name ILIKE :name" withParam ("name" to "%$it%") },
-    minRank?.let { "rank_order >= :minRank" withParam ("minRank" to it) },
-    province?.let { "home_province = :province" withParam ("province" to it) }
+    name?.let { "name ILIKE @name" withParam ("name" to "%$it%") },
+    minRank?.let { "rank_order >= @minRank" withParam ("minRank" to it) },
+    province?.let { "home_province = @province" withParam ("province" to it) }
 ).join(" AND ")
 
 val filter = buildFilters(name = "Julius", minRank = 3, province = null)
@@ -367,12 +367,13 @@ For detailed guides and examples, see the [full documentation](docs/README.md):
 - [Query Builders](docs/query-builders.md) - SELECT, INSERT, UPDATE, DELETE, CTEs, subqueries, ON CONFLICT
 - [Functions & Procedures](docs/functions-and-procedures.md) - CALL, SELECT, IN/OUT, functions vs procedures
 - [Executing Queries](docs/executing-queries.md) - Terminal methods, DataResult, async, streaming
+- [Parameter Handling](docs/parameter-handling.md) - Named parameters (@), expansion & conversion, type inference, collections & flattening
 - [Data Mapping](docs/data-mapping.md) - toMap(), toDataObject(), @MapKey, nested structures & strict typing
 - [ORM-Like Patterns](docs/orm-patterns.md) - CRUD patterns, real-world examples
 - [Transactions](docs/transactions.md) - Transaction plans, StepHandle, passing data between steps
 - [Notifications](docs/notifications.md) - LISTEN/NOTIFY, PgChannelListener, Flow-based receiving
 - [Error Handling](docs/error-handling.md) - Exception hierarchy, debugging
-- [Type System](docs/type-system.md) - @PgEnum, @PgComposite, @DynamicallyMappable, helper serializers
+- [Type System](docs/type-system.md) - @PgEnum, @PgComposite, @DynamicallyMappable, standard type mappings
 
 ## Architecture
 

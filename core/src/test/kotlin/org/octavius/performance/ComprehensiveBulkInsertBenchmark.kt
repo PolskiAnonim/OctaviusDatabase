@@ -184,7 +184,7 @@ class ComprehensiveBulkInsertBenchmark {
         val sql = """
             INSERT INTO performance_test (val1, val2)
             SELECT (rec).val1, (rec).val2 FROM (
-                SELECT UNNEST(:data::performance_test[]) as rec
+                SELECT UNNEST(@data::performance_test[]) as rec
             ) as t
         """.trimIndent()
         dataAccess.rawQuery(sql).execute(mapOf("data" to data))
@@ -193,7 +193,7 @@ class ComprehensiveBulkInsertBenchmark {
     private fun methodC_FrameworkUnnestWithParallelArrays(data: List<PerformanceTestData>) {
         val sql = """
             INSERT INTO performance_test (val1, val2)
-            SELECT * FROM UNNEST(:val1_list, :val2_list)
+            SELECT * FROM UNNEST(@val1_list, @val2_list)
         """.trimIndent()
         val val1List = data.map { it.val1 }
         val val2List = data.map { it.val2 }
@@ -204,7 +204,7 @@ class ComprehensiveBulkInsertBenchmark {
     private fun methodD_FrameworkUnnestWithTypedArray(data: List<PerformanceTestData>) {
         val sql = """
             INSERT INTO performance_test (val1, val2)
-            SELECT * FROM UNNEST(:val1_array, :val2_array)
+            SELECT * FROM UNNEST(@val1_array, @val2_array)
         """.trimIndent()
         val val1Array = data.map { it.val1 }.toTypedArray()
         val val2Array = data.map { it.val2 }.toTypedArray()

@@ -40,14 +40,14 @@ internal class DatabaseInsertQueryBuilder(
 
     override fun values(data: Map<String, Any?>): InsertQueryBuilder {
         checkBuilder(selectSource == null) { "Cannot use values() when fromSelect() has already been called." }
-        val placeholders = data.keys.associateWith { key -> ":$key" }
+        val placeholders = data.keys.associateWith { key -> "@$key" }
         // Delegate to low-level method
         return this.valuesExpressions(placeholders)
     }
 
     override fun values(values: List<String>): InsertQueryBuilder {
         checkBuilder(selectSource == null) { "Cannot use values() when fromSelect() has already been called." }
-        val placeholders = values.associateWith { key -> ":$key" }
+        val placeholders = values.associateWith { key -> "@$key" }
         // Delegate to low-level method
         return this.valuesExpressions(placeholders)
     }
@@ -55,7 +55,7 @@ internal class DatabaseInsertQueryBuilder(
     override fun value(column: String): InsertQueryBuilder {
         checkBuilder(selectSource == null) { "Cannot use value() when fromSelect() has already been called." }
         // Delegate to low-level method
-        return this.valueExpression(column, ":$column")
+        return this.valueExpression(column, "@$column")
     }
 
     override fun fromSelect(query: String): InsertQueryBuilder = apply {

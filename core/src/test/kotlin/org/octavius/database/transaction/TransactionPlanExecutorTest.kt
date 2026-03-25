@@ -147,7 +147,7 @@ class TransactionPlanExecutorTest {
 
         // Krok 3: Wstaw logi dla wszystkich pobranych ID
         val insertLogsStep = dataAccess.rawQuery(
-            "INSERT INTO logs (message) SELECT 'Log for user ' || u.id FROM UNNEST(:userIds) AS u(id)"
+            "INSERT INTO logs (message) SELECT 'Log for user ' || u.id FROM UNNEST(@userIds) AS u(id)"
         ).asStep().execute("userIds" to selectIdsHandle.column<Int>())
         plan.add(insertLogsStep)
 

@@ -133,7 +133,7 @@ class PolymorphicArrayRoundTripTest {
         // z powrotem na listę konkretnych, silnie typowanych obiektów.
         val readResult = dataAccess.select("payload")
             .from("polymorphic_storage")
-            .where("id = :id")
+            .where("id = @id")
             .toField<List<Any?>>("id" to newId)
 
         // --- ASSERT ---

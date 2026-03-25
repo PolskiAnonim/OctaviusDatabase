@@ -186,12 +186,12 @@ class PgCompositeVsDynamicDtoBenchmark {
 
     // --- ZAPIS ---
     private fun insertPgComposite(data: List<PgCharacter>) {
-        val sql = "INSERT INTO performance_pg_composite (data) SELECT UNNEST(:data)"
+        val sql = "INSERT INTO performance_pg_composite (data) SELECT UNNEST(@data)"
         dataAccess.rawQuery(sql).execute(mapOf("data" to data))
     }
 
     private fun insertDynamicDto(data: List<DynamicCharacter>) {
-        val sql = "INSERT INTO performance_dynamic_dto (data) SELECT UNNEST(:data)"
+        val sql = "INSERT INTO performance_dynamic_dto (data) SELECT UNNEST(@data)"
         dataAccess.rawQuery(sql).execute(mapOf("data" to data))
     }
 
@@ -207,14 +207,14 @@ class PgCompositeVsDynamicDtoBenchmark {
     // --- FILTROWANIE ---
     private fun filterPgComposite(minStrength: Int) {
         // Dostęp do zagnieżdżonego pola w typie kompozytowym: (kolumna).pole.zagn_pole
-        val sql = "SELECT data FROM performance_pg_composite WHERE ((data).stats).strength > :min_strength"
+        val sql = "SELECT data FROM performance_pg_composite WHERE ((data).stats).strength > @min_strength"
         dataAccess.rawQuery(sql).toColumn<PgCharacter>(mapOf("min_strength" to minStrength))
     }
 
     private fun filterDynamicDto(minStrength: Int) {
         // Dostęp do zagnieżdżonego pola w JSONB: (kolumna).data_payload -> 'pole' ->> 'zagn_pole'
         // Operator '->>' zwraca text, więc musimy go rzutować na integer do porównania.
-        val sql = "SELECT data FROM performance_dynamic_dto WHERE ((data).data_payload -> 'stats' ->> 'strength')::int > :min_strength"
+        val sql = "SELECT data FROM performance_dynamic_dto WHERE ((data).data_payload -> 'stats' ->> 'strength')::int > @min_strength"
         dataAccess.rawQuery(sql).toColumn<DynamicCharacter>(mapOf("min_strength" to minStrength))
     }
 }

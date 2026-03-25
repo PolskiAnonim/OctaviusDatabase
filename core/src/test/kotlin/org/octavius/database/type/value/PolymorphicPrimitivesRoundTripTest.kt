@@ -116,7 +116,7 @@ class PolymorphicPrimitivesRoundTripTest {
         // zdeserializuje tablicę `dynamic_dto[]` z powrotem na listę konkretnych obiektów.
         val readResult = dataAccess.select("payload")
             .from("primitive_payload_storage")
-            .where("id = :id")
+            .where("id = @id")
             .toField<List<Any?>>("id" to newId)
 
         // --- ASSERT ---

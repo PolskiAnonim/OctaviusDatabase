@@ -127,14 +127,14 @@ interface UpdateQueryBuilder : TerminalReturningMethods, TerminalModificationMet
 
     /**
      * Sets values to update. Automatically generates placeholders
-     * in ":key" format for each key in the map.
+     * in "@key" format for each key in the map.
      * Values from the map must be passed in the terminal method (e.g., .execute()).
      */
     fun setValues(values: Map<String, Any?>): UpdateQueryBuilder
 
     /**
      * Sets values to update. Automatically generates placeholders
-     * in ":value" format for each value in the list.
+     * in "@value" format for each value in the list.
      */
     fun setValues(values: List<String>): UpdateQueryBuilder
 
@@ -178,14 +178,14 @@ interface InsertQueryBuilder : TerminalReturningMethods, TerminalModificationMet
     /**
      * Defines values to insert as SQL expressions or placeholders.
      * This is a low-level method.
-     * @param expressions Map where key is column name and value is SQL string (e.g., ":name", "NOW()").
+     * @param expressions Map where key is column name and value is SQL string (e.g., "@name", "NOW()").
      */
     fun valuesExpressions(expressions: Map<String, String>): InsertQueryBuilder
 
     /**
      * Defines a single value to insert as an SQL expression.
      * @param column Column name.
-     * @param expression SQL expression (e.g., ":user_id", "DEFAULT").
+     * @param expression SQL expression (e.g., "@user_id", "DEFAULT").
      */
     fun valueExpression(column: String, expression: String): InsertQueryBuilder
 
@@ -200,13 +200,13 @@ interface InsertQueryBuilder : TerminalReturningMethods, TerminalModificationMet
 
     /**
      * Defines values to insert, automatically generating placeholders
-     * in ":value" format for each value in the list.
+     * in "@value" format for each value in the list.
      */
     fun values(values: List<String>): InsertQueryBuilder
 
     /**
      * Defines a single value, automatically generating a placeholder.
-     * @param column Column name for which a placeholder will be generated (e.g., ":column_name").
+     * @param column Column name for which a placeholder will be generated (e.g., "@column_name").
      */
     fun value(column: String): InsertQueryBuilder
 

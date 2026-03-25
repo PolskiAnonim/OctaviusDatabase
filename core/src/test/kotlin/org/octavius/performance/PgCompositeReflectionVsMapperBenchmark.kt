@@ -78,9 +78,9 @@ class PgCompositeReflectionVsMapperBenchmark {
         val mapData = (1..rowCount).map { CharMap(it, "name_$it", StatsMap(it % 100, it % 50, it % 200)) }
         repeat(5) {
             dataAccess.rawQuery("TRUNCATE TABLE perf_refl").execute()
-            dataAccess.rawQuery("INSERT INTO perf_refl (data) SELECT UNNEST(:data)").execute(mapOf("data" to reflData))
+            dataAccess.rawQuery("INSERT INTO perf_refl (data) SELECT UNNEST(@data)").execute(mapOf("data" to reflData))
             dataAccess.rawQuery("TRUNCATE TABLE perf_map").execute()
-            dataAccess.rawQuery("INSERT INTO perf_map (data) SELECT UNNEST(:data)").execute(mapOf("data" to mapData))
+            dataAccess.rawQuery("INSERT INTO perf_map (data) SELECT UNNEST(@data)").execute(mapOf("data" to mapData))
             dataAccess.select("data").from("perf_refl").toColumn<CharRefl>().getOrThrow()
             dataAccess.select("data").from("perf_map").toColumn<CharMap>().getOrThrow()
         }
@@ -100,13 +100,13 @@ class PgCompositeReflectionVsMapperBenchmark {
         // 1. Zapis Reflection
         timings["ins_refl"] = measureAvg(ITERATIONS_PER_SIZE) {
             dataAccess.rawQuery("TRUNCATE TABLE perf_refl").execute()
-            dataAccess.rawQuery("INSERT INTO perf_refl (data) SELECT UNNEST(:data)").execute(mapOf("data" to reflData))
+            dataAccess.rawQuery("INSERT INTO perf_refl (data) SELECT UNNEST(@data)").execute(mapOf("data" to reflData))
         }
 
         // 2. Zapis Mapper
         timings["ins_map"] = measureAvg(ITERATIONS_PER_SIZE) {
             dataAccess.rawQuery("TRUNCATE TABLE perf_map").execute()
-            dataAccess.rawQuery("INSERT INTO perf_map (data) SELECT UNNEST(:data)").execute(mapOf("data" to mapData))
+            dataAccess.rawQuery("INSERT INTO perf_map (data) SELECT UNNEST(@data)").execute(mapOf("data" to mapData))
         }
 
         // 3. Odczyt Reflection

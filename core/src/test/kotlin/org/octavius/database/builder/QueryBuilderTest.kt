@@ -71,28 +71,28 @@ class QueryBuilderTest {
 
         @Test
         fun `should build a query with FOR UPDATE`() {
-            val sql = TestQueryBuilderFactory.select("*").from("orders").where("id = :id").forUpdate().toSql()
-            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM orders WHERE id = :id FOR UPDATE")
+            val sql = TestQueryBuilderFactory.select("*").from("orders").where("id = @id").forUpdate().toSql()
+            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM orders WHERE id = @id FOR UPDATE")
         }
 
         @Test
         fun `should build a query with FOR UPDATE OF`() {
             val sql = TestQueryBuilderFactory.select("*")
                 .from("orders o JOIN accounts a ON o.account_id = a.id")
-                .where("o.id = :id")
+                .where("o.id = @id")
                 .forUpdate(of = "o")
                 .toSql()
-            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM orders o JOIN accounts a ON o.account_id = a.id WHERE o.id = :id FOR UPDATE OF o")
+            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM orders o JOIN accounts a ON o.account_id = a.id WHERE o.id = @id FOR UPDATE OF o")
         }
 
         @Test
         fun `should build a query with FOR UPDATE NOWAIT`() {
             val sql = TestQueryBuilderFactory.select("*")
                 .from("seats")
-                .where("event_id = :event_id")
+                .where("event_id = @event_id")
                 .forUpdate(mode = LockWaitMode.NOWAIT)
                 .toSql()
-            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM seats WHERE event_id = :event_id FOR UPDATE NOWAIT")
+            assertThat(sql.normalizeSql()).isEqualTo("SELECT * FROM seats WHERE event_id = @event_id FOR UPDATE NOWAIT")
         }
 
         @Test
@@ -123,7 +123,7 @@ class QueryBuilderTest {
             val sql = TestQueryBuilderFactory.insert("users")
                 .values(mapOf("name" to "John", "email" to "john@doe.com"))
                 .toSql()
-            assertThat(sql.normalizeSql()).isEqualTo("INSERT INTO users (name, email) VALUES (:name, :email)")
+            assertThat(sql.normalizeSql()).isEqualTo("INSERT INTO users (name, email) VALUES (@name, @email)")
         }
 
         @Test
@@ -144,7 +144,7 @@ class QueryBuilderTest {
                     doNothing()
                 }
                 .toSql()
-            assertThat(sql.normalizeSql()).isEqualTo("INSERT INTO users (email) VALUES (:email) ON CONFLICT (email) DO NOTHING")
+            assertThat(sql.normalizeSql()).isEqualTo("INSERT INTO users (email) VALUES (@email) ON CONFLICT (email) DO NOTHING")
         }
 
         @Test
@@ -158,7 +158,7 @@ class QueryBuilderTest {
                 .returning("id", "stock")
                 .toSql()
             val expected = """
-                INSERT INTO products (code, stock) VALUES (:code, :stock)
+                INSERT INTO products (code, stock) VALUES (@code, @stock)
                 ON CONFLICT ON CONSTRAINT products_code_key DO UPDATE SET stock = products.stock + EXCLUDED.stock
                 RETURNING id, stock
             """.normalizeSql()
@@ -173,9 +173,9 @@ class QueryBuilderTest {
             val sql = TestQueryBuilderFactory.update("users")
                 .setExpression("last_login", "NOW()")
                 .setValue("status")
-                .where("id = :id")
+                .where("id = @id")
                 .toSql()
-            assertThat(sql.normalizeSql()).isEqualTo("UPDATE users SET last_login = NOW(), status = :status WHERE id = :id")
+            assertThat(sql.normalizeSql()).isEqualTo("UPDATE users SET last_login = NOW(), status = @status WHERE id = @id")
         }
 
         @Test

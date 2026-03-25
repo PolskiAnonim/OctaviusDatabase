@@ -24,7 +24,7 @@ class KotlinToPostgresConverterTest {
 
         @Test
         fun `should replace simple parameters with question marks and preserve values`() {
-            val sql = "SELECT * FROM users WHERE id = :id AND name = :name AND profile IS :profile"
+            val sql = "SELECT * FROM users WHERE id = @id AND name = @name AND profile IS @profile"
             val params = mapOf("id" to 123, "name" to "John", "profile" to null)
 
             val result = converter.toPositionalQuery(sql, params)
@@ -38,7 +38,7 @@ class KotlinToPostgresConverterTest {
 
         @Test
         fun `should convert enum to PGobject with correct snake_case_lower value`() {
-            val sql = "SELECT * FROM tasks WHERE category = :category"
+            val sql = "SELECT * FROM tasks WHERE category = @category"
             val params = mapOf("category" to TestCategory.BugFix)
 
             val result = converter.toPositionalQuery(sql, params)
@@ -53,7 +53,7 @@ class KotlinToPostgresConverterTest {
 
         @Test
         fun `should convert JsonObject to jsonb PGobject`() {
-            val sql = "UPDATE documents SET data = :data WHERE id = 1"
+            val sql = "UPDATE documents SET data = @data WHERE id = 1"
             val jsonData = Json.parseToJsonElement("""{"key": "value", "count": 100}""") as JsonObject
             val params = mapOf("data" to jsonData)
 
@@ -73,7 +73,7 @@ class KotlinToPostgresConverterTest {
 
         @Test
         fun `should expand simple array into ARRAY literal`() {
-            val sql = "SELECT * FROM users WHERE id = ANY(:ids)"
+            val sql = "SELECT * FROM users WHERE id = ANY(@ids)"
             val params = mapOf("ids" to listOf(10, 20, 30))
 
             val result = converter.toPositionalQuery(sql, params)
@@ -88,7 +88,7 @@ class KotlinToPostgresConverterTest {
 
         @Test
         fun `should handle empty arrays by converting to empty array literal`() {
-            val sql = "SELECT * FROM users WHERE tags && :tags"
+            val sql = "SELECT * FROM users WHERE tags && @tags"
             val params = mapOf("tags" to emptyList<String>())
 
             val result = converter.toPositionalQuery(sql, params)
@@ -103,7 +103,7 @@ class KotlinToPostgresConverterTest {
 
         @Test
         fun `should expand array of enums correctly`() {
-            val sql = "SELECT * FROM tasks WHERE status = ANY(:statuses)"
+            val sql = "SELECT * FROM tasks WHERE status = ANY(@statuses)"
             val params = mapOf("statuses" to listOf(TestStatus.Active, TestStatus.Pending))
 
             val result = converter.toPositionalQuery(sql, params)
@@ -122,7 +122,7 @@ class KotlinToPostgresConverterTest {
 
         @Test
         fun `should expand a single data class into ROW literal`() {
-            val sql = "INSERT INTO employees (person) VALUES (:person)"
+            val sql = "INSERT INTO employees (person) VALUES (@person)"
             val person = TestPerson("John Doe", 35, "john.doe@example.com", true, listOf("developer", "team-lead"))
             val params = mapOf("person" to person)
 
@@ -140,7 +140,7 @@ class KotlinToPostgresConverterTest {
 
         @Test
         fun `should expand an array of data classes`() {
-            val sql = "SELECT process_team(:team)"
+            val sql = "SELECT process_team(@team)"
             val team = listOf(
                 TestPerson("Alice", 28, "a@a.com", true, listOf("frontend")),
                 TestPerson("Bob", 42, "b@b.com", false, listOf("backend", "dba"))
@@ -166,7 +166,7 @@ class KotlinToPostgresConverterTest {
     inner class ComplexNestedStructureExpansion {
         @Test
         fun `should expand a deeply nested data class with all features`() {
-            val sql = "SELECT update_project(:project_data)"
+            val sql = "SELECT update_project(@project_data)"
             val project = TestProject(
                 name = "Enterprise \"Fusion\" Project",
                 description = "A complex project.",

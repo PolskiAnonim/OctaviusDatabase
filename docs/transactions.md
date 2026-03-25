@@ -130,7 +130,7 @@ val selectStep = dataAccess.select("id", "name")
 // Step for modification only
 val updateStep = dataAccess.update("citizens")
     .setValue("last_census")
-    .where("id = :id")
+    .where("id = @id")
     .asStep()
     .execute("last_census" to now, "id" to citizenId)
 ```
@@ -200,7 +200,7 @@ val rowsHandle = plan.add(
 
 // Reference specific column from first row
 plan.add(
-    dataAccess.rawQuery("SELECT notify_censor(:tribe)")
+    dataAccess.rawQuery("SELECT notify_censor(@tribe)")
         .asStep()
         .execute("tribe" to rowsHandle.field("tribe", rowIndex = 0))
 )
@@ -218,7 +218,7 @@ val idsHandle = plan.add(
 plan.add(
     dataAccess.update("citizens")
         .setExpression("last_census_at", "NOW()")
-        .where("id = ANY(:ids)")
+        .where("id = ANY(@ids)")
         .asStep()
         .execute("ids" to idsHandle.column())
 )
@@ -286,7 +286,7 @@ plan.add(
 val citizenHandle = plan.add(
     dataAccess.select("id", "name", "tribe")
         .from("citizens")
-        .where("id = :id")
+        .where("id = @id")
         .asStep()
         .toSingle("id" to citizenId)
 )
@@ -312,7 +312,7 @@ Use `row()` when you want to pass all columns from a previous step. The executor
 val sourceHandle = plan.add(
     dataAccess.select("name", "tribe", "rank")
         .from("citizens")
-        .where("id = :id")
+        .where("id = @id")
         .asStep()
         .toSingle("id" to templateCitizenId)
 )
@@ -351,7 +351,7 @@ Use `column()` for batch operations with `ANY()` or `UNNEST()`:
 val conscriptIdsHandle = plan.add(
     dataAccess.select("citizen_id")
         .from("conscription_queue")
-        .where("legion_id = :legionId")
+        .where("legion_id = @legionId")
         .asStep()
         .toColumn<Int>("legionId" to legionId)
 )
@@ -360,7 +360,7 @@ val conscriptIdsHandle = plan.add(
 plan.add(
     dataAccess.update("citizens")
         .setExpression("status", "'enlisted'")
-        .where("id = ANY(:citizenIds)")
+        .where("id = ANY(@citizenIds)")
         .asStep()
         .execute("citizenIds" to conscriptIdsHandle.column())
 )
@@ -374,7 +374,7 @@ Transform values before passing to next step:
 val nameHandle = plan.add(
     dataAccess.select("name")
         .from("citizens")
-        .where("id = :id")
+        .where("id = @id")
         .asStep()
         .toField<String>("id" to citizenId)
 )
@@ -438,7 +438,7 @@ val result = dataAccess.transaction { tx ->
     // Non-nullable — Failure if citizen not found
     val citizen = tx.select("*")
         .from("citizens")
-        .where("id = :id")
+        .where("id = @id")
         .toSingleOf<Citizen>("id" to citizenId)
         .getOrElse { return@transaction DataResult.Failure(it) }
 
@@ -458,7 +458,7 @@ val plan = TransactionPlan()
 val citizenHandle = plan.add(
     dataAccess.select("*")
         .from("citizens")
-        .where("id = :id")
+        .where("id = @id")
         .asStep()
         .toSingleOf<Citizen>("id" to citizenId)
 )
@@ -467,7 +467,7 @@ val citizenHandle = plan.add(
 val maybeCitizenHandle = plan.add(
     dataAccess.select("*")
         .from("citizens")
-        .where("id = :id")
+        .where("id = @id")
         .asStep()
         .toSingleOf<Citizen?>("id" to citizenId)
 )
@@ -527,8 +527,8 @@ dataAccess.transaction { tx ->
 ```kotlin
 dataAccess.transaction { tx ->
     val result = tx.update("aerarium")
-        .setExpression("balance", "balance - :amount")
-        .where("province = :province")
+        .setExpression("balance", "balance - @amount")
+        .where("province = @province")
         .execute("amount" to amount, "province" to province)
 
     // Log in separate transaction — persists even if main transaction fails

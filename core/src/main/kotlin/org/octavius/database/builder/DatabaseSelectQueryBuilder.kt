@@ -49,7 +49,7 @@ internal class DatabaseSelectQueryBuilder(
      * - "users u"
      * - "users AS u JOIN profiles p ON u.id = p.user_id"
      * - "(SELECT id FROM active_users) AS u"
-     * - "UNNEST(:ids) AS id"
+     * - "UNNEST(@ids) AS id"
      *
      */
     override fun from(source: String): SelectQueryBuilder = apply {

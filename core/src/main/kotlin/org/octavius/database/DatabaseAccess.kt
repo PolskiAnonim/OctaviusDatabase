@@ -117,7 +117,7 @@ internal class DatabaseAccess(
     }
 
     override fun notify(channel: String, payload: String?): DataResult<Unit> {
-        return rawQuery("SELECT pg_notify(:channel, :payload)").toField<Unit>("channel" to channel, "payload" to payload)
+        return rawQuery("SELECT pg_notify(@channel, @payload)").toField<Unit>("channel" to channel, "payload" to payload)
     }
 
     override fun createChannelListener(): PgChannelListener {

@@ -103,7 +103,7 @@ The pattern `values(map)` + `execute(map)` uses the **same map** for both:
 ```kotlin
 val data = entity.toMap("id")
 dataAccess.insertInto("legions")
-    .values(data)      // Defines: (col1, col2) VALUES (:col1, :col2)
+    .values(data)      // Defines: (col1, col2) VALUES (@col1, @col2)
     .execute(data)     // Provides: col1 -> value1, col2 -> value2
 ```
 
@@ -145,19 +145,19 @@ dataAccess.select(
 // Just campaign data - dispatches will be empty list (default value)
 dataAccess.select("c.*")
     .from("campaigns c")
-    .where("id = :id")
+    .where("id = @id")
     .toSingleOf<Campaign>("id" to 1)
 
 // Dispatch with its parent campaign as nested composite
 dataAccess.select("c", "d.*")
     .from("dispatches d JOIN campaigns c ON d.campaign_id = c.id")
-    .where("d.id = :id")
+    .where("d.id = @id")
     .toSingleOf<Dispatch>("id" to 1)
 
 // Just dispatch data - campaign will be null
 dataAccess.select("d.*")
     .from("dispatches d")
-    .where("d.id = :id")
+    .where("d.id = @id")
     .toSingleOf<Dispatch>("id" to 1)
 ```
 
@@ -204,7 +204,7 @@ class LegionConfigurationManager(private val dataAccess: DataAccess) {
     fun loadEliteConfiguration(legionName: String): LegionConfiguration? {
         return dataAccess.select("*")
             .from("legion_configurations")
-            .where("legion_name = :legion_name AND is_elite = true")
+            .where("legion_name = @legion_name AND is_elite = true")
             .toSingleOf<LegionConfiguration>("legion_name" to legionName)
             .getOrNull()
     }
@@ -212,7 +212,7 @@ class LegionConfigurationManager(private val dataAccess: DataAccess) {
     fun listConfigurations(legionName: String): List<LegionConfiguration> {
         return dataAccess.select("*")
             .from("legion_configurations")
-            .where("legion_name = :legion_name")
+            .where("legion_name = @legion_name")
             .orderBy("is_elite DESC, name ASC")
             .toListOf<LegionConfiguration>("legion_name" to legionName)
             .getOrDefault(emptyList())
@@ -220,7 +220,7 @@ class LegionConfigurationManager(private val dataAccess: DataAccess) {
 
     fun deleteConfiguration(name: String, legionName: String): Boolean {
         return dataAccess.deleteFrom("legion_configurations")
-            .where("name = :name AND legion_name = :legion_name")
+            .where("name = @name AND legion_name = @legion_name")
             .execute("name" to name, "legion_name" to legionName)
             .map { it > 0 }
             .getOrDefault(false)
@@ -231,7 +231,7 @@ class LegionConfigurationManager(private val dataAccess: DataAccess) {
 **What's happening here:**
 - `LegionConfiguration` has 9 fields including arrays, composites, enums, and JSONB
 - `toMap("id")` converts it all to a flat map, excluding the ID
-- `values(flatValueMap)` generates: `(name, legion_name, description, ...) VALUES (:name, :legion_name, :description, ...)`
+- `values(flatValueMap)` generates: `(name, legion_name, description, ...) VALUES (@name, @legion_name, @description, ...)`
 - `execute(flatValueMap)` provides all values with automatic type conversion
 - `toSingleOf<LegionConfiguration>()` deserializes back including all nested types
 
@@ -269,7 +269,7 @@ class TributeRepository(private val dataAccess: DataAccess) {
     fun findById(id: Int): DataResult<Tribute?> {
         return dataAccess.select("*")
             .from("tributes")
-            .where("id = :id")
+            .where("id = @id")
             .toSingleOf<Tribute>("id" to id)
     }
 
@@ -279,14 +279,14 @@ class TributeRepository(private val dataAccess: DataAccess) {
         return dataAccess.update("tributes")
             .setValues(data)
             .setExpression("recorded_at", "NOW()")
-            .where("id = :id")
+            .where("id = @id")
             .returning("*")
             .toSingleOf<Tribute>(data + ("id" to tribute.id))
     }
 
     fun cancel(id: Int): DataResult<Int> {
         return dataAccess.deleteFrom("tributes")
-            .where("id = :id")
+            .where("id = @id")
             .execute("id" to id)
     }
 

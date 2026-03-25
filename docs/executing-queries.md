@@ -61,12 +61,12 @@ Parameters can be passed as `Map` or `vararg Pair`:
 ```kotlin
 // Using Map
 dataAccess.select("*").from("citizens")
-    .where("id = :id")
+    .where("id = @id")
     .toSingleOf<Citizen>(mapOf("id" to 123))
 
 // Using vararg (more concise)
 dataAccess.select("*").from("citizens")
-    .where("id = :id")
+    .where("id = @id")
     .toSingleOf<Citizen>("id" to 123)
 ```
 
@@ -136,26 +136,26 @@ Nullability is determined by the type parameter you pass:
 // Non-nullable — Failure if citizen not found (0 rows)
 val citizen: DataResult<Citizen> = dataAccess.select("*")
     .from("citizens")
-    .where("id = :id")
+    .where("id = @id")
     .toSingleOf<Citizen>("id" to citizenId)
 
 // Nullable — Success(null) if citizen not found
 val maybeCitizen: DataResult<Citizen?> = dataAccess.select("*")
     .from("citizens")
-    .where("id = :id")
+    .where("id = @id")
     .toSingleOf<Citizen?>("id" to citizenId)
 
 // Common pattern: non-nullable + getOrThrow
 val citizen: Citizen = dataAccess.select("*")
     .from("citizens")
-    .where("id = :id")
+    .where("id = @id")
     .toSingleOf<Citizen>("id" to citizenId)
     .getOrThrow()  // Guaranteed non-null
 
 // For untyped map results, use toSingleStrict
 val row: DataResult<Map<String, Any?>> = dataAccess.select("*")
     .from("citizens")
-    .where("id = :id")
+    .where("id = @id")
     .toSingleStrict("id" to citizenId)  // Failure if no rows
 ```
 
@@ -189,7 +189,7 @@ val result = dataAccess.transaction { tx ->
     // Option 1: Early return on error
     val citizen = tx.select("*")
         .from("citizens")
-        .where("id = :id")
+        .where("id = @id")
         .toSingleOf<Citizen>("id" to citizenId)
         .getOrElse { error ->
             return@transaction DataResult.Failure(error)
@@ -214,13 +214,13 @@ val result = dataAccess.transaction { tx ->
 fun getCampaignWithLegions(campaignId: Int): DataResult<CampaignWithLegions> {
     val campaignResult = dataAccess.select("*")
         .from("campaigns")
-        .where("id = :id")
+        .where("id = @id")
         .toSingleOf<Campaign>("id" to campaignId)
 
     return campaignResult.map { campaign ->
         val legions = dataAccess.select("*")
             .from("campaign_legions")
-            .where("campaign_id = :campaignId")
+            .where("campaign_id = @campaignId")
             .toListOf<Legion>("campaignId" to campaignId)
             .getOrElse { return DataResult.Failure(it) }
 
@@ -242,7 +242,7 @@ class CitizenService(private val dataAccess: DataAccess) {
     fun getCitizen(id: Int): Citizen {
         return dataAccess.select("*")
             .from("citizens")
-            .where("id = :id")
+            .where("id = @id")
             .toSingleOf<Citizen>("id" to id)
             .getOrThrow()  // Let global handler deal with errors
     }
@@ -251,7 +251,7 @@ class CitizenService(private val dataAccess: DataAccess) {
 // Spring global exception handler catches DatabaseException
 @ControllerAdvice
 class GlobalExceptionHandler {
-    @ExceptionHandler(DatabaseException::class)
+    @ExceptionHandler(DatabaseException:@class)
     fun handleDatabaseError(e: DatabaseException): ResponseEntity<*> {
         logger.error(e.toString())
         return ResponseEntity.status(500).body(ErrorResponse("Database error"))
@@ -271,7 +271,7 @@ val citizens = dataAccess.select("*")
 // Null on error
 val citizen = dataAccess.select("*")
     .from("citizens")
-    .where("id = :id")
+    .where("id = @id")
     .toSingleOf<Citizen>("id" to citizenId)
     .getOrElse { null }
 ```
@@ -284,12 +284,12 @@ PostgreSQL functions that return `void` (e.g. `pg_notify`, `pg_advisory_lock`, c
 
 ```kotlin
 // Call a void function — result is DataResult<Unit>
-dataAccess.rawQuery("SELECT pg_notify(:channel, :payload)")
+dataAccess.rawQuery("SELECT pg_notify(@channel, @payload)")
     .toField<Unit>("channel" to "senate_decrees", "payload" to "edict_99")
 
 // Also works inside transactions
 dataAccess.transaction { tx ->
-    tx.rawQuery("SELECT pg_advisory_lock(:key)")
+    tx.rawQuery("SELECT pg_advisory_lock(@key)")
         .toField<Unit>("key" to lockKey)
         .getOrElse { return@transaction DataResult.Failure(it) }
 
@@ -312,7 +312,7 @@ Execute queries asynchronously using coroutines.
 // Requires a CoroutineScope (e.g., viewModelScope)
 val job = dataAccess.select("*")
     .from("citizens")
-    .where("tribe = :tribe")
+    .where("tribe = @tribe")
     .async(viewModelScope)
     .toListOf<Citizen> { result ->
         result.onSuccess { citizens ->
@@ -371,7 +371,7 @@ Both `forEachRow` and `forEachRowOf` return `DataResult<Unit>` and accept an opt
 dataAccess.transaction {
     val result = dataAccess.select("*")
         .from("census_records")
-        .where("recorded_at > :since")
+        .where("recorded_at > @since")
         .asStream(fetchSize = 500)
         .forEachRow("since" to startDate) { row: Map<String, Any?> ->
             processCensusRow(row)

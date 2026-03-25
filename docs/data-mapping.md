@@ -200,7 +200,7 @@ fun updateCitizen(request: UpdateCitizenRequest): DataResult<Int> {
 
     return dataAccess.update("citizens")
         .setValues(data)
-        .where("id = :id")
+        .where("id = @id")
         .execute(data + ("id" to request.id))
 }
 ```
@@ -224,7 +224,7 @@ fun patchCitizen(request: PatchCitizenRequest): DataResult<Int> {
 
     return dataAccess.update("citizens")
         .setValues(data)
-        .where("id = :id")
+        .where("id = @id")
         .execute(data + ("id" to request.id))
 }
 ```
@@ -238,7 +238,7 @@ The pattern `values(map)` + `execute(map)` uses the **same map** for both:
 ```kotlin
 val data = entity.toMap("id")
 dataAccess.insertInto("citizens")
-    .values(data)      // Defines: (col1, col2) VALUES (:col1, :col2)
+    .values(data)      // Defines: (col1, col2) VALUES (@col1, @col2)
     .execute(data)     // Provides: col1 -> value1, col2 -> value2
 ```
 

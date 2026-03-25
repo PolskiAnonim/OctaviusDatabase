@@ -9,7 +9,7 @@ import org.octavius.data.exception.requireBuilder
  * preventing SQL Injection. Does not impose any query building style.
  * This is essentially a (String, Map) pair.
  *
- * @property sql Fragment of SQL code, e.g., `status = :status OR user_id = ANY(:userIds)`.
+ * @property sql Fragment of SQL code, e.g., `status = @status OR user_id = ANY(@userIds)`.
  * @property params Map of parameters used in [sql].
  */
 data class QueryFragment(

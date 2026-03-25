@@ -49,7 +49,7 @@ interface QueryOperations {
     /**
      * Enables execution of a raw SQL query.
      *
-     * @param sql SQL query to execute, may contain named parameters (e.g., `:userId`).
+     * @param sql SQL query to execute, may contain named parameters (e.g., `@userId`).
      * @return New builder instance for a raw query.
      */
     fun rawQuery(sql: String): RawQueryBuilder

@@ -41,7 +41,7 @@ sealed class TransactionValue<T> {
          * Fetches all values from one column as a list.
          *
          * Used mainly for passing results from one query as parameters
-         * to another, e.g., in clauses like `WHERE id = ANY(:ids)` or `INSERT ... SELECT ... FROM UNNEST(...)`.
+         * to another, e.g., in clauses like `WHERE id = ANY(@ids)` or `INSERT ... SELECT ... FROM UNNEST(...)`.
          *
          * @param T The expected type of elements in the column. The resulting value will be of type `List<T>`.
          * @param handle Handle to the step from which the data originates.

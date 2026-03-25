@@ -64,7 +64,7 @@ class WeirdNamesIntegrationTest {
         val enum = WeirdEnum.Val1
 
         // Insert using raw query to be sure we can handle these names in parameters
-        dataAccess.rawQuery("INSERT INTO \"weird schema.with dots\".weird_table (enum_val, comp_val, comp_array) VALUES (:enum, :comp, :comp_array)")
+        dataAccess.rawQuery("INSERT INTO \"weird schema.with dots\".weird_table (enum_val, comp_val, comp_array) VALUES (@enum, @comp, @comp_array)")
             .execute(
                 "enum" to enum,
                 "comp" to composite,

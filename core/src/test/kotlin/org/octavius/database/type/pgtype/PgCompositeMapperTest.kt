@@ -86,12 +86,12 @@ class PgCompositeMapperTest {
         val addr = MappedAddress("Main St", "New York")
         
         // Write
-        dataAccess.rawQuery("INSERT INTO mapper_test (addr) VALUES (:addr)")
+        dataAccess.rawQuery("INSERT INTO mapper_test (addr) VALUES (@addr)")
             .execute(mapOf("addr" to addr))
 
         // Read
         val result = dataAccess.select("addr").from("mapper_test")
-            .where("addr = :addr")
+            .where("addr = @addr")
             .toColumn<MappedAddress>(mapOf("addr" to addr))
             .getOrThrow()
             .first()
@@ -104,12 +104,12 @@ class PgCompositeMapperTest {
         val addr = ClassMappedAddress("Broadway", "New York")
         
         // Write
-        dataAccess.rawQuery("INSERT INTO mapper_test (class_addr) VALUES (:addr)")
+        dataAccess.rawQuery("INSERT INTO mapper_test (class_addr) VALUES (@addr)")
             .execute(mapOf("addr" to addr))
 
         // Read
         val result = dataAccess.select("class_addr").from("mapper_test")
-            .where("class_addr = :addr")
+            .where("class_addr = @addr")
             .toColumn<ClassMappedAddress>(mapOf("addr" to addr))
             .getOrThrow()
             .first()

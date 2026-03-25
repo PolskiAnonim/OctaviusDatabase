@@ -257,7 +257,7 @@ Octavius uses a double-line frame to clearly separate the execution context from
 ║ DATABASE EXECUTION CONTEXT                                                   ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ HIGH-LEVEL SQL:                                                              ║
-║   INSERT INTO citizens (name, tribe) VALUES (:name, :tribe)                  ║
+║   INSERT INTO citizens (name, tribe) VALUES (@name, @tribe)                  ║
 ╟──────────────────────────────────────────────────────────────────────────────╢
 ║ PARAMETERS:                                                                  ║
 ║   name = Marcus Tullius                                                      ║

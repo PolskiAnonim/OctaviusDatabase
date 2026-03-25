@@ -6,19 +6,20 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 
 ## Guides
 
-| Document                                              | Description                                                                   |
-|-------------------------------------------------------|-------------------------------------------------------------------------------|
-| [Configuration](configuration.md)                     | Initialization, DatabaseConfig, Flyway, core types, DynamicDto strategy       |
-| [Lifecycle & Shutdown](lifecycle-and-shutdown.md)     | Proper cleanup, .use {} block, common integration patterns                    |
-| [Query Builders](query-builders.md)                   | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT    |
-| [Functions & Procedures](functions-and-procedures.md) | Calling functions and procedures                                              |
-| [Executing Queries](executing-queries.md)             | Terminal methods, DataResult, assertNotNull, async execution, streaming       |
-| [Data Mapping](data-mapping.md)                       | toMap(), toDataObject(), @MapKey - converting between objects and maps        |
-| [ORM-Like Patterns](orm-patterns.md)                  | CRUD patterns, real-world examples, PostgreSQL composite types                |
-| [Transactions](transactions.md)                       | Transaction blocks, TransactionPlan, StepHandle, passing data between steps   |
-| [Notifications](notifications.md)                     | PostgreSQL LISTEN/NOTIFY, PgChannelListener, Flow-based receiving             |
-| [Error Handling](error-handling.md)                   | Fatal errors vs. DataResult, Exception hierarchy, Statement/Constraint errors |
-| [Type System](type-system.md)                         | @PgEnum, @PgComposite, @DynamicallyMappable, PgTyped, standard type mappings  |
+| Document                                              | Description                                                                            |
+|-------------------------------------------------------|----------------------------------------------------------------------------------------|
+| [Configuration](configuration.md)                     | Initialization, DatabaseConfig, Flyway, core types, DynamicDto strategy                |
+| [Lifecycle & Shutdown](lifecycle-and-shutdown.md)     | Proper cleanup, .use {} block, common integration patterns                             |
+| [Query Builders](query-builders.md)                   | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT             |
+| [Functions & Procedures](functions-and-procedures.md) | Calling functions and procedures                                                       |
+| [Executing Queries](executing-queries.md)             | Terminal methods, DataResult, assertNotNull, async execution, streaming                |
+| [Parameter Handling](parameter-handling.md)           | Named parameters (@), expansion & conversion, type inference, collections & flattening |
+| [Data Mapping](data-mapping.md)                       | toMap(), toDataObject(), @MapKey - converting between objects and maps                 |
+| [ORM-Like Patterns](orm-patterns.md)                  | CRUD patterns, real-world examples, PostgreSQL composite types                         |
+| [Transactions](transactions.md)                       | Transaction blocks, TransactionPlan, StepHandle, passing data between steps            |
+| [Notifications](notifications.md)                     | PostgreSQL LISTEN/NOTIFY, PgChannelListener, Flow-based receiving                      |
+| [Error Handling](error-handling.md)                   | Fatal errors vs. DataResult, Exception hierarchy, Statement/Constraint errors          |
+| [Type System](type-system.md)                         | @PgEnum, @PgComposite, @DynamicallyMappable, standard type mappings                    |
 
 ## Quick Links
 
@@ -32,6 +33,12 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [ON CONFLICT (Upsert)](query-builders.md#on-conflict-upsert) - Insert or update on conflict
 - [Row-Level Locking](query-builders.md#row-level-locking-for-update) - FOR UPDATE, FOR SHARE, SKIP LOCKED
 - [Auto Placeholders](query-builders.md#auto-generated-placeholders) - `values()`, `setValues()` auto-generation
+
+### Parameter Handling
+- [Named Parameters Syntax](parameter-handling.md#named-parameters-syntax) - Why `@` is used instead of `:`
+- [Expansion & Conversion](parameter-handling.md#parameter-expansion--conversion) - How Kotlin values become SQL parameters
+- [Type Inference & Safety](parameter-handling.md#type-inference--safety) - Default resolution and `PgTyped` casts
+- [Collections & Flattening](parameter-handling.md#collections--parameter-flattening) - Handling lists, arrays, and composites
 
 ### Functions and Procedures
 - [Functions](functions-and-procedures.md#functions-create-function) - Calling functions via SELECT
@@ -86,9 +93,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [@PgEnum](type-system.md#pgenum) - Map Kotlin enums to PostgreSQL ENUMs
 - [@PgComposite](type-system.md#pgcomposite) - Map data classes to COMPOSITE types
 - [PgCompositeMapper](type-system.md#manual-composite-mapping-pgcompositemapper) - Manual mapping of composite types
-- [Collections & Parameter Flattening](type-system.md#collections--parameter-flattening) - Serialization logic
 - [@DynamicallyMappable](type-system.md#dynamicallymappable) - Polymorphic storage with `dynamic_dto`
-- [PgTyped](type-system.md#explicit-type-casts-pgtyped) - Explicit type casts and resolution priority
 - [Helper Serializers](type-system.md#helper-serializers) - `BigDecimalAsNumberSerializer`, etc.
 
 ### Configuration

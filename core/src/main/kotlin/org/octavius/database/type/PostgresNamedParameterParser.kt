@@ -5,7 +5,7 @@ internal data class ParsedParameter(val name: String, val startIndex: Int, val e
 
 
 /**
- * Parses PostgreSQL SQL queries to find named parameters (e.g., `:param`).
+ * Parses PostgreSQL SQL queries to find named parameters (e.g., `@param`).
  *
  * Implementation is inspired by `org.springframework.jdbc.core.namedparam.NamedParameterUtils`,
  * but has been adapted and extended to correctly handle PostgreSQL-specific constructs.
@@ -22,14 +22,14 @@ internal data class ParsedParameter(val name: String, val startIndex: Int, val e
  * **PostgreSQL-Specific Features**:
  * - **Escape Strings**: `E'text with \n newline'` - properly handles backslash escape sequences
  * - **Dollar Quoting**: `$$text$$` or `$tag$text$tag$` - supports custom tags for avoiding quote escaping
- * - **Type Casting**: `column::integer` - distinguishes `::` operator from `:param` syntax
+ * - **At-Prefix Parameters**: `@param` - avoids conflicts with PostgreSQL range operators (`[1:5]`)
  *
  * This prevents false parameter detection inside string literals, which is critical for
  * complex SQL queries containing PostgreSQL-specific syntax.
  */
 internal object PostgresNamedParameterParser {
 
-    private const val PARAMETER_SEPARATORS = "\"':&,;()|=+-*%/\\<>^[]"
+    private const val PARAMETER_SEPARATORS = "\"':&,;()|=+-*%/\\<>^[]@"
     private val separatorIndex = BooleanArray(128).apply {
         PARAMETER_SEPARATORS.forEach { this[it.code] = true }
     }
@@ -50,7 +50,7 @@ internal object PostgresNamedParameterParser {
             val currentChar = statement[i]
             val newIndex = when (currentChar) {
                 '\'' -> processSingleQuote(statement, i)
-                ':' -> processColon(statement, i, sql, foundParameters)
+                '@' -> processAt(statement, i, sql, foundParameters)
                 '"' -> skipUntil(statement, i, '"')
                 '-' -> processDash(statement, i)
                 '/' -> processSlash(statement, i)
@@ -82,21 +82,16 @@ internal object PostgresNamedParameterParser {
     }
 
     /**
-     * Handles potential named parameters (:param) or type casts (::int).
+     * Handles potential named parameters (@param).
      * If a parameter is found, it is added to the list.
      * Returns the index of the last character of the processed token.
      */
-    private fun processColon(
+    private fun processAt(
         statement: CharArray,
         index: Int,
         sql: String,
         foundParameters: MutableList<ParsedParameter>
     ): Int {
-        // Check for type casting operator '::'
-        if (index + 1 < statement.size && statement[index + 1] == ':') {
-            return index + 1 // Skip the second ':'
-        }
-
         // Parse named parameter
         var j = index + 1
         while (j < statement.size && !isParameterSeparator(statement[j])) {

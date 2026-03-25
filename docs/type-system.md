@@ -7,7 +7,6 @@ Octavius Database provides automatic bidirectional mapping between PostgreSQL an
 - **Standard types** - primitives, dates, JSON, arrays.
 - **Custom types** - statically mapped ENUMs and COMPOSITE types.
 - **Dynamic types** - polymorphic storage and JSONB serialization via `dynamic_dto`.
-- **High-performance collections** - automatic parameter flattening to bypass JDBC limits.
 
 ---
 
@@ -17,25 +16,22 @@ Octavius Database provides automatic bidirectional mapping between PostgreSQL an
     - [Arrays](#arrays)
     - [Infinity Values for Date/Time](#infinity-values-for-datetime)
     - [Duration and Interval Rules](#duration-and-interval-rules)
-2. [Collections & Parameter Flattening](#collections--parameter-flattening)
-    - [List vs Array](#list-vs-array)
-3. [Type Inference & Safety](#type-inference--safety)
-    - [Default Type Resolution](#default-type-resolution)
-    - [Explicit Type Casts (PgTyped)](#explicit-type-casts-pgtyped)
-4. [Static Custom Types](#static-custom-types)
+2. [Type Inference & Safety](#type-inference--safety)
+    - [OID-Based Result Mapping](#oid-based-result-mapping)
+3. [Static Custom Types](#static-custom-types)
     - [@PgEnum](#pgenum)
     - [@PgComposite](#pgcomposite)
-5. [Dynamic Types (dynamic_dto)](#dynamic-types-dynamic_dto)
+4. [Dynamic Types (dynamic_dto)](#dynamic-types-dynamic_dto)
     - [@DynamicallyMappable](#dynamicallymappable)
     - [Enum Serialization in dynamic_dto](#enum-serialization-in-dynamic_dto)
     - [Helper Serializers](#helper-serializers)
-6. [Object Conversion Utilities](#object-conversion-utilities)
+5. [Object Conversion Utilities](#object-conversion-utilities)
 
 ---
 
 ## Standard Type Mapping
 
-Automatic conversion works out-of-the-box for the following types. Note that if a Kotlin type maps to multiple PostgreSQL types, Octavius uses a **priority-based inference** (see [Type Inference](#type-inference--safety)).
+Automatic conversion works out-of-the-box for the following types. Note that if a Kotlin type maps to multiple PostgreSQL types, Octavius uses a **priority-based inference** (see [Parameter Handling](parameter-handling.md#type-inference--safety)).
 
 | PostgreSQL                  | Kotlin          | Notes                                            |
 |-----------------------------|-----------------|--------------------------------------------------|
@@ -115,26 +111,9 @@ PostgreSQL `INTERVAL` values (without a specific date anchor point) are converte
 
 ---
 
-## Collections & Parameter Flattening
-
-When collections, arrays, or composite types are passed as named parameters (`:param`), Octavius **serializes** them into a single PostgreSQL text-format literal. This is sent as a **single JDBC parameter**.
-
-| Kotlin value                             | SQL fragment     | JDBC params consumed |
-|------------------------------------------|------------------|----------------------|
-| `"Cornelia"` (scalar)                    | `?::text`        | **1**                |
-| `Province("Gallia", "Lugdunum")`         | `?::province`    | **1**                |
-| `listOf(1, 2, 3)`                        | `?::int4[]`      | **1**                |
-| `listOf(prov1, prov2)` (composite array) | `?::province[]`  | **1**                |
-| `arrayOf("a", "b", "c")` (typed array)   | `?`              | **1**                |
-
-### List vs Array
-
-- **`List<T>` (Recommended):** Uses Octavius serialization (text literal like `(value1,value2)` or `{1,2,3}`). Supports **all types**, including custom `@PgComposite` and `@PgEnum`.
-- **`Array<T>` (Native):** Uses native PgJDBC array protocol. Slightly faster for large collections of primitive types, but **does not support custom types**.
-
----
-
 ## Type Inference & Safety
+
+Details regarding how Kotlin values are mapped to PostgreSQL types (parameters) can be found in [Parameter Handling](parameter-handling.md#type-inference--safety).
 
 ### OID-Based Result Mapping
 
@@ -144,40 +123,6 @@ This OID-based resolution:
 - **Eliminates Ambiguity:** Bypasses issues with identical type names existing in multiple schemas.
 - **Boosts Performance:** OID lookups are extremely fast integer lookups compared to string parsing.
 - **Guarantees Type Safety:** Deeply nested composites, arrays, and enums are consistently deserialized to their exact Kotlin representations.
-
-### Default Type Resolution
-
-When mapping a Kotlin value to a PostgreSQL type, Octavius defaults to the **first matching entry** in the internal registry:
-- `JsonElement` → Defaults to **`jsonb`** (not `json`).
-- `String` → Defaults to **`text`** (not `varchar` or `char`).
-
-For `List<T>`, Octavius infers the type by inspecting the **first non-null element**. If the list is empty or contains only nulls, it defaults to `text[]`.
-
-### Explicit Type Casts (PgTyped)
-
-For ambiguous cases (like empty lists) or to optimize query plans, use `.withPgType()` to force a specific cast.
-
-```kotlin
-// Force JSON instead of the default JSONB
-val data = jsonElement.withPgType("json")
-
-// Prevent inference issues with empty/null lists
-val ids = listOf<Int?>(null).withPgType("int4", isArray = true)
-
-// Safe usage in queries
-dataAccess.rawQuery("SELECT * FROM legionnaires WHERE id = ANY(:ids)")
-    .toListOf<Legionnaire>("ids" to listOf(1, 7, 13).withPgType(PgStandardType.INT4_ARRAY))
-```
-
-### Type Resolution Priority
-
-If a class has multiple annotations, explicit wrappers dictate the serialization path:
-
-| Wrapper Used                                               | Behavior                                                       |
-|------------------------------------------------------------|----------------------------------------------------------------|
-| `value.withPgType("name", schema = "...", isArray = true)` | Forces explicit path (`?::"schema"."name"[]` using `PGobject`) |
-| `DynamicDto.from(value)`                                   | Forces `@DynamicallyMappable` path (`dynamic_dto(...)`)        |
-| None (raw value)                                           | Follows `DynamicDtoSerializationStrategy` configuration.       |
 
 ---
 

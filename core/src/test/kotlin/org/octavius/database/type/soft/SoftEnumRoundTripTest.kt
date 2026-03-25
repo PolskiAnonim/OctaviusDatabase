@@ -120,7 +120,7 @@ class SoftEnumRoundTripTest {
         // z powrotem na listę `List<FeatureFlag>`.
         val readResult = dataAccess.select("flags")
             .from("soft_enum_storage")
-            .where("id = :id")
+            .where("id = @id")
             .toField<List<FeatureFlag>>("id" to newId)
 
         // --- ASSERT ---

@@ -107,7 +107,7 @@ class RealPostgresDataModificationTest {
             INSERT INTO complex_test_data (
                 simple_text, simple_number, simple_bool, project_data, person_array
             ) VALUES (
-                :text, :number, :bool, :project, :persons
+                @text, @number, @bool, @project, @persons
             ) RETURNING id
         """.trimIndent()
 
@@ -151,7 +151,7 @@ class RealPostgresDataModificationTest {
             TestPerson("Frank Reynolds", 70, "frank@warthog.com", true, listOf("financier", "mastermind"))
         )
 
-        val sql = "UPDATE complex_test_data SET person_array = :newTeam WHERE id = 1"
+        val sql = "UPDATE complex_test_data SET person_array = @newTeam WHERE id = 1"
         val params = mapOf("newTeam" to newTeam)
 
         // Act: Konwertujemy i wykonujemy zapytanie UPDATE

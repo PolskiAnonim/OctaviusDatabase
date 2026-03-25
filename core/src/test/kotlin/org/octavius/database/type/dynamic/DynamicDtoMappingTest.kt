@@ -92,7 +92,7 @@ class DynamicDtoMappingTest {
                     FROM dynamic_profiles p WHERE p.user_id = u.user_id
                 ) AS profile
             FROM dynamic_users u
-            WHERE u.user_id = :userId
+            WHERE u.user_id = @userId
         """.trimIndent()
 
         // Act: Wykonujemy zapytanie za pomocą naszego DAL-a

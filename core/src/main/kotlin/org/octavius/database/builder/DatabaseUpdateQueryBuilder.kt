@@ -31,18 +31,18 @@ internal class DatabaseUpdateQueryBuilder(
 
     override fun setValues(values: Map<String, Any?>): UpdateQueryBuilder {
         // Generate placeholder map for the existing setExpressions method
-        val placeholders = values.keys.associateWith { key -> ":$key" }
+        val placeholders = values.keys.associateWith { key -> "@$key" }
         return this.setExpressions(placeholders)
     }
 
     override fun setValues(values: List<String>): UpdateQueryBuilder {
         // Generate placeholder map for the existing setExpressions method
-        val placeholders = values.associateWith { key -> ":$key" }
+        val placeholders = values.associateWith { key -> "@$key" }
         return this.setExpressions(placeholders)
     }
 
     override fun setValue(column: String): UpdateQueryBuilder {
-        return this.setExpression(column, ":$column")
+        return this.setExpression(column, "@$column")
     }
 
     override fun from(tables: String): UpdateQueryBuilder = apply {

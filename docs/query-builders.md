@@ -4,7 +4,7 @@
 
 Octavius Database provides fluent query builders for all CRUD operations. Each builder supports:
 - **CTE (Common Table Expressions)** via `with()` and `recursive()`
-- **Named parameters** using `:param` syntax
+- **Named parameters** using `@param` syntax
 - **Multiple terminal methods** for different result types
 - **Async execution** via `async()`
 - **Streaming** for large datasets via `asStream()`
@@ -61,7 +61,7 @@ val senators = dataAccess.select("id", "name", "province")
 // With pagination
 val page = dataAccess.select("*")
     .from("tributes")
-    .where("province = :province")
+    .where("province = @province")
     .orderBy("amount ASC")
     .page(page = 0, size = 20)
     .toListOf<Tribute>("province" to "Aegyptus")
@@ -76,7 +76,7 @@ val stats = dataAccess.select("province", "COUNT(*) as legion_count", "AVG(stren
 // With JOINs (in FROM clause)
 val campaignsWithCommanders = dataAccess.select("c.id", "c.name", "l.name as commander_name")
     .from("campaigns c JOIN legionnaires l ON c.commander_id = l.id")
-    .where("c.status = :status")
+    .where("c.status = @status")
     .toListOf<CampaignWithCommander>("status" to "active")
 ```
 
@@ -91,7 +91,7 @@ Builds SQL INSERT queries with support for values, expressions, SELECT source, a
 | Method                          | Description                                              |
 |---------------------------------|----------------------------------------------------------|
 | `columns(vararg)`               | Explicitly define target columns (optional)              |
-| `value(column)`                 | Add column with auto-generated `:column` placeholder     |
+| `value(column)`                 | Add column with auto-generated `@column` placeholder     |
 | `values(columns: List)`         | Add multiple columns with auto placeholders              |
 | `values(data: Map)`             | Add columns from map keys with auto placeholders         |
 | `valueExpression(column, expr)` | Add column with custom SQL expression                    |
@@ -121,9 +121,9 @@ val newId = dataAccess.insertInto("citizens")
 
 // Using expressions (e.g., NOW(), DEFAULT)
 dataAccess.insertInto("senate_audit")
-    .valueExpression("action", ":action")
+    .valueExpression("action", "@action")
     .valueExpression("recorded_at", "NOW()")
-    .valueExpression("senator_id", "COALESCE(:senator_id, 0)")
+    .valueExpression("senator_id", "COALESCE(@senator_id, 0)")
     .execute("action" to "vote_cast", "senator_id" to senatorId)
 
 // INSERT from SELECT (with explicit columns)
@@ -132,13 +132,13 @@ dataAccess.insertInto("archived_campaigns")
     .fromSelect("""
         SELECT id, tribute_total, NOW()
         FROM campaigns
-        WHERE ended_at < :cutoff
+        WHERE ended_at < @cutoff
     """)
     .execute("cutoff" to cutoffDate)
 
 // INSERT from SELECT (columns inferred by database)
 dataAccess.insertInto("archived_campaigns")
-    .fromSelect("SELECT id, tribute_total, NOW() FROM campaigns WHERE ended_at < :cutoff")
+    .fromSelect("SELECT id, tribute_total, NOW() FROM campaigns WHERE ended_at < @cutoff")
     .execute("cutoff" to cutoffDate)
 ```
 
@@ -152,7 +152,7 @@ Builds SQL UPDATE queries. **WHERE clause is mandatory** for safety.
 
 | Method                        | Description                                  |
 |-------------------------------|----------------------------------------------|
-| `setValue(column)`            | SET column with auto `:column` placeholder   |
+| `setValue(column)`            | SET column with auto `@column` placeholder   |
 | `setValues(columns: List)`    | SET multiple columns with auto placeholders  |
 | `setValues(data: Map)`        | SET columns from map keys                    |
 | `setExpression(column, expr)` | SET column with custom SQL expression        |
@@ -167,19 +167,19 @@ Builds SQL UPDATE queries. **WHERE clause is mandatory** for safety.
 // Basic UPDATE
 dataAccess.update("citizens")
     .setValues(listOf("name", "tribe"))
-    .where("id = :id")
+    .where("id = @id")
     .execute(mapOf("name" to "Livia Augusta", "tribe" to "Claudia", "id" to 42))
 
 // UPDATE with expression
 dataAccess.update("legion_supplies")
-    .setExpression("quantity", "quantity - :consumed")
+    .setExpression("quantity", "quantity - @consumed")
     .setExpression("last_resupply", "NOW()")
-    .where("id = :id")
+    .where("id = @id")
     .execute("consumed" to 5, "id" to supplyId)
 
 // UPDATE with FROM (for JOINs)
 dataAccess.update("campaigns")
-    .setExpression("status", ":newStatus")
+    .setExpression("status", "@newStatus")
     .from("citizens c")
     .where("campaigns.commander_id = c.id AND c.exiled = true")
     .execute("newStatus" to "suspended")
@@ -187,7 +187,7 @@ dataAccess.update("campaigns")
 // UPDATE with RETURNING
 val updated = dataAccess.update("citizens")
     .setValue("last_census")
-    .where("id = :id")
+    .where("id = @id")
     .returning("id", "name", "last_census")
     .toSingleOf<Citizen>("last_census" to now, "id" to citizenId)
 ```
@@ -217,12 +217,12 @@ dataAccess.deleteFrom("expired_mandates")
 // DELETE with USING (JOIN-like)
 dataAccess.deleteFrom("campaign_legions")
     .using("campaigns c")
-    .where("campaign_legions.campaign_id = c.id AND c.status = :status")
+    .where("campaign_legions.campaign_id = c.id AND c.status = @status")
     .execute("status" to "disbanded")
 
 // DELETE with RETURNING
 val expelled = dataAccess.deleteFrom("senate")
-    .where("id = :id")
+    .where("id = @id")
     .returning("id", "name")
     .toSingleOf<ExpelledSenator>("id" to senatorId)
 ```
@@ -245,9 +245,9 @@ val results = dataAccess.rawQuery("""
         COALESCE(SUM(cam.tribute_collected), 0) as total_tribute
     FROM citizens c
     LEFT JOIN campaigns cam ON cam.commander_id = c.id
-    WHERE c.enrolled_at > :since
+    WHERE c.enrolled_at > @since
     GROUP BY c.id, c.name
-    HAVING COUNT(cam.id) > :minCampaigns
+    HAVING COUNT(cam.id) > @minCampaigns
     ORDER BY total_tribute DESC
 """).toListOf<CitizenStats>("since" to startDate, "minCampaigns" to 2)
 
@@ -255,7 +255,7 @@ val results = dataAccess.rawQuery("""
 val affected = dataAccess.rawQuery("""
     UPDATE tributes
     SET amount = amount * 1.1
-    WHERE province = :province AND amount < :maxAmount
+    WHERE province = @province AND amount < @maxAmount
 """).execute("province" to "Britannia", "maxAmount" to 1000)
 ```
 
@@ -280,10 +280,10 @@ data class QueryFragment(
 To keep your code readable, the library provides handy `infix` functions for creating fragments:
 ```kotlin
 // Single parameter
-val f1 = "rank_order >= :rank" withParam ("rank" to 3)
+val f1 = "rank_order >= @rank" withParam ("rank" to 3)
 
 // Multiple parameters
-val f2 = "tribute BETWEEN :min AND :max" withParams mapOf("min" to 100, "max" to 5000)
+val f2 = "tribute BETWEEN @min AND @max" withParams mapOf("min" to 100, "max" to 5000)
 
 // No parameters
 val f3 = QueryFragment("last_census_at = NOW()")
@@ -305,9 +305,9 @@ fun searchCitizens(name: String?, minAge: Int?, tribe: String?): List<Citizen> {
 
     // 1. Build list of fragments based on non-null inputs
     val fragments = listOfNotNull(
-        name?.let { "name ILIKE :name" withParam ("name" to "%$it%") },
-        minAge?.let { "age >= :minAge" withParam ("minAge" to it) },
-        tribe?.let { "tribe = :tribe" withParam ("tribe" to it) }
+        name?.let { "name ILIKE @name" withParam ("name" to "%$it%") },
+        minAge?.let { "age >= @minAge" withParam ("minAge" to it) },
+        tribe?.let { "tribe = @tribe" withParam ("tribe" to it) }
     )
 
     // 2. Join them
@@ -330,8 +330,8 @@ fun searchCitizens(name: String?, minAge: Int?, tribe: String?): List<Citizen> {
 
 ```kotlin
 val updates = listOfNotNull(
-    newRank?.let { "rank = :rank" withParam ("rank" to it) },
-    newTribe?.let { "tribe = :tribe" withParam ("tribe" to it) },
+    newRank?.let { "rank = @rank" withParam ("rank" to it) },
+    newTribe?.let { "tribe = @tribe" withParam ("tribe" to it) },
     QueryFragment("last_census_at = NOW()") // Always update census timestamp
 )
 
@@ -341,8 +341,8 @@ val setClause = updates.join(
     addParenthesis = false // Don't wrap SET assignments in ()
 )
 
-// Result SQL: "UPDATE citizens SET rank = :rank, tribe = :tribe, last_census_at = NOW() WHERE id = :id"
-dataAccess.rawQuery("UPDATE citizens ${setClause.sql} WHERE id = :id")
+// Result SQL: "UPDATE citizens SET rank = @rank, tribe = @tribe, last_census_at = NOW() WHERE id = @id"
+dataAccess.rawQuery("UPDATE citizens ${setClause.sql} WHERE id = @id")
     .execute(setClause.params + ("id" to citizenId))
 ```
 
@@ -358,7 +358,7 @@ All builders support CTEs via `with()` and `recursive()`.
 val activeLegionnaires = dataAccess.select("*")
     .with("active_legionnaires", "SELECT * FROM legionnaires WHERE active = true")
     .from("active_legionnaires")
-    .where("last_campaign > :since")
+    .where("last_campaign > @since")
     .toListOf<Legionnaire>("since" to lastDecade)
 ```
 
@@ -366,7 +366,7 @@ val activeLegionnaires = dataAccess.select("*")
 
 ```kotlin
 val report = dataAccess.select("*")
-    .with("recent_campaigns", "SELECT * FROM campaigns WHERE started_at > :since")
+    .with("recent_campaigns", "SELECT * FROM campaigns WHERE started_at > @since")
     .with("campaign_totals", "SELECT commander_id, SUM(tribute_collected) as total FROM recent_campaigns GROUP BY commander_id")
     .from("citizens c JOIN campaign_totals ct ON c.id = ct.commander_id")
     .orderBy("ct.total DESC")
@@ -381,7 +381,7 @@ val hierarchy = dataAccess.select("*")
     .with("province_tree", """
         SELECT id, name, parent_id, 1 as depth
         FROM provinces
-        WHERE id = :rootId
+        WHERE id = @rootId
         UNION ALL
         SELECT p.id, p.name, p.parent_id, pt.depth + 1
         FROM provinces p
@@ -416,7 +416,7 @@ val stats = dataAccess.select("province", "avg_tribute")
         FROM tributes
         GROUP BY province
     """, alias = "province_stats")
-    .where("avg_tribute > :minAvg")
+    .where("avg_tribute > @minAvg")
     .toListOf<ProvinceStats>("minAvg" to 500.0)
 ```
 
@@ -425,7 +425,7 @@ val stats = dataAccess.select("province", "avg_tribute")
 ```kotlin
 val commanders = dataAccess.select("*")
     .from("citizens")
-    .where("id IN (SELECT commander_id FROM campaigns WHERE tribute_collected > :minTribute)")
+    .where("id IN (SELECT commander_id FROM campaigns WHERE tribute_collected > @minTribute)")
     .toListOf<Citizen>("minTribute" to 10000)
 ```
 
@@ -528,14 +528,14 @@ Controls what happens if another transaction already holds a lock on one of the 
 dataAccess.transaction { tx ->
     val result = tx.select("*")
         .from("campaigns")
-        .where("id = :id")
+        .where("id = @id")
         .forUpdate()
         .toSingleOf<Campaign>("id" to campaignId)
 
     result.onSuccess { campaign ->
         dataAccess.update("campaigns")
-            .setExpression("status", ":status")
-            .where("id = :id")
+            .setExpression("status", "@status")
+            .where("id = @id")
             .execute("status" to "marching", "id" to campaign?.id)
     }
 }
@@ -544,7 +544,7 @@ dataAccess.transaction { tx ->
 dataAccess.transaction { tx ->
     tx.select("c.id", "c.tribute_total", "a.balance")
         .from("campaigns c JOIN aerarium a ON c.province_id = a.province_id")
-        .where("c.id = :id")
+        .where("c.id = @id")
         .forUpdate(of = "c")  // only lock rows in 'campaigns', not 'aerarium'
         .toSingleOf<CampaignWithBalance>("id" to campaignId)
 }
@@ -553,7 +553,7 @@ dataAccess.transaction { tx ->
 dataAccess.transaction { tx ->
     tx.select("*")
         .from("grain_depots")
-        .where("id = :id AND status = 'available'")
+        .where("id = @id AND status = 'available'")
         .forUpdate(mode = LockWaitMode.NOWAIT)
         .toSingleOf<GrainDepot>("id" to depotId)
         .onSuccess { depot -> /* requisition it */ }
@@ -579,40 +579,40 @@ dataAccess.transaction { tx ->
 
 ### InsertQueryBuilder: `values()`
 
-Generates `:key` placeholders automatically for INSERT queries.
+Generates `@key` placeholders automatically for INSERT queries.
 
 ```kotlin
 // Using List - generates placeholders for each column name
 dataAccess.insertInto("citizens")
     .values(listOf("name", "tribe", "enrolled_at"))
-    // Generated: INSERT INTO citizens (name, tribe, enrolled_at) VALUES (:name, :tribe, :enrolled_at)
+    // Generated: INSERT INTO citizens (name, tribe, enrolled_at) VALUES (@name, @tribe, @enrolled_at)
     .execute("name" to "Gaius Octavius", "tribe" to "Iulia", "enrolled_at" to now)
 
 // Using Map - uses map keys as column names
 val data = mapOf("name" to "Gaius Octavius", "tribe" to "Iulia")
 dataAccess.insertInto("citizens")
     .values(data)
-    // Generated: INSERT INTO citizens (name, tribe) VALUES (:name, :tribe)
+    // Generated: INSERT INTO citizens (name, tribe) VALUES (@name, @tribe)
     .execute(data)
 ```
 
 ### UpdateQueryBuilder: `setValues()`
 
-Generates `:key` placeholders automatically for UPDATE queries.
+Generates `@key` placeholders automatically for UPDATE queries.
 
 ```kotlin
 // Using List
 dataAccess.update("citizens")
     .setValues(listOf("name", "tribe"))
-    // Generated: UPDATE citizens SET name = :name, tribe = :tribe WHERE ...
-    .where("id = :id")
+    // Generated: UPDATE citizens SET name = @name, tribe = @tribe WHERE ...
+    .where("id = @id")
     .execute("name" to "Livia Drusilla", "tribe" to "Claudia", "id" to 1)
 
 // Using Map
 val updates = mapOf("name" to "Livia Drusilla", "tribe" to "Claudia")
 dataAccess.update("citizens")
     .setValues(updates)
-    .where("id = :id")
+    .where("id = @id")
     .execute(updates + ("id" to 1))
 ```
 
@@ -623,13 +623,13 @@ dataAccess.update("citizens")
 dataAccess.insertInto("citizens")
     .value("name")
     .value("tribe")
-// Generated: INSERT INTO citizens (name, tribe) VALUES (:name, :tribe)
+// Generated: INSERT INTO citizens (name, tribe) VALUES (@name, @tribe)
 
 // For UPDATE
 dataAccess.update("citizens")
     .setValue("name")
     .setValue("tribe")
-// Generated: UPDATE citizens SET name = :name, tribe = :tribe WHERE ...
+// Generated: UPDATE citizens SET name = @name, tribe = @tribe WHERE ...
 ```
 
 ---

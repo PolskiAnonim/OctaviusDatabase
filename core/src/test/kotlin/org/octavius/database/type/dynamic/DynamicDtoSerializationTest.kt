@@ -96,7 +96,7 @@ class DynamicDtoSerializationTest {
 
         val insertSql = """
             INSERT INTO dynamic_storage (description, dynamic_data) 
-            VALUES (:desc, :profile) 
+            VALUES (@desc, @profile) 
             RETURNING id
         """.trimIndent()
 
@@ -115,7 +115,7 @@ class DynamicDtoSerializationTest {
         // Odczytujemy zapisany wiersz, aby zweryfikować, czy dane są poprawne
         val retrievedData = dataAccessWithFeature.select("dynamic_data")
             .from("dynamic_storage")
-            .where("id = :id")
+            .where("id = @id")
             .toField<DynamicProfile>("id" to newId)
             .let { (it as DataResult.Success).value }
 
@@ -129,7 +129,7 @@ class DynamicDtoSerializationTest {
     fun `should FAIL to serialize DynamicDto when feature is DISABLED`() {
         // --- ARRANGE ---
         val profile = DynamicProfile("guest", emptyList(), "")
-        val insertSql = "INSERT INTO dynamic_storage (description, dynamic_data) VALUES ('should fail', :profile)"
+        val insertSql = "INSERT INTO dynamic_storage (description, dynamic_data) VALUES ('should fail', @profile)"
 
         // --- ACT & ASSERT ---
         // Używamy DAL-a z WYŁĄCZONĄ funkcją.
