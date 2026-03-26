@@ -203,12 +203,12 @@ Define an object or class implementing `PgCompositeMapper<T>` and reference it i
 data class LegionStats(val strength: Int, val morale: Int)
 
 object LegionStatsMapper : PgCompositeMapper<LegionStats> {
-    override fun fromMap(map: Map<String, Any?>) = LegionStats(
+    override fun toDataObject(map: Map<String, Any?>) = LegionStats(
         strength = map["strength"] as Int,
         morale = map["morale"] as Int
     )
 
-    override fun toMap(obj: LegionStats) = mapOf(
+    override fun toDataMap(obj: LegionStats) = mapOf(
         "strength" to obj.strength,
         "morale" to obj.morale
     )
@@ -224,13 +224,13 @@ Octavius default mapping always returns collections as `List<T>`. If your data c
 data class BattleSignal(val legionId: Int, val drumBeats: DoubleArray)
 
 object BattleSignalMapper : PgCompositeMapper<BattleSignal> {
-    override fun fromMap(map: Map<String, Any?>) = BattleSignal(
+    override fun toDataObject(map: Map<String, Any?>) = BattleSignal(
         legionId = map["legion_id"] as Int,
         // PostgreSQL array comes as List<Double>, convert it to DoubleArray
         drumBeats = (map["drum_beats"] as List<Double>).toDoubleArray()
     )
 
-    override fun toMap(obj: BattleSignal) = mapOf(
+    override fun toDataMap(obj: BattleSignal) = mapOf(
         "legion_id" to obj.legionId,
         "drum_beats" to obj.drumBeats.toList()
     )
@@ -245,12 +245,12 @@ Mappers can be used to handle types that don't have a direct 1:1 mapping or requ
 data class SenateEvent(val title: String, val occurredAt: Instant)
 
 object SenateEventMapper : PgCompositeMapper<SenateEvent> {
-    override fun fromMap(map: Map<String, Any?>) = SenateEvent(
+    override fun toDataObject(map: Map<String, Any?>) = SenateEvent(
         title = map["title"] as String,
         occurredAt = Instant.fromEpochMilliseconds(map["occurred_at"] as Long)
     )
 
-    override fun toMap(obj: SenateEvent) = mapOf(
+    override fun toDataMap(obj: SenateEvent) = mapOf(
         "title" to obj.title,
         "occurred_at" to obj.occurredAt.toEpochMilliseconds()
     )
@@ -352,4 +352,4 @@ data class TributeRecord(
 
 For overriding the default `snake_case` ↔ `camelCase` mapping for individual properties, use the `@MapKey` annotation.
 
-Utilities like `toDataObject()` and `toMap()` are available to convert between data classes and maps. See [Data Mapping](data-mapping.md) documentation for full details and CRUD patterns.
+Utilities like `toDataObject()` and `toDataMap()` are available to convert between data classes and maps. See [Data Mapping](data-mapping.md) documentation for full details and CRUD patterns.

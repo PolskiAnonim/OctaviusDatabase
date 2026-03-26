@@ -5,7 +5,7 @@ import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
-import org.octavius.data.toMap
+import org.octavius.data.toDataMap
 import org.octavius.data.type.DynamicDto
 import org.octavius.data.type.PgTyped
 import org.octavius.data.type.QualifiedName
@@ -50,7 +50,7 @@ internal class PgTextSerializer(
         val valueMap = if (typeInfo.mapper != null) {
             logger.trace { "Using manual mapper for serialization of ${typeInfo.typeName}" }
             try {
-                typeInfo.mapper.toMap(obj)
+                typeInfo.mapper.toDataMap(obj)
             } catch (e: Exception) {
                 throw ConversionException(
                     ConversionExceptionMessage.COMPOSITE_MAPPER_FAILED,
@@ -59,7 +59,7 @@ internal class PgTextSerializer(
                 )
             }
         } else {
-            obj.toMap()
+            obj.toDataMap()
         }
 
         return typeInfo.attributes.keys.joinToString(prefix = "(", postfix = ")", separator = ",") { key ->

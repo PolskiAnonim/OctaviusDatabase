@@ -188,7 +188,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
         val result = if (typeInfo.mapper != null) {
             logger.trace { "Using manual mapper for ${typeInfo.typeName}" }
             try {
-                typeInfo.mapper.fromMap(constructorArgsMap)
+                typeInfo.mapper.toDataObject(constructorArgsMap)
             } catch (e: Exception) {
                 throw ConversionException(
                     ConversionExceptionMessage.COMPOSITE_MAPPER_FAILED,

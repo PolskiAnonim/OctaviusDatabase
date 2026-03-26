@@ -14,21 +14,21 @@ interface PgCompositeMapper<T : Any> {
      * Creates an instance of [T] from the provided [map].
      * The map keys are the attribute names (typically in snake_case as they come from DB).
      */
-    fun fromMap(map: Map<String, Any?>): T
+    fun toDataObject(map: Map<String, Any?>): T
 
     /**
      * Converts the provided object [obj] to a Map.
      * The map keys should match the PostgreSQL composite attribute names.
      */
-    fun toMap(obj: T): Map<String, Any?>
+    fun toDataMap(obj: T): Map<String, Any?>
 }
 
 /**
  * Internal marker to indicate that no explicit mapper is provided.
  */
 object DefaultPgCompositeMapper : PgCompositeMapper<Any> {
-    override fun fromMap(map: Map<String, Any?>): Any = throw UnsupportedOperationException()
-    override fun toMap(obj: Any): Map<String, Any?> = throw UnsupportedOperationException()
+    override fun toDataObject(map: Map<String, Any?>): Any = throw UnsupportedOperationException()
+    override fun toDataMap(obj: Any): Map<String, Any?> = throw UnsupportedOperationException()
 }
 
 /**
@@ -70,11 +70,11 @@ object DefaultPgCompositeMapper : PgCompositeMapper<Any> {
  * data class Stats(val strength: Int, val agility: Int)
  *
  * object StatsMapper : PgCompositeMapper<Stats> {
- *     override fun fromMap(map: Map<String, Any?>) = Stats(
+ *     override fun toDataObject(map: Map<String, Any?>) = Stats(
  *         strength = map["strength"] as Int,
  *         agility = map["agility"] as Int
  *     )
- *     override fun toMap(obj: Stats) = mapOf(
+ *     override fun toDataMap(obj: Stats) = mapOf(
  *         "strength" to obj.strength,
  *         "agility" to obj.agility
  *     )

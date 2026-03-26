@@ -20,7 +20,7 @@ import kotlin.reflect.full.primaryConstructor
  * @property name Key name that will be used in the map.
  *
  * @see toDataObject
- * @see toMap
+ * @see toDataMap
  */
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.RUNTIME)
@@ -41,7 +41,7 @@ private data class ConstructorParamMetadata<T : Any>(
 
 /**
  * Stores class metadata based on its primary constructor.
- * Serves as a central cache for `toDataObject` and `toMap` operations.
+ * Serves as a central cache for `toDataObject` and `toDataMap` operations.
  */
 private data class DataObjectClassMetadata<T : Any>(
     val constructor: KFunction<T>,
@@ -170,7 +170,7 @@ fun <T : Any> Map<String, Any?>.toDataObject(kClass: KClass<T>): T {
  * @param excludeKeys Keys to exclude from the resulting map
  * @return Map representing the object.
  */
-fun <T : Any> T.toMap(vararg excludeKeys: String): Map<String, Any?> {
+fun <T : Any> T.toDataMap(vararg excludeKeys: String): Map<String, Any?> {
     @Suppress("UNCHECKED_CAST")
     val metadata = getOrCreateDataObjectMetadata(this::class) as DataObjectClassMetadata<T>
 

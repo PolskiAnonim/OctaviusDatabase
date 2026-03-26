@@ -8,7 +8,7 @@ Octavius provides utilities for converting between Kotlin data classes and `Map<
 
 - [toDataObject()](#todataobject---map-to-data-class)
 - [Nested Structures & Strict Type Checking](#nested-structures--strict-type-checking)
-- [toMap()](#tomap---data-class-to-map)
+- [toDataMap()](#todatamap---data-class-to-map)
 - [@MapKey Annotation](#mapkey-annotation)
 - [Combining with Query Builders](#combining-with-query-builders)
 
@@ -92,18 +92,18 @@ This ensures type safety: if the structure of your Data Class doesn't match the 
 
 ---
 
-## toMap() - Data Class to Map
+## toDataMap() - Data Class to Map
 
 Converts a data class to a `Map<String, Any?>` with snake_case keys.
 
 ```kotlin
 val senator = Senator(senatorId = 1, firstName = "Gaius", enrolledAt = Instant.now())
 
-val map = senator.toMap()
+val map = senator.toDataMap()
 // Result: {"senator_id" to 1, "first_name" to "Gaius", "enrolled_at" to ...}
 
 // Exclude specific keys (e.g., auto-generated ID)
-val mapWithoutId = senator.toMap("senator_id")
+val mapWithoutId = senator.toDataMap("senator_id")
 // Result: {"first_name" to "Gaius", "enrolled_at" to ...}
 ```
 
@@ -117,21 +117,21 @@ val mapWithoutId = senator.toMap("senator_id")
 
 ```kotlin
 // Exclude by field names (vararg) - RECOMMENDED
-entity.toMap("id", "enrolled_at", "last_census_at")
+entity.toDataMap("id", "enrolled_at", "last_census_at")
 
 // Exclude computed/derived fields
 val EXCLUDE_ON_UPDATE = setOf("id", "enrolled_at", "version")
-entity.toMap(*EXCLUDE_ON_UPDATE.toTypedArray())
+entity.toDataMap(*EXCLUDE_ON_UPDATE.toTypedArray())
 
 // Exclude based on external configuration
 val immutableFields = config.getImmutableFieldsFor("citizens")
-entity.toMap(*immutableFields.toTypedArray())
+entity.toDataMap(*immutableFields.toTypedArray())
 
 // Filter after conversion - NOT RECOMMENDED (less efficient, iterates twice)
-entity.toMap().filterKeys { it !in setOf("id", "secret") }
+entity.toDataMap().filterKeys { it !in setOf("id", "secret") }
 ```
 
-Prefer excluding keys directly in `toMap()` - it skips excluded fields during conversion rather than iterating the entire map afterwards.
+Prefer excluding keys directly in `toDataMap()` - it skips excluded fields during conversion rather than iterating the entire map afterwards.
 
 ---
 
@@ -149,9 +149,9 @@ data class CitizenProfile(
     val externalRef: String         // Maps to "external_registry" instead of "external_ref"
 )
 
-// toMap() uses @MapKey names
+// toDataMap() uses @MapKey names
 val profile = CitizenProfile(1, "Marcus Tullius", 42, "REG-123")
-profile.toMap()
+profile.toDataMap()
 // Result: {"id" to 1, "citizen_name" to "Marcus Tullius", "citizen" to 42, "external_registry" to "REG-123"}
 
 // toDataObject() also respects @MapKey
@@ -169,7 +169,7 @@ val restored: CitizenProfile = row.toDataObject()
 
 ## Combining with Query Builders
 
-The real power comes from combining `toMap()` with auto-placeholder functions.
+The real power comes from combining `toDataMap()` with auto-placeholder functions.
 
 ### Insert from Object
 
@@ -177,8 +177,8 @@ The real power comes from combining `toMap()` with auto-placeholder functions.
 data class RegisterCitizenRequest(val name: String, val tribe: String, val rank: Magistrature)
 
 fun registerCitizen(request: RegisterCitizenRequest): DataResult<Int> {
-    // Convert once - toMap() uses reflection, so avoid calling it multiple times
-    val data = request.toMap()
+    // Convert once - toDataMap() uses reflection, so avoid calling it multiple times
+    val data = request.toDataMap()
 
     return dataAccess.insertInto("citizens")
         .values(data)
@@ -196,7 +196,7 @@ val newCitizenId = registerCitizen(RegisterCitizenRequest("Gaius Julius", "Corne
 data class UpdateCitizenRequest(val id: Int, val name: String, val tribe: String)
 
 fun updateCitizen(request: UpdateCitizenRequest): DataResult<Int> {
-    val data = request.toMap("id")  // Exclude ID from SET clause
+    val data = request.toDataMap("id")  // Exclude ID from SET clause
 
     return dataAccess.update("citizens")
         .setValues(data)
@@ -216,7 +216,7 @@ data class PatchCitizenRequest(
 )
 
 fun patchCitizen(request: PatchCitizenRequest): DataResult<Int> {
-    val data = request.toMap("id").filterValues { it != null }
+    val data = request.toDataMap("id").filterValues { it != null }
 
     if (data.isEmpty()) {
         return DataResult.Success(0)
@@ -236,7 +236,7 @@ The pattern `values(map)` + `execute(map)` uses the **same map** for both:
 2. Providing actual values
 
 ```kotlin
-val data = entity.toMap("id")
+val data = entity.toDataMap("id")
 dataAccess.insertInto("citizens")
     .values(data)      // Defines: (col1, col2) VALUES (@col1, @col2)
     .execute(data)     // Provides: col1 -> value1, col2 -> value2

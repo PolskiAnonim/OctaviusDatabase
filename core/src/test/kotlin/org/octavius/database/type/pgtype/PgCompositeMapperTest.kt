@@ -19,12 +19,12 @@ import org.octavius.database.config.DynamicDtoSerializationStrategy
 data class MappedAddress(val street: String, val city: String)
 
 object AddressMapper : PgCompositeMapper<MappedAddress> {
-    override fun fromMap(map: Map<String, Any?>): MappedAddress = MappedAddress(
+    override fun toDataObject(map: Map<String, Any?>): MappedAddress = MappedAddress(
         street = map["street"] as String,
         city = map["city"] as String
     )
 
-    override fun toMap(obj: MappedAddress): Map<String, Any?> = mapOf(
+    override fun toDataMap(obj: MappedAddress): Map<String, Any?> = mapOf(
         "street" to obj.street,
         "city" to obj.city
     )
@@ -34,12 +34,12 @@ object AddressMapper : PgCompositeMapper<MappedAddress> {
 data class ClassMappedAddress(val street: String, val city: String)
 
 class ClassAddressMapper : PgCompositeMapper<ClassMappedAddress> {
-    override fun fromMap(map: Map<String, Any?>): ClassMappedAddress = ClassMappedAddress(
+    override fun toDataObject(map: Map<String, Any?>): ClassMappedAddress = ClassMappedAddress(
         street = map["street"] as String,
         city = map["city"] as String
     )
 
-    override fun toMap(obj: ClassMappedAddress): Map<String, Any?> = mapOf(
+    override fun toDataMap(obj: ClassMappedAddress): Map<String, Any?> = mapOf(
         "street" to obj.street,
         "city" to obj.city
     )

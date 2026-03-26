@@ -11,7 +11,7 @@ Octavius is an Anti-ORM by design, but it provides utilities that enable conveni
 - [Real-World Example](#real-world-example)
 - [When to Use These Patterns](#when-to-use-these-patterns)
 
-> **Prerequisites**: This guide assumes familiarity with [Data Mapping](data-mapping.md) (`toMap()`, `toDataObject()`, `@MapKey`) and [Query Builders](query-builders.md) (auto-placeholders).
+> **Prerequisites**: This guide assumes familiarity with [Data Mapping](data-mapping.md) (`toDataMap()`, `toDataObject()`, `@MapKey`) and [Query Builders](query-builders.md) (auto-placeholders).
 
 ---
 
@@ -101,7 +101,7 @@ The pattern `values(map)` + `execute(map)` uses the **same map** for both:
 2. Providing actual values
 
 ```kotlin
-val data = entity.toMap("id")
+val data = entity.toDataMap("id")
 dataAccess.insertInto("legions")
     .values(data)      // Defines: (col1, col2) VALUES (@col1, @col2)
     .execute(data)     // Provides: col1 -> value1, col2 -> value2
@@ -180,7 +180,7 @@ class LegionConfigurationManager(private val dataAccess: DataAccess) {
 
     fun saveConfiguration(configuration: LegionConfiguration): Boolean {
         // One line: convert to map, excluding auto-generated ID
-        val flatValueMap = configuration.toMap("id")
+        val flatValueMap = configuration.toDataMap("id")
 
         val result = dataAccess.insertInto("legion_configurations")
             .values(flatValueMap)  // Same map defines columns AND provides values
@@ -230,7 +230,7 @@ class LegionConfigurationManager(private val dataAccess: DataAccess) {
 
 **What's happening here:**
 - `LegionConfiguration` has 9 fields including arrays, composites, enums, and JSONB
-- `toMap("id")` converts it all to a flat map, excluding the ID
+- `toDataMap("id")` converts it all to a flat map, excluding the ID
 - `values(flatValueMap)` generates: `(name, legion_name, description, ...) VALUES (@name, @legion_name, @description, ...)`
 - `execute(flatValueMap)` provides all values with automatic type conversion
 - `toSingleOf<LegionConfiguration>()` deserializes back including all nested types
@@ -257,7 +257,7 @@ data class Tribute(
 class TributeRepository(private val dataAccess: DataAccess) {
 
     fun record(tribute: Tribute): DataResult<Tribute> {
-        val data = tribute.toMap("id", "collected_at", "recorded_at")
+        val data = tribute.toDataMap("id", "collected_at", "recorded_at")
 
         return dataAccess.insertInto("tributes")
             .values(data)
@@ -274,7 +274,7 @@ class TributeRepository(private val dataAccess: DataAccess) {
     }
 
     fun update(tribute: Tribute): DataResult<Tribute?> {
-        val data = tribute.toMap("id", "collected_at", "recorded_at")
+        val data = tribute.toDataMap("id", "collected_at", "recorded_at")
 
         return dataAccess.update("tributes")
             .setValues(data)
@@ -304,7 +304,7 @@ class TributeRepository(private val dataAccess: DataAccess) {
 
 ```kotlin
 fun upsertTribute(tribute: Tribute): DataResult<Tribute?> {
-    val data = tribute.toMap("id", "collected_at", "recorded_at")
+    val data = tribute.toDataMap("id", "collected_at", "recorded_at")
 
     return dataAccess.insertInto("tributes")
         .values(data)

@@ -100,7 +100,7 @@ internal class DatabaseAccess(
             } catch (e: DatabaseException) {
                 status.setRollbackOnly()
                 // There is no additional context here so there is nothing to do with this exception
-                // It should be logged - technically someone is throwing it instead of returning or it is from toMap/toDataObject
+                // It should be logged - technically someone is throwing it instead of returning or it is from toDataMap/toDataObject
                 // Because it is unreasonable to throw from queries we are assuming that this error has not been logged
                 logger.error(e) { "A DatabaseException was thrown inside the transaction block. Rolling back." }
                 DataResult.Failure(e)
