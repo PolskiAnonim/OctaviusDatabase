@@ -43,9 +43,9 @@ internal class KotlinToPostgresConverter(
      * Entry point for query transformation. Parses named parameters and converts values.
      */
     fun toPositionalQuery(sql: String, params: Map<String, Any?>): PositionalQuery {
-        val parsedParameters = PostgresNamedParameterParser.parse(sql)
+        val parsedParameters = PostgresSqlPreprocessor.parse(sql)
         if (parsedParameters.isEmpty()) {
-            return PositionalQuery(PostgresNamedParameterParser.escapeQuestionMarks(sql), emptyList())
+            return PositionalQuery(PostgresSqlPreprocessor.escapeQuestionMarks(sql), emptyList())
         }
 
         val finalParams = ArrayList<Any?>(parsedParameters.size)
@@ -60,7 +60,7 @@ internal class KotlinToPostgresConverter(
                 
                 // Escape question marks in the literal SQL parts between parameters
                 val partBefore = sql.substring(lastIndex, parsedParam.startIndex)
-                append(PostgresNamedParameterParser.escapeQuestionMarks(partBefore))
+                append(PostgresSqlPreprocessor.escapeQuestionMarks(partBefore))
                 
                 append(conversion.placeholder)
                 finalParams.add(conversion.value)
@@ -68,7 +68,7 @@ internal class KotlinToPostgresConverter(
             }
             // Escape question marks in the remaining literal SQL part
             val partAfter = sql.substring(lastIndex, sql.length)
-            append(PostgresNamedParameterParser.escapeQuestionMarks(partAfter))
+            append(PostgresSqlPreprocessor.escapeQuestionMarks(partAfter))
         }
 
         return PositionalQuery(transformedSql, finalParams)

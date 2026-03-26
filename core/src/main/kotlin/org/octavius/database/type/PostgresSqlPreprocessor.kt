@@ -5,31 +5,36 @@ internal data class ParsedParameter(val name: String, val startIndex: Int, val e
 
 
 /**
- * Parses PostgreSQL SQL queries to find named parameters (e.g., `@param`).
+ * A specialized SQL preprocessor for PostgreSQL that handles named parameter extraction
+ * and JDBC-compatible transformations while respecting PostgreSQL's lexical rules.
  *
- * Implementation is inspired by `org.springframework.jdbc.core.namedparam.NamedParameterUtils`,
- * but has been adapted and extended to correctly handle PostgreSQL-specific constructs.
+ * This component is designed to correctly identify boundaries of various SQL constructs
+ * (literals, comments, dollar-quotes) to ensure that transformations are only applied
+ * to actual SQL code and not inside strings or comments.
  *
- * The parser correctly ignores placeholders found inside:
- * - Single-line comments (`-- ...`)
- * - Multi-line comments (`/* ... */`)
- * - String literals (`'...'`)
- * - Escape string literals (`E'...'` or `e'...'`) with backslash escapes
- * - Quoted identifiers (`"..."`)
- * - Dollar-quoted strings (`$$...$$`, `$tag$...$tag$`)
- * - Type casting operators (`::`)
+ * ### Key Responsibilities:
+ * 1. **Named Parameter Extraction**: Identifies `@param` style parameters. The `@` prefix
+ *    is used specifically to avoid conflicts with PostgreSQL's `:` operator (used for type
+ *    casting `::` and standard array range syntax).
+ * 2. **Operator Escaping**: Converts raw `?` operators (common in PostgreSQL JSONB
+ *    operations like `?`, `?|`, `?&`) into `??` to prevent JDBC from misinterpreting
+ *    them as positional parameter placeholders.
  *
- * **PostgreSQL-Specific Features**:
- * - **Escape Strings**: `E'text with \n newline'` - properly handles backslash escape sequences
- * - **Dollar Quoting**: `$$text$$` or `$tag$text$tag$` - supports custom tags for avoiding quote escaping
- * - **At-Prefix Parameters**: `@param` - avoids conflicts with PostgreSQL range operators (`[1:5]`)
+ * ### Lexical Awareness:
+ * The preprocessor correctly ignores content within:
+ * - **Single-line comments**: `-- ...`
+ * - **Multi-line comments**: `/* ... */` (supports nested comments)
+ * - **Standard string literals**: `'...'` (handles doubled single quotes)
+ * - **Escape string literals**: `E'...'` or `e'...'` (properly handles backslash escapes)
+ * - **Quoted identifiers**: `"..."`
+ * - **Dollar-quoted strings**: `$$...$$` or `$tag$...$tag$`
  *
- * This prevents false parameter detection inside string literals, which is critical for
- * complex SQL queries containing PostgreSQL-specific syntax.
+ * Implementation is partially inspired by Spring's `NamedParameterUtils` but significantly
+ * extended to support PostgreSQL-specific syntax like dollar-quoting and nested comments.
  */
-internal object PostgresNamedParameterParser {
+internal object PostgresSqlPreprocessor {
 
-    private const val PARAMETER_SEPARATORS = "\"':&,;()|=+-*%/\\<>^[]@"
+    private const val PARAMETER_SEPARATORS = "\"':&,;()|=+-*%/\\<>^[]@~!#`?"
     private val separatorIndex = BooleanArray(128).apply {
         PARAMETER_SEPARATORS.forEach { this[it.code] = true }
     }
@@ -40,6 +45,9 @@ internal object PostgresNamedParameterParser {
 
     /**
      * Analyzes the given SQL string and returns a list of found parameters in order of occurrence.
+     *
+     * Only identifies parameters starting with '@'.
+     * Correcty skips content inside comments, string literals, and dollar-quoted strings.
      */
     fun parse(sql: String): List<ParsedParameter> {
         val foundParameters = mutableListOf<ParsedParameter>()
@@ -63,8 +71,9 @@ internal object PostgresNamedParameterParser {
 
     /**
      * Escapes literal question marks (?) in the SQL by replacing them with (??).
-     * This is necessary because JDBC uses '?' as a positional parameter placeholder.
-     * PostgreSQL uses '?', '?|', '?&' as operators for JSONB.
+     *
+     * This is necessary because JDBC uses '?' as a positional parameter placeholder,
+     * while PostgreSQL uses '?', '?|', '?&' as operators for JSONB.
      *
      * This method respects PostgreSQL quoting and comment rules, only escaping
      * question marks that are not inside strings or comments.
