@@ -180,4 +180,58 @@ internal class PostgresNamedParameterParserTest {
             )
         }
     }
+
+    @Nested
+    inner class QuestionMarkEscaping {
+
+        @Test
+        fun `should escape a single question mark`() {
+            val sql = "SELECT * FROM t WHERE json_col ? 'key'"
+            val result = PostgresNamedParameterParser.escapeQuestionMarks(sql)
+            assertThat(result).isEqualTo("SELECT * FROM t WHERE json_col ?? 'key'")
+        }
+
+        @Test
+        fun `should escape multiple question marks`() {
+            val sql = "SELECT * FROM t WHERE json_col ?| array['a', 'b'] AND other ?& array['c']"
+            val result = PostgresNamedParameterParser.escapeQuestionMarks(sql)
+            assertThat(result).isEqualTo("SELECT * FROM t WHERE json_col ??| array['a', 'b'] AND other ??& array['c']")
+        }
+
+        @Test
+        fun `should NOT escape question marks inside single-quoted strings`() {
+            val sql = "SELECT 'is this a question?' as q FROM t WHERE col ? 'key'"
+            val result = PostgresNamedParameterParser.escapeQuestionMarks(sql)
+            assertThat(result).isEqualTo("SELECT 'is this a question?' as q FROM t WHERE col ?? 'key'")
+        }
+
+        @Test
+        fun `should NOT escape question marks inside E-string literals`() {
+            val sql = "SELECT E'escaped \\' quote and question?' FROM t WHERE col ? 'key'"
+            val result = PostgresNamedParameterParser.escapeQuestionMarks(sql)
+            assertThat(result).isEqualTo("SELECT E'escaped \\' quote and question?' FROM t WHERE col ?? 'key'")
+        }
+
+        @Test
+        fun `should NOT escape question marks inside dollar-quoted strings`() {
+            val sql = "SELECT $$ why? $$ FROM t WHERE col ? 'key'"
+            val result = PostgresNamedParameterParser.escapeQuestionMarks(sql)
+            assertThat(result).isEqualTo("SELECT $$ why? $$ FROM t WHERE col ?? 'key'")
+        }
+
+        @Test
+        fun `should NOT escape question marks inside comments`() {
+            val sql = """
+                SELECT * FROM t -- is this ok?
+                /* or this? */
+                WHERE col ? 'key'
+            """.trimIndent()
+            val result = PostgresNamedParameterParser.escapeQuestionMarks(sql)
+            assertThat(result).isEqualTo("""
+                SELECT * FROM t -- is this ok?
+                /* or this? */
+                WHERE col ?? 'key'
+            """.trimIndent())
+        }
+    }
 }

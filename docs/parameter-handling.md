@@ -50,6 +50,23 @@ FROM legionnaires WHERE name = @name;
 
 Here `[:@pageSize]` is clearly a PostgreSQL slice from the beginning to the value of `@pageSize`. The `:` belongs to PostgreSQL; the `@` belongs to Octavius.
 
+### What about the `?` operator?
+
+PostgreSQL uses the `?` character as an operator for `jsonb` types (e.g., `?`, `?|`, `?&`). However, JDBC uses `?` as a positional parameter placeholder.
+
+Octavius Database automatically handles this for you. Its SQL parser identifies literal question marks that are not inside strings or comments and escapes them as `??` in the final SQL sent to the database. This allows you to use JSONB operators directly in your queries without manual escaping:
+
+```kotlin
+// Find all records where the 'data' JSONB column contains the key 'priority'
+val result = dataAccess.rawQuery("SELECT * FROM tasks WHERE data ? 'priority'")
+    .toList()
+```
+
+The parser is smart enough to **not** escape question marks inside:
+- Single-quoted strings (`'Is this a question?'`)
+- Dollar-quoted strings (`$$why?$$`)
+- Comments (`-- what?`, `/* how? */`)
+
 ---
 
 ## Parameter Expansion & Conversion

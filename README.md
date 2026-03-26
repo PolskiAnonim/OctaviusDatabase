@@ -367,7 +367,7 @@ For detailed guides and examples, see the [full documentation](docs/README.md):
 - [Query Builders](docs/query-builders.md) - SELECT, INSERT, UPDATE, DELETE, CTEs, subqueries, ON CONFLICT
 - [Functions & Procedures](docs/functions-and-procedures.md) - CALL, SELECT, IN/OUT, functions vs procedures
 - [Executing Queries](docs/executing-queries.md) - Terminal methods, DataResult, async, streaming
-- [Parameter Handling](docs/parameter-handling.md) - Named parameters (@), expansion & conversion, type inference, collections & flattening
+- [Parameter Handling](docs/parameter-handling.md) - Named parameters (@), JSONB operator escaping (?), expansion & conversion, type inference, collections & flattening
 - [Data Mapping](docs/data-mapping.md) - toMap(), toDataObject(), @MapKey, nested structures & strict typing
 - [ORM-Like Patterns](docs/orm-patterns.md) - CRUD patterns, real-world examples
 - [Transactions](docs/transactions.md) - Transaction plans, StepHandle, passing data between steps

@@ -13,7 +13,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 | [Query Builders](query-builders.md)                   | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT             |
 | [Functions & Procedures](functions-and-procedures.md) | Calling functions and procedures                                                       |
 | [Executing Queries](executing-queries.md)             | Terminal methods, DataResult, assertNotNull, async execution, streaming                |
-| [Parameter Handling](parameter-handling.md)           | Named parameters (@), expansion & conversion, type inference, collections & flattening |
+| [Parameter Handling](parameter-handling.md)           | Named parameters (@), JSONB operator escaping (?), expansion & conversion, type inference |
 | [Data Mapping](data-mapping.md)                       | toMap(), toDataObject(), @MapKey - converting between objects and maps                 |
 | [ORM-Like Patterns](orm-patterns.md)                  | CRUD patterns, real-world examples, PostgreSQL composite types                         |
 | [Transactions](transactions.md)                       | Transaction blocks, TransactionPlan, StepHandle, passing data between steps            |
@@ -36,6 +36,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 
 ### Parameter Handling
 - [Named Parameters Syntax](parameter-handling.md#named-parameters-syntax) - Why `@` is used instead of `:`
+- [JSONB Operators & Question Marks](parameter-handling.md#what-about-the--operator) - Automatic escaping of `?` for JSONB
 - [Expansion & Conversion](parameter-handling.md#parameter-expansion--conversion) - How Kotlin values become SQL parameters
 - [Type Inference & Safety](parameter-handling.md#type-inference--safety) - Default resolution and `PgTyped` casts
 - [Collections & Flattening](parameter-handling.md#collections--parameter-flattening) - Handling lists, arrays, and composites

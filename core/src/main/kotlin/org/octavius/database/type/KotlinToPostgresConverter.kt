@@ -5,6 +5,7 @@ import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.TypeRegistryException
 import org.octavius.data.exception.TypeRegistryExceptionMessage
+import org.octavius.data.exception.requireBuilder
 import org.octavius.data.type.DynamicDto
 import org.octavius.data.type.PgTyped
 import org.octavius.data.type.QualifiedName
@@ -43,22 +44,31 @@ internal class KotlinToPostgresConverter(
      */
     fun toPositionalQuery(sql: String, params: Map<String, Any?>): PositionalQuery {
         val parsedParameters = PostgresNamedParameterParser.parse(sql)
-        if (parsedParameters.isEmpty()) return PositionalQuery(sql, emptyList())
+        if (parsedParameters.isEmpty()) {
+            return PositionalQuery(PostgresNamedParameterParser.escapeQuestionMarks(sql), emptyList())
+        }
 
         val finalParams = ArrayList<Any?>(parsedParameters.size)
         val transformedSql = buildString(sql.length + 256) {
             var lastIndex = 0
             for (parsedParam in parsedParameters) {
                 val paramName = parsedParam.name
-                require(params.containsKey(paramName)) { "Missing value for parameter: $paramName" }
+                requireBuilder(params.containsKey(paramName)) { "Missing value for parameter: $paramName" }
                 val paramValue = params[paramName]
 
                 val conversion = convertParameter(paramValue, appendTypeCast = true)
-                append(sql, lastIndex, parsedParam.startIndex).append(conversion.placeholder)
+                
+                // Escape question marks in the literal SQL parts between parameters
+                val partBefore = sql.substring(lastIndex, parsedParam.startIndex)
+                append(PostgresNamedParameterParser.escapeQuestionMarks(partBefore))
+                
+                append(conversion.placeholder)
                 finalParams.add(conversion.value)
                 lastIndex = parsedParam.endIndex
             }
-            append(sql, lastIndex, sql.length)
+            // Escape question marks in the remaining literal SQL part
+            val partAfter = sql.substring(lastIndex, sql.length)
+            append(PostgresNamedParameterParser.escapeQuestionMarks(partAfter))
         }
 
         return PositionalQuery(transformedSql, finalParams)

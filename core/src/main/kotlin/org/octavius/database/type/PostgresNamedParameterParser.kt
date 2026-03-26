@@ -47,24 +47,70 @@ internal object PostgresNamedParameterParser {
         var i = 0
 
         while (i < statement.size) {
-            val currentChar = statement[i]
-            val newIndex = when (currentChar) {
-                '\'' -> processSingleQuote(statement, i)
-                '@' -> processAt(statement, i, sql, foundParameters)
-                '"' -> skipUntil(statement, i, '"')
-                '-' -> processDash(statement, i)
-                '/' -> processSlash(statement, i)
-                '$' -> processDollar(statement, i)
-                else -> i
+            val skipIndex = findConstructEnd(statement, i)
+            if (skipIndex > i) {
+                i = skipIndex + 1
+                continue
             }
-            // Update i. If logic didn't change the index, i just increments at the end of loop.
-            // If logic returned a new index (e.g., end of string), we continue from there.
-            i = newIndex
+
+            if (statement[i] == '@') {
+                i = processAt(statement, i, sql, foundParameters)
+            }
             i++
         }
         return foundParameters
     }
 
+    /**
+     * Escapes literal question marks (?) in the SQL by replacing them with (??).
+     * This is necessary because JDBC uses '?' as a positional parameter placeholder.
+     * PostgreSQL uses '?', '?|', '?&' as operators for JSONB.
+     *
+     * This method respects PostgreSQL quoting and comment rules, only escaping
+     * question marks that are not inside strings or comments.
+     */
+    fun escapeQuestionMarks(sql: String): String {
+        val statement = sql.toCharArray()
+        val result = StringBuilder(sql.length + 10)
+        var i = 0
+
+        while (i < statement.size) {
+            val skipIndex = findConstructEnd(statement, i)
+            if (skipIndex > i) {
+                result.append(sql, i, skipIndex + 1)
+                i = skipIndex + 1
+                continue
+            }
+
+            val currentChar = statement[i]
+            if (currentChar == '?') {
+                result.append("??")
+            } else {
+                result.append(currentChar)
+            }
+            i++
+        }
+        return result.toString()
+    }
+
+    /**
+     * Checks if the character at the current index starts a special SQL construct
+     * (string literal, comment, dollar-quote) and returns the index of its last character.
+     * If not a construct start, returns the original index.
+     */
+    private fun findConstructEnd(statement: CharArray, i: Int): Int {
+        return when (statement[i]) {
+            '\'' -> processSingleQuote(statement, i)
+            '"' -> skipUntil(statement, i, '"')
+            '-' -> if (i + 1 < statement.size && statement[i + 1] == '-') skipUntil(statement, i, '\n') else i
+            '/' -> if (i + 1 < statement.size && statement[i + 1] == '*') skipComment(statement, i) else i
+            '$' -> {
+                val end = findDollarQuoteEnd(statement, i)
+                if (end != -1) end else i
+            }
+            else -> i
+        }
+    }
 
     /**
      * Handles string literals, including PostgreSQL Escape strings (E'...')
@@ -105,37 +151,6 @@ internal object PostgresNamedParameterParser {
         }
 
         return index
-    }
-
-    /**
-     * Handles single-line comments (-- ...).
-     * Returns index of the newline or original index if not a comment.
-     */
-    private fun processDash(statement: CharArray, index: Int): Int {
-        if (index + 1 < statement.size && statement[index + 1] == '-') {
-            return skipUntil(statement, index, '\n')
-        }
-        return index
-    }
-
-    /**
-     * Handles multi-line comments.
-     * Returns index of the closing slash or original index if not a comment.
-     */
-    private fun processSlash(statement: CharArray, index: Int): Int {
-        if (index + 1 < statement.size && statement[index + 1] == '*') {
-            return skipComment(statement, index)
-        }
-        return index
-    }
-
-    /**
-     * Handles dollar-quoted strings ($tag$ ... $tag$).
-     * Returns index of the closing dollar sign or original index if valid tag not found.
-     */
-    private fun processDollar(statement: CharArray, index: Int): Int {
-        val endPos = findDollarQuoteEnd(statement, index)
-        return if (endPos != -1) endPos else index
     }
 
     /** Skips to the end of a dollar-quoted block. Returns the index of the last character. */
