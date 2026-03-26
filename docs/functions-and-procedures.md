@@ -65,7 +65,7 @@ For `OUT` parameters, you must explicitly provide a `NULL` placeholder with a ty
 
 ```kotlin
 // CALL conscript_legionnaire(IN legion_id int, OUT new_rank text)
-val result = dataAccess.rawQuery("CALL conscript_legionnaire(@legion_id, NULL:@text)")
+val result = dataAccess.rawQuery("CALL conscript_legionnaire(@legion_id, NULL::text)")
     .toSingleStrict("legion_id" to 7)
     .getOrThrow()
 
