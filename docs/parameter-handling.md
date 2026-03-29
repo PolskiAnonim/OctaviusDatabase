@@ -156,13 +156,6 @@ When collections, arrays, or composite types are passed as named parameters (`@p
 
 ## Automatic Placeholder Generation
 
-Builders like `InsertQueryBuilder` and `UpdateQueryBuilder` provide helper methods that generate named parameters for you based on column names.
+Builders like `InsertQueryBuilder` and `UpdateQueryBuilder` provide helper methods that generate named parameters for you automatically based on column names (e.g., `values(listOf("name"))` generates `@name`).
 
-```kotlin
-// Automatically generates: INSERT INTO senators (name, tribe, rank) VALUES (@name, @tribe, @rank)
-dataAccess.insertInto("senators")
-    .values(listOf("name", "tribe", "rank"))
-    .execute(mapOf("name" to "Gaius Sempronius", "tribe" to "Cornelia", "rank" to "Quaestor"))
-```
-
-In these cases, the generated parameter names always match the column names and use the `@` prefix.
+For detailed examples and usage, see [Query Builders: Auto-Generated Placeholders](query-builders.md#auto-generated-placeholders).

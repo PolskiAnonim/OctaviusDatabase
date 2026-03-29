@@ -108,18 +108,6 @@ db.schemas=public,aerarium
 db.packagesToScan=com.roma.domain.types,com.roma.dto
 ```
 
-### Property Details
-
-**`db.schemas`** - Comma-separated list of schemas:
-```properties
-db.schemas=public,aerarium
-```
-
-**`db.packagesToScan`** - Packages containing your `@PgEnum`, `@PgComposite`, `@DynamicallyMappable` classes:
-```properties
-db.packagesToScan=com.roma.domain.types,com.roma.dto
-```
-
 ---
 
 ## Flyway Migrations
