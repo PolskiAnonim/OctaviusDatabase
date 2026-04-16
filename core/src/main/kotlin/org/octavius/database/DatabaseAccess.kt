@@ -14,11 +14,12 @@ import org.octavius.data.transaction.TransactionPlanResult
 import org.octavius.data.transaction.TransactionPropagation
 import org.octavius.database.builder.*
 import org.octavius.database.exception.ExceptionTranslator
+import org.octavius.database.jdbc.RowMappers
 import org.octavius.database.notification.DatabasePgChannelListener
 import org.octavius.database.transaction.TransactionPlanExecutor
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.octavius.database.type.registry.TypeRegistry
-import org.springframework.jdbc.core.JdbcTemplate
+import org.octavius.database.jdbc.JdbcTemplate
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.support.TransactionTemplate

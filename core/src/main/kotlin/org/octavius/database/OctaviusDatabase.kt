@@ -14,7 +14,7 @@ import org.octavius.database.config.DynamicDtoSerializationStrategy
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.registry.TypeRegistryLoader
-import org.springframework.jdbc.core.JdbcTemplate
+import org.octavius.database.jdbc.JdbcTemplate
 import org.springframework.jdbc.support.JdbcTransactionManager
 import java.sql.Connection
 import java.sql.DriverManager

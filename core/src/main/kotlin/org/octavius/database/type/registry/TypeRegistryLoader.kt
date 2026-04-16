@@ -10,7 +10,7 @@ import org.octavius.data.exception.InitializationExceptionMessage
 import org.octavius.data.type.PgStandardType
 import org.octavius.data.type.QualifiedName
 import org.octavius.data.util.CaseConverter
-import org.springframework.jdbc.core.JdbcTemplate
+import org.octavius.database.jdbc.JdbcTemplate
 import kotlin.reflect.KClass
 
 /**

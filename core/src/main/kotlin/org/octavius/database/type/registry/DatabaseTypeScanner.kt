@@ -4,7 +4,8 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.octavius.data.exception.InitializationException
 import org.octavius.data.exception.InitializationExceptionMessage
 import org.octavius.data.exception.QueryContext
-import org.springframework.jdbc.core.JdbcTemplate
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.type.PositionalQuery
 
 /**
  * Scans PostgreSQL database for type definitions.
@@ -28,7 +29,8 @@ internal class DatabaseTypeScanner(
 
         try {
             val schemas = dbSchemas.toTypedArray()
-            jdbcTemplate.query(SQL_QUERY_ALL_TYPES, { rs, _ ->
+            val query = PositionalQuery(SQL_QUERY_ALL_TYPES, listOf(schemas, schemas))
+            jdbcTemplate.query(query) { rs, _ ->
                 val type = rs.getString("info_type")
                 val schema = rs.getString("schema_name")
                 val name = rs.getString("type_name")
@@ -53,10 +55,10 @@ internal class DatabaseTypeScanner(
                         triple.third[col1] = col2
                     }
                 }
-            }, schemas, schemas)
+            }
 
             // Also fetch names for ALL other types in pg_type (standard types etc.)
-            jdbcTemplate.query(SQL_QUERY_OID_NAMES) { rs ->
+            jdbcTemplate.query(PositionalQuery(SQL_QUERY_OID_NAMES, emptyList())) { rs, _ ->
                 val oid = rs.getInt("oid")
                 val name = rs.getString("typname")
                 // Only put if not already present (we prefer schema-qualified names from previous query)
@@ -80,7 +82,9 @@ internal class DatabaseTypeScanner(
 
     fun fetchSearchPath(): List<String> {
         return try {
-            val raw = jdbcTemplate.queryForObject("SHOW search_path", String::class.java) ?: ""
+            val raw = jdbcTemplate.query(PositionalQuery("SHOW search_path", emptyList())) { rs, _ ->
+                rs.getString(1)
+            }.firstOrNull() ?: ""
             raw.split(",").map { it.trim().removeSurrounding("\"") }.filter { it.isNotEmpty() }
         } catch (e: Exception) {
             logger.warn { "Failed to fetch search_path, falling back to default schemas. Error: ${e.message}" }
