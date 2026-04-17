@@ -7,15 +7,16 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import org.octavius.database.RowMappers
+import org.octavius.data.DataAccess
+import org.octavius.data.getOrThrow
+import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
-import org.octavius.database.type.registry.TypeRegistry
-import org.octavius.database.type.registry.TypeRegistryLoader
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
 import org.octavius.domain.test.pgtype.TestPerson
 import org.octavius.domain.test.pgtype.TestPriority
 import org.octavius.domain.test.pgtype.TestProject
 import org.octavius.domain.test.pgtype.TestStatus
-import org.springframework.jdbc.core.JdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -24,8 +25,7 @@ class RealPostgresDataTest {
 
     // Te pola będą dostępne we wszystkich testach w tej klasie
     private lateinit var dataSource: HikariDataSource
-    private lateinit var jdbcTemplate: JdbcTemplate
-    private lateinit var typeRegistry: TypeRegistry
+    private lateinit var dataAccess: DataAccess
 
     @BeforeAll
     fun setup() {
@@ -36,8 +36,6 @@ class RealPostgresDataTest {
         val connectionUrl = databaseConfig.dbUrl
         val dbName = connectionUrl.substringAfterLast("/") // Wyciągamy nazwę bazy z URL-a
 
-        // Sprawdzamy zarówno URL, jak i nazwę bazy, aby być podwójnie pewnym.
-        // Można też sprawdzić hosta, port etc.
         if (!connectionUrl.contains("localhost:5432") || dbName != "octavius_test") {
             throw IllegalStateException(
                 "ABORTING TEST! Attempting to run destructive tests on a non-test database. " +
@@ -53,7 +51,7 @@ class RealPostgresDataTest {
             password = databaseConfig.dbPassword
         }
         dataSource = HikariDataSource(hikariConfig)
-        jdbcTemplate = JdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(dataSource))
 
         // 3. Wrzucamy skrypt testowy do bazy DOKŁADNIE RAZ
         try {
@@ -76,13 +74,14 @@ class RealPostgresDataTest {
             throw e
         }
 
-        // 4. Inicjalizujemy zależności dla konwerterów
-        val loader = TypeRegistryLoader(
-            jdbcTemplate,
-            listOf("org.octavius.domain.test.pgtype"),
-            databaseConfig.dbSchemas
+        // 6. Inicjalizujemy framework
+        dataAccess = OctaviusDatabase.fromDataSource(
+            dataSource = dataSource,
+            packagesToScan = listOf("org.octavius.domain.test.pgtype"),
+            dbSchemas = databaseConfig.dbSchemas,
+            disableFlyway = true,
+            disableCoreTypeInitialization = true
         )
-        typeRegistry = loader.load()
     }
 
     // Nie potrzebujemy @BeforeEach, bo tylko czytamy dane!
@@ -96,13 +95,12 @@ class RealPostgresDataTest {
     fun `should convert a row with complex types into a map of correct Kotlin objects`() {
         // Given: dane są już w bazie dzięki setupowi
 
-        // When: Używamy RowMappers (które używają konwertera) do pobrania danych
-        val result: Map<String, Any?> = jdbcTemplate.queryForObject(
-            "SELECT * FROM complex_test_data WHERE id = 1",
-            RowMappers(typeRegistry).ColumnNameMapper()
-        )
+        // When: Używamy frameworka do pobrania danych
+        val result = dataAccess.rawQuery("SELECT * FROM complex_test_data WHERE id = 1")
+            .toSingleStrict()
+            .getOrThrow()
 
-// Then: Sprawdzamy każdy przekonwertowany obiekt
+        // Then: Sprawdzamy każdy przekonwertowany obiekt
         assertThat(result["simple_text"]).isEqualTo("Test \"quoted\" text with special chars: ąćęłńóśźż")
         assertThat(result["simple_bool"]).isEqualTo(true)
         assertThat(result["single_status"]).isEqualTo(TestStatus.Active)

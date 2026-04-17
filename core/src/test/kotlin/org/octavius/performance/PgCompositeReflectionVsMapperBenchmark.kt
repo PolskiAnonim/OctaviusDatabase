@@ -10,13 +10,13 @@ import org.octavius.data.getOrThrow
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
 import org.octavius.domain.test.reflvsmap.CharMap
 import org.octavius.domain.test.reflvsmap.CharRefl
 import org.octavius.domain.test.reflvsmap.StatsMap
 import org.octavius.domain.test.reflvsmap.StatsRefl
-import org.springframework.jdbc.core.JdbcTemplate
 import java.util.concurrent.ConcurrentHashMap
-import javax.sql.DataSource
 import kotlin.system.measureTimeMillis
 
 
@@ -46,19 +46,19 @@ class PgCompositeReflectionVsMapperBenchmark {
             maximumPoolSize = 5
         }
 
-        val jdbcTemplate = JdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(dataSource))
         jdbcTemplate.execute("DROP TABLE IF EXISTS perf_refl CASCADE")
         jdbcTemplate.execute("DROP TABLE IF EXISTS perf_map CASCADE")
         jdbcTemplate.execute("DROP TYPE IF EXISTS perf_char_refl CASCADE")
         jdbcTemplate.execute("DROP TYPE IF EXISTS perf_stats_refl CASCADE")
         jdbcTemplate.execute("DROP TYPE IF EXISTS perf_char_map CASCADE")
         jdbcTemplate.execute("DROP TYPE IF EXISTS perf_stats_map CASCADE")
-        
+
         jdbcTemplate.execute("CREATE TYPE perf_stats_refl AS (strength INT, agility INT, intelligence INT)")
         jdbcTemplate.execute("CREATE TYPE perf_char_refl AS (id INT, name TEXT, stats perf_stats_refl)")
         jdbcTemplate.execute("CREATE TYPE perf_stats_map AS (strength INT, agility INT, intelligence INT)")
         jdbcTemplate.execute("CREATE TYPE perf_char_map AS (id INT, name TEXT, stats perf_stats_map)")
-        
+
         jdbcTemplate.execute("CREATE TABLE perf_refl (data perf_char_refl)")
         jdbcTemplate.execute("CREATE TABLE perf_map (data perf_char_map)")
 

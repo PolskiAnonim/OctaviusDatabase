@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.octavius.data.builder.LockWaitMode
 import org.octavius.data.exception.BuilderException
-import org.octavius.database.RowMappers
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
-import org.springframework.jdbc.core.JdbcTemplate
 
 
 internal object TestQueryBuilderFactory {

@@ -4,8 +4,7 @@ import com.zaxxer.hikari.HikariDataSource
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.octavius.database.config.DatabaseConfig
-import org.springframework.jdbc.core.JdbcTemplate
-import java.util.*
+import org.octavius.database.jdbc.JdbcTemplate
 
 class OctaviusDatabaseIntegrationTest {
 

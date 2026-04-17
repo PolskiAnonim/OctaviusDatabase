@@ -5,10 +5,8 @@ import org.octavius.data.DataResult
 import org.octavius.data.builder.StreamingTerminalMethods
 import org.octavius.data.exception.QueryContext
 import org.octavius.database.exception.ExceptionTranslator
+import org.octavius.database.jdbc.RowMapper
 import org.octavius.database.type.PositionalQuery
-import org.springframework.jdbc.core.PreparedStatementSetter
-import org.springframework.jdbc.core.ResultSetExtractor
-import org.springframework.jdbc.core.RowMapper
 import kotlin.reflect.KClass
 
 internal class StreamingQueryBuilder(
@@ -39,37 +37,13 @@ internal class StreamingQueryBuilder(
                 """.trimIndent()
             }
 
-
-
-            val pss = PreparedStatementSetter { ps ->
-                // Set parameters (loop is encapsulated here)
-                positionalQuery.params.forEachIndexed { index, value ->
-                    ps.setObject(index + 1, value)
-                }
-
-                // Configure streaming
-                if (ps.connection.autoCommit) {
-                    logger.warn {
-                        "POTENTIAL PERFORMANCE ISSUE: Streaming query executed with autoCommit=true. " +
-                                "PostgreSQL driver will ignore fetchSize=$fetchSize and load all rows into RAM. " +
-                                "Wrap this call in DataAccess.transaction { ... }."
-                    }
-                }
-                ps.fetchSize = this.fetchSize
-            }
-
-            // Step 2: Prepare ResultSetExtractor
-            // Its only job is to iterate over results and invoke the action
-            val rse = ResultSetExtractor { rs ->
+            builder.jdbcTemplate.query(positionalQuery, fetchSize) { rs ->
                 var rowNum = 0
                 while (rs.next()) {
                     val mappedItem = rowMapper.mapRow(rs, rowNum++)
                     action(mappedItem)
                 }
             }
-
-            builder.jdbcTemplate.query(positionalQuery.sql, pss, rse)
-
 
             DataResult.Success(Unit)
         } catch (e: Exception) {

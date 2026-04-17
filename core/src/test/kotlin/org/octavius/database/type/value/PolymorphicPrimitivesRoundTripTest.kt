@@ -3,11 +3,7 @@ package org.octavius.database.type.value
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.*
 import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.builder.toField
@@ -18,7 +14,6 @@ import org.octavius.database.config.DynamicDtoSerializationStrategy
 import org.springframework.jdbc.core.JdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
-import javax.sql.DataSource
 
 /**
  * Test weryfikujący pełny cykl zapisu i odczytu dla polimorficznej listy `List<Any>`,

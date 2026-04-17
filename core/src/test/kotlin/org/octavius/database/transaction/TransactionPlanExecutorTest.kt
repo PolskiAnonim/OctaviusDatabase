@@ -4,11 +4,7 @@ import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.*
 import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.builder.execute
@@ -20,7 +16,9 @@ import org.octavius.data.exception.StepDependencyException
 import org.octavius.data.transaction.TransactionPlan
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
-import org.springframework.jdbc.core.JdbcTemplate
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
+import org.octavius.database.type.PositionalQuery
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -46,7 +44,7 @@ class TransactionPlanExecutorTest {
             username = dbConfig.dbUsername
             password = dbConfig.dbPassword
         })
-        jdbcTemplate = JdbcTemplate(dataSource)
+        jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(dataSource))
 
         // --- Krok 2: Inicjalizacja schematu bazy danych ---
         val initSql = String(Files.readAllBytes(Paths.get(this::class.java.classLoader.getResource("init-transaction-test-db.sql")!!.toURI())))
@@ -70,7 +68,7 @@ class TransactionPlanExecutorTest {
     @BeforeEach
     fun cleanup() {
         // Czyścimy tabele przed każdym testem, aby zapewnić izolację
-        jdbcTemplate.update("TRUNCATE TABLE users, profiles, logs RESTART IDENTITY")
+        jdbcTemplate.update(PositionalQuery("TRUNCATE TABLE users, profiles, logs RESTART IDENTITY", listOf()))
     }
 
     @Test
@@ -98,7 +96,7 @@ class TransactionPlanExecutorTest {
         assertThat(successResult.get(userHandle)).isEqualTo(1)
         assertThat(successResult.get(logHandle)).isEqualTo(1)
 
-        val userCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users", Long::class.java)
+        val userCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM users", listOf())) { rs, _ -> rs.getLong(1) }.first()
         assertThat(userCount).isEqualTo(1)
     }
 
@@ -126,7 +124,7 @@ class TransactionPlanExecutorTest {
 
         // Assert
         assertThat(result).isInstanceOf(DataResult.Success::class.java)
-        val profileUserId = jdbcTemplate.queryForObject("SELECT user_id FROM profiles WHERE bio = ?", Int::class.java, "A bio for John")
+        val profileUserId = jdbcTemplate.query(PositionalQuery("SELECT user_id FROM profiles WHERE bio = ?", listOf("A bio for John"))) { rs, _ -> rs.getInt(1) }.first()
         assertThat(profileUserId).isEqualTo(1) // Powinno być ID Johna
     }
 
@@ -156,14 +154,14 @@ class TransactionPlanExecutorTest {
 
         // Assert
         assertThat(result).isInstanceOf(DataResult.Success::class.java)
-        val logCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Long::class.java)
+        val logCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM logs", listOf())) { rs, _ -> rs.getLong(1) }.first()
         assertThat(logCount).isEqualTo(3)
     }
 
     @Test
     fun `should roll back all changes if a step fails`() {
         // Arrange: User "Admin" już istnieje w schemacie (UNIQUE constraint)
-        jdbcTemplate.update("INSERT INTO users (name) VALUES ('Admin')")
+        jdbcTemplate.update(PositionalQuery("INSERT INTO users (name) VALUES ('Admin')", listOf()))
 
         val plan = TransactionPlan()
         // Krok 1: Wstaw log (powinien się udać)
@@ -183,7 +181,7 @@ class TransactionPlanExecutorTest {
         assertThat(failure.queryContext!!.transactionStepIndex).isEqualTo(1) // Błąd w drugim kroku (indeks 1)
 
         // Kluczowa asercja: Sprawdzamy, czy Krok 1 został wycofany
-        val logCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Long::class.java)
+        val logCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM logs", listOf())) { rs, _ -> rs.getLong(1) }.first()
         assertThat(logCount).isEqualTo(0)
     }
 
@@ -231,9 +229,9 @@ class TransactionPlanExecutorTest {
 
         // Assert
         assertThat(result).isInstanceOf(DataResult.Success::class.java)
-        val userCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users", Long::class.java)
-        val logCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Long::class.java)
-        val profileCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM profiles",  Long::class.java)
+        val userCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM users", listOf())) { rs, _ -> rs.getLong(1) }.first()
+        val logCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM logs", listOf())) { rs, _ -> rs.getLong(1) }.first()
+        val profileCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM profiles", listOf())) { rs, _ -> rs.getLong(1) }.first()
 
         assertThat(userCount).isEqualTo(1)
         assertThat(logCount).isEqualTo(1)

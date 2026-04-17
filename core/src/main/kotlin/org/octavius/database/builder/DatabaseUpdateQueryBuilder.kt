@@ -2,9 +2,9 @@ package org.octavius.database.builder
 
 import org.octavius.data.builder.UpdateQueryBuilder
 import org.octavius.data.exception.checkBuilder
-import org.octavius.database.RowMappers
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
-import org.springframework.jdbc.core.JdbcTemplate
 
 /** Internal implementation of [UpdateQueryBuilder] for building SQL UPDATE statements. */
 internal class DatabaseUpdateQueryBuilder(

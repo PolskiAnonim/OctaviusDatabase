@@ -1,8 +1,8 @@
 package org.octavius.database.type.pgtype
 
 import com.zaxxer.hikari.HikariDataSource
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -14,6 +14,8 @@ import org.octavius.data.getOrThrow
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
 
 @PgComposite(name = "mapped_address", mapper = AddressMapper::class)
 data class MappedAddress(val street: String, val city: String)
@@ -59,7 +61,7 @@ class PgCompositeMapperTest {
             password = config.dbPassword
         }
 
-        val jdbcTemplate = org.springframework.jdbc.core.JdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(dataSource))
         jdbcTemplate.execute("DROP TABLE IF EXISTS mapper_test CASCADE")
         jdbcTemplate.execute("DROP TYPE IF EXISTS mapped_address CASCADE")
         jdbcTemplate.execute("DROP TYPE IF EXISTS class_mapped_address CASCADE")

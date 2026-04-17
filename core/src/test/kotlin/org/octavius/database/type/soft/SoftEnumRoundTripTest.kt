@@ -3,11 +3,7 @@ package org.octavius.database.type.soft
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.*
 import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.builder.toField
@@ -15,9 +11,10 @@ import org.octavius.data.getOrThrow
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
 import java.nio.file.Files
 import java.nio.file.Paths
-import javax.sql.DataSource
 
 /**
  * Test weryfikujący pełny cykl zapisu i odczytu ("Round-Trip") dla listy Soft Enumów.
@@ -57,7 +54,7 @@ class SoftEnumRoundTripTest {
         })
         this.dataSource = hikariDataSource
 
-        val jdbcTemplate = hikariDataSource.let { org.springframework.jdbc.core.JdbcTemplate(it) }
+        val jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(hikariDataSource))
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
         jdbcTemplate.execute("CREATE SCHEMA public;")
         // Załaduj dedykowany schemat dla tego testu

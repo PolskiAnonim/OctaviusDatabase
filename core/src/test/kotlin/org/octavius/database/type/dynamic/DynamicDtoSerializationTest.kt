@@ -12,8 +12,9 @@ import org.octavius.data.exception.TypeRegistryException
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
 import org.octavius.domain.test.dynamic.DynamicProfile
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -44,13 +45,13 @@ class DynamicDtoSerializationTest {
             password = baseConfig.dbPassword
         })
         this.dataSource = hikariDataSource
-        val jdbcTemplate = NamedParameterJdbcTemplate(hikariDataSource)
+        val jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(hikariDataSource))
 
         // Używamy nowego skryptu
-        jdbcTemplate.jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
-        jdbcTemplate.jdbcTemplate.execute("CREATE SCHEMA public;")
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
+        jdbcTemplate.execute("CREATE SCHEMA public;")
         val initSql = String(Files.readAllBytes(Paths.get(this::class.java.classLoader.getResource("init-dynamic-serialization-test-db.sql")!!.toURI())))
-        jdbcTemplate.jdbcTemplate.execute(initSql)
+        jdbcTemplate.execute(initSql)
         println("Dynamic DTO serialization test DB schema initialized.")
 
         // --- Krok 3: Stworzenie dwóch instancji DAL-a z różnymi konfiguracjami ---

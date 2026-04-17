@@ -8,17 +8,18 @@ import org.octavius.data.DataAccess
 import org.octavius.data.exception.InitializationException
 import org.octavius.data.exception.InitializationExceptionMessage
 import org.octavius.data.exception.QueryContext
+import org.octavius.database.OctaviusDatabase.fromDataSource
 import org.octavius.database.config.AppInfo
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.registry.TypeRegistryLoader
-import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.support.JdbcTransactionManager
 import java.sql.Connection
 import java.sql.DriverManager
-import java.util.Properties
+import java.util.*
 import javax.sql.DataSource
 import kotlin.time.measureTime
 
@@ -148,8 +149,8 @@ object OctaviusDatabase {
         onClose: (() -> Unit)? = null
     ): DataAccess {
         logger.info { "Initializing OctaviusDatabase..." }
-        val jdbcTemplate = JdbcTemplate(dataSource)
-        val transactionManager = JdbcTransactionManager(dataSource)
+        val transactionManager = SpringJdbcTransactionProvider(dataSource)
+        val jdbcTemplate = JdbcTemplate(transactionManager)
 
         // 1. Framework Infrastructure (Idempotent)
         if (!disableCoreTypeInitialization) {

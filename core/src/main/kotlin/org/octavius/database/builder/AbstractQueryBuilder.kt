@@ -12,12 +12,12 @@ import org.octavius.data.exception.ConversionException
 import org.octavius.data.exception.ConversionExceptionMessage
 import org.octavius.data.exception.QueryContext
 import org.octavius.data.exception.checkBuilder
-import org.octavius.database.RowMappers
 import org.octavius.database.exception.ExceptionTranslator
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.RowMapper
+import org.octavius.database.jdbc.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.octavius.database.type.PositionalQuery
-import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.core.RowMapper
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
 
@@ -224,8 +224,8 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
     fun execute(params: Map<String, Any?>): DataResult<Int> {
         checkBuilder(returningClause == null) { "Use toList(), toSingle(), etc. methods when RETURNING clause is defined." }
         val sql = buildSql()
-        return execute(sql, params) { positionalSql, positionalParams ->
-            val affectedRows = jdbcTemplate.update(positionalSql, *positionalParams.toTypedArray())
+        return execute(sql, params) { positionalQuery ->
+            val affectedRows = jdbcTemplate.update(positionalQuery)
             DataResult.Success(affectedRows)
         }
     }
@@ -261,8 +261,8 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
     ): DataResult<R> {
         checkBuilder(canReturnResultsByDefault || returningClause != null) { "Cannot call toList(), toSingle(), etc. on a modifying query without RETURNING clause. Use .returning()." }
         val sql = buildSql()
-        return execute(sql, params) { positionalSql, positionalParams ->
-            val results: List<M> = jdbcTemplate.query(positionalSql, rowMapper, *positionalParams.toTypedArray())
+        return execute(sql, params) { positionalQuery ->
+            val results: List<M> = jdbcTemplate.query(positionalQuery, rowMapper)
             transform(results)
         }
     }
@@ -281,7 +281,7 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
     protected fun <R> execute(
         sql: String,
         params: Map<String, Any?>,
-        action: (positionalSql: String, positionalParams: List<Any?>) -> DataResult<R>
+        action: (positionalQuery: PositionalQuery) -> DataResult<R>
     ): DataResult<R> {
         var positionalQuery: PositionalQuery? = null
         return try {
@@ -292,7 +292,7 @@ internal abstract class AbstractQueryBuilder<R : QueryBuilder<R>>(
                   -> (database): ${positionalQuery.sql} with positional params: ${positionalQuery.params}
                 """.trimIndent()
             }
-            action(positionalQuery.sql, positionalQuery.params)
+            action(positionalQuery)
         } catch (e: Exception) {
             val queryContext = QueryContext(
                 sql = sql,

@@ -2,9 +2,9 @@ package org.octavius.database.builder
 
 import org.octavius.data.builder.DeleteQueryBuilder
 import org.octavius.data.exception.checkBuilder
-import org.octavius.database.RowMappers
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
-import org.springframework.jdbc.core.JdbcTemplate
 
 /** Internal implementation of [DeleteQueryBuilder] for building SQL DELETE statements. */
 internal class DatabaseDeleteQueryBuilder(

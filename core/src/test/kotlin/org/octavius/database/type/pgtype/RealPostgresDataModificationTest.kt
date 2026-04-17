@@ -4,28 +4,27 @@ import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.datetime.LocalDateTime
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
-import org.octavius.database.RowMappers
+import org.junit.jupiter.api.*
+import org.octavius.data.DataAccess
+import org.octavius.data.builder.execute
+import org.octavius.data.builder.toField
+import org.octavius.data.builder.toSingleStrict
+import org.octavius.data.getOrThrow
+import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
-import org.octavius.database.type.KotlinToPostgresConverter
-import org.octavius.database.type.registry.TypeRegistryLoader
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
 import org.octavius.domain.test.pgtype.*
-import org.springframework.jdbc.core.JdbcTemplate
 import java.math.BigDecimal
 import java.nio.file.Files
 import java.nio.file.Paths
-import kotlin.reflect.typeOf
 
 /**
  * Test integracyjny dla konwertera Kotlin -> PostgreSQL.
  *
  * Ta klasa testowa weryfikuje pełny cykl życia danych:
  * 1. Tworzy złożone obiekty w Kotlinie.
- * 2. Używa `KotlinToPostgresConverter` do "spłaszczenia" ich na potrzeby zapytania SQL.
+ * 2. Używa frameworka do "spłaszczenia" ich na potrzeby zapytania SQL.
  * 3. Zapisuje je w prawdziwej bazie danych PostgreSQL (INSERT/UPDATE).
  * 4. Odczytuje zapisane dane z powrotem.
  * 5. Porównuje odczytany obiekt z oryginałem, aby zapewnić 100% zgodność.
@@ -37,9 +36,7 @@ import kotlin.reflect.typeOf
 class RealPostgresDataModificationTest {
 
     private lateinit var dataSource: HikariDataSource
-    private lateinit var jdbcTemplate: JdbcTemplate
-    private lateinit var kotlinToPostgresConverter: KotlinToPostgresConverter
-    private lateinit var mappers: RowMappers // Potrzebne do odczytu w celu weryfikacji
+    private lateinit var dataAccess: DataAccess
 
     @BeforeAll
     fun setup() {
@@ -61,7 +58,7 @@ class RealPostgresDataModificationTest {
             password = databaseConfig.dbPassword
         }
         dataSource = HikariDataSource(hikariConfig)
-        jdbcTemplate = JdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(dataSource))
 
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
         jdbcTemplate.execute("CREATE SCHEMA public;")
@@ -75,22 +72,21 @@ class RealPostgresDataModificationTest {
         jdbcTemplate.execute(initSql)
         println("Complex test DB schema and data initialized successfully.")
 
-        // --- Krok 3: Inicjalizacja obu konwerterów ---
-        val typeRegistry =
-            TypeRegistryLoader(
-                jdbcTemplate,
-                listOf("org.octavius.domain.test.pgtype"),
-                databaseConfig.dbSchemas
-            ).load()
-        kotlinToPostgresConverter = KotlinToPostgresConverter(typeRegistry)
-        mappers = RowMappers(typeRegistry)
+        // --- Krok 3: Inicjalizacja ---
+        dataAccess = OctaviusDatabase.fromDataSource(
+            dataSource = dataSource,
+            packagesToScan = listOf("org.octavius.domain.test.pgtype"),
+            dbSchemas = databaseConfig.dbSchemas,
+            disableFlyway = true,
+            disableCoreTypeInitialization = true
+        )
     }
 
     @BeforeEach
     fun cleanup() {
         // Czyści tabelę przed każdym testem, zostawiając tylko oryginalny "złoty" rekord
         // To zapewnia, że testy są od siebie niezależne.
-        jdbcTemplate.update("DELETE FROM complex_test_data WHERE id > 1")
+        dataAccess.rawQuery("DELETE FROM complex_test_data WHERE id > 1").execute().getOrThrow()
     }
 
     @AfterAll
@@ -119,23 +115,17 @@ class RealPostgresDataModificationTest {
             "persons" to newProject.teamMembers
         )
 
-        // Act: Konwertujemy i wykonujemy zapytanie INSERT
-        val expandedQuery = kotlinToPostgresConverter.toPositionalQuery(sql, params)
-        val newId = jdbcTemplate.queryForObject(
-            expandedQuery.sql,
-            Long::class.java,
-            *expandedQuery.params.toTypedArray()
-        )
+        // Act: Wstawiamy dane
+        val newId = dataAccess.rawQuery(sql).toField<Int>(params).getOrThrow()
         assertThat(newId).isNotNull()
 
         // Assert: Odczytujemy wstawiony wiersz i porównujemy z oryginałem
-        val retrievedMap = jdbcTemplate.queryForObject(
-            "SELECT project_data, person_array FROM complex_test_data WHERE id = ?",
-            mappers.ColumnNameMapper(),
-            newId
-        )
+        val retrievedMap = dataAccess.rawQuery("SELECT project_data, person_array FROM complex_test_data WHERE id = @id")
+            .toSingleStrict("id" to newId)
+            .getOrThrow()
 
         val retrievedProject = retrievedMap["project_data"] as TestProject
+
         @Suppress("UNCHECKED_CAST")
         val retrievedPersons = retrievedMap["person_array"] as List<TestPerson>
 
@@ -152,19 +142,13 @@ class RealPostgresDataModificationTest {
         )
 
         val sql = "UPDATE complex_test_data SET person_array = @newTeam WHERE id = 1"
-        val params = mapOf("newTeam" to newTeam)
-
-        // Act: Konwertujemy i wykonujemy zapytanie UPDATE
-        val expandedQuery = kotlinToPostgresConverter.toPositionalQuery(sql, params)
-        val updatedRows = jdbcTemplate.update(expandedQuery.sql, *expandedQuery.params.toTypedArray())
+        // Act: Wykonujemy zapytanie UPDATE
+        val updatedRows = dataAccess.rawQuery(sql).execute("newTeam" to newTeam).getOrThrow()
         assertThat(updatedRows).isEqualTo(1)
 
         // Assert: Odczytujemy tylko zaktualizowane pole i weryfikujemy
-        @Suppress("UNCHECKED_CAST")
-        val retrievedTeam = jdbcTemplate.queryForObject(
-            "SELECT person_array FROM complex_test_data WHERE id = 1",
-            mappers.SingleValueMapper(typeOf<List<TestPerson>>())
-        ) as List<TestPerson>
+        val retrievedTeam = dataAccess.rawQuery("SELECT person_array FROM complex_test_data WHERE id = 1")
+            .toField<List<TestPerson>>().getOrThrow()
 
         assertThat(retrievedTeam).isEqualTo(newTeam)
     }

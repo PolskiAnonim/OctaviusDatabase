@@ -3,14 +3,16 @@ package org.octavius.performance
 
 import com.zaxxer.hikari.HikariDataSource
 import org.junit.jupiter.api.*
-import org.octavius.database.RowMappers
 import org.octavius.database.config.DatabaseConfig
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.RowMapper
+import org.octavius.database.jdbc.RowMappers
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
+import org.octavius.database.type.PositionalQuery
 import org.octavius.database.type.PostgresToKotlinConverter
 import org.octavius.database.type.registry.TypeRegistry
 import org.octavius.database.type.registry.TypeRegistryLoader
 import org.postgresql.jdbc.PgResultSet
-import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.core.RowMapper
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.sql.ResultSet
@@ -63,7 +65,7 @@ class SimpleTypeOverheadBenchmark {
             maximumPoolSize = 5
         }
 
-        jdbcTemplate = JdbcTemplate(dataSource)
+        jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(dataSource))
 
         typeRegistry =
             TypeRegistryLoader(
@@ -100,9 +102,9 @@ class SimpleTypeOverheadBenchmark {
         // --- WARM-UP ---
         println("\n--- ROZGRZEWKA (x$WARMUP_ITERATIONS iteracji, wyniki ignorowane) ---")
         repeat(WARMUP_ITERATIONS) {
-            jdbcTemplate.query(sql, rawMapper)
-            jdbcTemplate.query(sql, oldFrameworkMapper)
-            jdbcTemplate.query(sql, optimizedFrameworkMapper) // Rozgrzewamy też nowy
+            jdbcTemplate.query(PositionalQuery(sql, listOf()), rawMapper)
+            jdbcTemplate.query(PositionalQuery(sql, listOf()), oldFrameworkMapper)
+            jdbcTemplate.query(PositionalQuery(sql, listOf()), optimizedFrameworkMapper) // Rozgrzewamy też nowy
         }
         println("--- ROZGRZEWKA ZAKOŃCZONA ---\n")
 
@@ -112,13 +114,13 @@ class SimpleTypeOverheadBenchmark {
             print("Iteracja ${i + 1}/$ITERATIONS...\r")
 
             // Mierz Raw JDBC
-            rawJdbcTimings.add(measureTimeMillis { jdbcTemplate.query(sql, rawMapper) })
+            rawJdbcTimings.add(measureTimeMillis { jdbcTemplate.query(PositionalQuery(sql, listOf()), rawMapper) })
 
             // Mierz Stary Framework
-            oldFrameworkTimings.add(measureTimeMillis { jdbcTemplate.query(sql, oldFrameworkMapper) })
+            oldFrameworkTimings.add(measureTimeMillis { jdbcTemplate.query(PositionalQuery(sql, listOf()), oldFrameworkMapper) })
 
             // Mierz Nowy, Zoptymalizowany Framework
-            optimizedFrameworkTimings.add(measureTimeMillis { jdbcTemplate.query(sql, optimizedFrameworkMapper) })
+            optimizedFrameworkTimings.add(measureTimeMillis { jdbcTemplate.query(PositionalQuery(sql, listOf()), optimizedFrameworkMapper) })
         }
         println("\n--- POMIAR ZAKOŃCZONY ---\n")
     }

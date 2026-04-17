@@ -3,7 +3,10 @@ package org.octavius.database
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.octavius.data.DataAccess
 import org.octavius.data.builder.toSingleStrict
 import org.octavius.data.getOrThrow
@@ -107,3 +110,4 @@ class ArraySliceIntegrationTest {
         assertThat(result["slice"] as List<*>).containsExactly(20, 30, 40)
     }
 }
+

@@ -4,9 +4,9 @@ import org.octavius.data.builder.LockWaitMode
 import org.octavius.data.builder.SelectQueryBuilder
 import org.octavius.data.exception.checkBuilder
 import org.octavius.data.exception.requireBuilder
-import org.octavius.database.RowMappers
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
-import org.springframework.jdbc.core.JdbcTemplate
 
 /**
  * Internal implementation of [SelectQueryBuilder] for building SQL SELECT queries.

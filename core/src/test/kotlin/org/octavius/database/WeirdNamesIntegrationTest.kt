@@ -3,14 +3,18 @@ package org.octavius.database
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.octavius.data.DataAccess
 import org.octavius.data.builder.execute
 import org.octavius.data.getOrThrow
 import org.octavius.database.config.DatabaseConfig
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
 import org.octavius.domain.test.weird.WeirdComposite
 import org.octavius.domain.test.weird.WeirdEnum
-import org.springframework.jdbc.core.JdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -30,7 +34,7 @@ class WeirdNamesIntegrationTest {
             password = databaseConfig.dbPassword
         }
         dataSource = HikariDataSource(hikariConfig)
-        val jdbcTemplate = JdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(dataSource))
 
         // Drop schema if exists
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS \"weird schema.with dots\" CASCADE;")

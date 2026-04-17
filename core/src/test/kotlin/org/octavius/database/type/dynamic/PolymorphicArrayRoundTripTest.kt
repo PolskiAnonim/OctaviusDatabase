@@ -3,24 +3,19 @@ package org.octavius.database.type.dynamic
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.assertj.core.api.Assertions
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.*
 import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.builder.toField
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.SpringJdbcTransactionProvider
 import org.octavius.domain.test.dynamic.DynamicProfile
 import org.octavius.domain.test.dynamic.UserStats
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
-import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import java.nio.file.Files
 import java.nio.file.Paths
-import javax.sql.DataSource
 
 /**
  * Ostateczny test frameworka - "Grand Unification Round-Trip Test".
@@ -44,7 +39,7 @@ class PolymorphicArrayRoundTripTest {
     @BeforeAll
     fun setup() {
         // --- Konfiguracja i zabezpieczenia ---
-        baseConfig = DatabaseConfig.Companion.loadFromFile("test-database.properties")
+        baseConfig = DatabaseConfig.loadFromFile("test-database.properties")
         val connectionUrl = baseConfig.dbUrl
         if (!connectionUrl.contains("octavius_test")) {
             throw IllegalStateException("ABORTING TEST! Attempting to run on a non-test database.")
@@ -59,11 +54,11 @@ class PolymorphicArrayRoundTripTest {
         })
         this.dataSource = hikariDataSource
 
-        val jdbcTemplate = NamedParameterJdbcTemplate(dataSource)
-        jdbcTemplate.jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
-        jdbcTemplate.jdbcTemplate.execute("CREATE SCHEMA public;")
+        val jdbcTemplate = JdbcTemplate(SpringJdbcTransactionProvider(hikariDataSource))
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
+        jdbcTemplate.execute("CREATE SCHEMA public;")
         val initSql = String(Files.readAllBytes(Paths.get(this::class.java.classLoader.getResource("init-polymorphic-array-test-db.sql")!!.toURI())))
-        jdbcTemplate.jdbcTemplate.execute(initSql)
+        jdbcTemplate.execute(initSql)
         println("Polymorphic Array test DB schema initialized successfully.")
 
         // --- Stworzenie instancji DAL-a z włączoną "diaboliczną" magią zapisu ---

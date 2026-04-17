@@ -14,19 +14,18 @@ import org.octavius.data.transaction.TransactionPlanResult
 import org.octavius.data.transaction.TransactionPropagation
 import org.octavius.database.builder.*
 import org.octavius.database.exception.ExceptionTranslator
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.JdbcTransactionProvider
+import org.octavius.database.jdbc.RowMappers
 import org.octavius.database.notification.DatabasePgChannelListener
 import org.octavius.database.transaction.TransactionPlanExecutor
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.octavius.database.type.registry.TypeRegistry
-import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.datasource.DataSourceTransactionManager
-import org.springframework.transaction.TransactionDefinition
-import org.springframework.transaction.support.TransactionTemplate
 import java.sql.Connection
 
 internal class DatabaseAccess(
     private val jdbcTemplate: JdbcTemplate,
-    private val transactionManager: DataSourceTransactionManager,
+    private val transactionManager: JdbcTransactionProvider,
     typeRegistry: TypeRegistry,
     private val kotlinToPostgresConverter: KotlinToPostgresConverter,
     private val listenerConnectionFactory: () -> Connection,
@@ -74,15 +73,7 @@ internal class DatabaseAccess(
         propagation: TransactionPropagation,
         block: (tx: QueryOperations) -> DataResult<T>
     ): DataResult<T> {
-        // Create and configure transaction template
-        val transactionTemplate = TransactionTemplate(transactionManager).apply {
-            propagationBehavior = when (propagation) {
-                TransactionPropagation.REQUIRED -> TransactionDefinition.PROPAGATION_REQUIRED
-                TransactionPropagation.REQUIRES_NEW -> TransactionDefinition.PROPAGATION_REQUIRES_NEW
-                TransactionPropagation.NESTED -> TransactionDefinition.PROPAGATION_NESTED
-            }
-        }
-        return transactionTemplate.execute { status ->
+        return transactionManager.execute(propagation) { status ->
             try {
                 // `this` is an instance of `QueryOperations`, so we pass it directly.
                 val result = block(this)

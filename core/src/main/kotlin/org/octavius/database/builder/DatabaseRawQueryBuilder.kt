@@ -1,9 +1,9 @@
 package org.octavius.database.builder
 
 import org.octavius.data.builder.RawQueryBuilder
-import org.octavius.database.RowMappers
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.jdbc.RowMappers
 import org.octavius.database.type.KotlinToPostgresConverter
-import org.springframework.jdbc.core.JdbcTemplate
 
 /**
  * Executes a raw SQL query that returns results.
