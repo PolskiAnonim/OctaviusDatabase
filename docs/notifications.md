@@ -74,11 +74,11 @@ dataAccess.createChannelListener().use { listener ->
 
 **`PgNotification` fields:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `channel` | `String` | Name of the channel the notification was sent to |
-| `payload` | `String?` | Payload string, or `null` / empty string if none was sent |
-| `pid` | `Int` | Process ID of the PostgreSQL backend that sent the notification |
+| Field     | Type      | Description                                                     |
+|-----------|-----------|-----------------------------------------------------------------|
+| `channel` | `String`  | Name of the channel the notification was sent to                |
+| `payload` | `String?` | Payload string, or `null` / empty string if none was sent       |
+| `pid`     | `Int`     | Process ID of the PostgreSQL backend that sent the notification |
 
 ---
 

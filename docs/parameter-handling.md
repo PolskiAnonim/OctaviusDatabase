@@ -63,9 +63,9 @@ val result = dataAccess.rawQuery("SELECT * FROM tasks WHERE data ? 'priority'")
 ```
 
 The parser is smart enough to **not** escape question marks inside:
-- Single-quoted strings (`'Is this a question?'`)
-- Dollar-quoted strings (`$$why?$$`)
-- Comments (`-- what?`, `/* how? */`)
+- Single-quoted strings (`'Et tu, Brute?'`)
+- Dollar-quoted strings (`$$Quid agis?$$`)
+- Comments (`-- Quo vadis?`, `/* Veni, vidi, vici? */`)
 
 ---
 
@@ -109,13 +109,13 @@ For `List<T>`, Octavius infers the type by inspecting the **first non-null eleme
 
 ### Explicit Type Casts (PgTyped)
 
-For ambiguous cases (like empty lists) or to optimize query plans, use `.withPgType()` to force a specific cast.
+For ambiguous cases (mainly nulls and empty/nullable lists) or to optimize query plans, use `.withPgType()` to force a specific cast.
 
 ```kotlin
 // Store province census notes as JSON, not the default JSONB
 val censusNotes = provinceReport.withPgType("json")
 
-// An empty list of tribute IDs — force int4[] so PostgreSQL doesn't default to text[]
+// List with null value of tribute IDs — force int4[] so PostgreSQL doesn't default to text[]
 val noExemptions = listOf<Int?>(null).withPgType("int4", isArray = true)
 
 // Fetch legionnaires by a known set of IDs

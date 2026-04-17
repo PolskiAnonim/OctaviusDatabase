@@ -117,7 +117,7 @@ Details regarding how Kotlin values are mapped to PostgreSQL types (parameters) 
 
 ### OID-Based Result Mapping
 
-When reading results from the database, Octavius uses PostgreSQL's internal **Object Identifiers (OIDs)** rather than string-based type names. The JDBC `ResultSet` metadata provides the exact OID for each column. Octavius cross-references this OID with its internal `TypeRegistry` to map the incoming data directly to the correct Kotlin class.
+When reading results from the database, Octavius uses PostgreSQL's internal **Object Identifiers (OIDs)** rather than string-based type names. The JDBC `ResultSet` provides the exact OID for each column. Octavius cross-references this OID with its internal `TypeRegistry` to map the incoming data directly to the correct Kotlin class.
 
 This OID-based resolution:
 - **Eliminates Ambiguity:** Bypasses issues with identical type names existing in multiple schemas.
@@ -266,39 +266,121 @@ object SenateEventMapper : PgCompositeMapper<SenateEvent> {
 
 ## Dynamic Types (dynamic_dto)
 
-Enables dynamic type mapping via the `dynamic_dto` PostgreSQL type. This allows polymorphic storage (different types in one column) and ad-hoc mapping without defining COMPOSITE types in your schema.
+The `dynamic_dto` type is Octavius's solution for polymorphic data and ad-hoc nested objects. It relies on `kotlinx.serialization` and the `@DynamicallyMappable` annotation to bridge static SQL and Kotlin's type system.
 
-### @DynamicallyMappable
+### How It Works Under The Hood
+On startup, Octavius automatically ensures this composite type exists in your `public` schema. See [Core Type Initialization](configuration.md#core-type-initialization) for more details.
 
-Annotated classes must also be `@Serializable` (`kotlinx.serialization`).
+```postgresql
+CREATE TYPE public.dynamic_dto AS (
+    type_name    TEXT,     -- Discriminator key (e.g., "citizen_profile")
+    data_payload JSONB     -- Serialized data
+);
+```
+
+When fetching data, the framework reads the `type_name`, finds the matching Kotlin class annotated with `@DynamicallyMappable(typeName = ...)`, and deserializes the `data_payload` JSONB into that class.
+
+### Core Rules of `@DynamicallyMappable`
+1. The class **must** be annotated with `@Serializable` from `kotlinx.serialization`.
+2. The class **does not** require any specific superclass or interface (though interfaces are highly recommended).
+3. You can use it for direct column storage (even arrays `dynamic_dto[]`) or ad-hoc SQL construction.
+
+---
+
+### Usage Patterns
+
+#### Pattern A: Polymorphism with Interfaces (Recommended)
+When storing multiple types in an array or single column, it's best practice to group them under a common Kotlin interface (or `sealed interface`).
 
 ```kotlin
+sealed interface MonumentRecord
+
 @DynamicallyMappable(typeName = "inscription")
 @Serializable
-data class Inscription(val text: String, val language: String)
+data class Inscription(val text: String, val lang: String) : MonumentRecord
 
 @DynamicallyMappable(typeName = "relief")
 @Serializable
-data class Relief(val subject: String, val material: String)
+data class Relief(val subject: String) : MonumentRecord
+
+// Database: CREATE TABLE monument_records (id INT, record dynamic_dto);
+
+// Fetch directly to a list of your strongly-typed interface
+val records = dataAccess.select("record")
+    .from("monument_records")
+    .toColumn<MonumentRecord>()
 ```
 
-**Polymorphic Storage Example:**
-```sql
--- PostgreSQL Table
-CREATE TABLE monuments (
-    id SERIAL PRIMARY KEY,
-    records dynamic_dto[]  -- Can contain BOTH Inscription and Relief
-);
-```
+#### Pattern B: The "Wild West" Polymorphism (`Any`)
+Because `@DynamicallyMappable` binds the class based on the annotation (not hierarchy), you *can* technically map values to `Any`. This is useful for extremely generic columns (or column arrays - `dynamic_dto[]`), but requires manual type checking (`is` or `as`) in Kotlin later.
+
 ```kotlin
-// Read back with automatic deserialization
+// Database table has a column: records dynamic_dto[]
 data class Monument(val id: Int, val records: List<Any>)
 
 val monument = dataAccess.select("id", "records")
     .from("monuments")
     .toSingleOf<Monument>()
-// records contains: [Inscription("SPQR", "Latin"), Relief("Dacian Wars", "Marble")]
+
+// Manual type checking required
+monument.records.forEach { record ->
+    when (record) {
+        is Inscription -> println("Inscription in ${record.lang}")
+        is Relief -> println("Relief depicting ${record.subject}")
+        else -> println("Unknown record type")
+    }
+}
 ```
+
+#### Pattern C: Ad-Hoc Object Mapping
+You don't have to store `dynamic_dto` in your tables. You can assemble it dynamically in your queries to map nested results instantly using `jsonb_build_object`. This is perfect for complex JOINs and projections where you want nested results without schema changes.
+
+```kotlin
+@DynamicallyMappable(typeName = "citizen_profile")
+@Serializable
+data class CitizenProfile(val tribe: String, val rights: List<String>)
+
+data class CitizenWithProfile(val id: Int, val name: String, val profile: CitizenProfile)
+
+val citizens = dataAccess.rawQuery("""
+    SELECT
+        c.id,
+        c.name,
+        dynamic_dto(
+            'citizen_profile',
+            jsonb_build_object('tribe', p.tribe, 'rights', p.rights)
+        ) AS profile
+    FROM citizens c
+    JOIN citizen_profiles p ON p.citizen_id = c.id
+""").toListOf<CitizenWithProfile>()
+```
+
+#### Pattern D: Decoupled Storage (Architectural Purity)
+Storing `dynamic_dto` directly in your tables (as seen in Pattern A) couples your database schema to Octavius's custom composite type. If you prefer strict database agnosticism and want to keep your schema perfectly standard (readable even by barbarian Python scripts without the framework), you can store the discriminator and the payload in plain columns, and assemble the `dynamic_dto` only on read.
+
+```sql
+-- Standard database schema (no framework lock-in)
+CREATE TABLE imperial_archives (
+   id SERIAL PRIMARY KEY,
+   record_type TEXT NOT NULL,
+   document_payload JSONB NOT NULL
+);
+```
+```kotlin
+interface ImperialRecord
+
+// Database holds standard columns, Octavius maps them on the fly
+val archives = dataAccess.rawQuery("""
+    SELECT 
+        id, 
+        dynamic_dto(record_type, document_payload) AS record 
+    FROM imperial_archives
+""").toListOf<ImperialRecord>()
+```
+Trade-off: This decoupled approach keeps your database pristine and perfectly readable for non-Kotlin microservices or raw SQL scripts. 
+However, it requires you to write custom INSERT and SELECT queries to split and merge the columns, 
+sacrificing the "zero-maintenance" aspect of directly mapping a dynamic_dto column.
+---
 
 ### Enum Serialization in dynamic_dto
 
@@ -352,4 +434,4 @@ data class TributeRecord(
 
 For overriding the default `snake_case` ↔ `camelCase` mapping for individual properties, use the `@MapKey` annotation.
 
-Utilities like `toDataObject()` and `toDataMap()` are available to convert between data classes and maps. See [Data Mapping](data-mapping.md) documentation for full details and CRUD patterns.
+Utilities like `toDataObject()` and `toDataMap()` are available to convert between data classes and maps. See [Data Mapping](data-mapping.md) documentation for full details.

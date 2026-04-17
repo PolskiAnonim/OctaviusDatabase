@@ -24,7 +24,7 @@ Unlike traditional ORMs that require specific base classes or annotations everyw
 - **PostgreSQL ENUMs** (`@PgEnum`) mapped automatically
 - **Composite types** (`@PgComposite`) including nested structures
 - **Default values** and nullable properties
-- **Interfaces** and inheritance
+- **Interfaces**
 - **Any kotlinx.serialization types** (JsonObject, etc.)
 
 ```kotlin
@@ -75,11 +75,11 @@ enum class LegionStatus : EnumWithFormatter<LegionStatus> {
 
     override fun toDisplayString(): String {
         return when (this) {
-            Garrisoned -> T.get("legion.status.garrisoned")
-            OnMarch    -> T.get("legion.status.marching")
-            InBattle   -> T.get("legion.status.battle")
-            Disbanded  -> T.get("legion.status.disbanded")
-            Victorious -> T.get("legion.status.victorious")
+            Garrisoned -> Tr.Legion.Status.garrisoned()
+            OnMarch    -> Tr.Legion.Status.marching()
+            InBattle   -> Tr.Legion.Status.battle()
+            Disbanded  -> Tr.Legion.Status.disbanded()
+            Victorious -> Tr.Legion.Status.victorious()
         }
     }
 }
@@ -205,8 +205,8 @@ class LegionConfigurationManager(private val dataAccess: DataAccess) {
         return dataAccess.select("*")
             .from("legion_configurations")
             .where("legion_name = @legion_name AND is_elite = true")
-            .toSingleOf<LegionConfiguration>("legion_name" to legionName)
-            .getOrNull()
+            .toSingleOf<LegionConfiguration?>("legion_name" to legionName)
+            .getOrElse { null }
     }
 
     fun listConfigurations(legionName: String): List<LegionConfiguration> {
@@ -215,7 +215,7 @@ class LegionConfigurationManager(private val dataAccess: DataAccess) {
             .where("legion_name = @legion_name")
             .orderBy("is_elite DESC, name ASC")
             .toListOf<LegionConfiguration>("legion_name" to legionName)
-            .getOrDefault(emptyList())
+            .getOrElse { emptyList() }
     }
 
     fun deleteConfiguration(name: String, legionName: String): Boolean {
@@ -223,7 +223,7 @@ class LegionConfigurationManager(private val dataAccess: DataAccess) {
             .where("name = @name AND legion_name = @legion_name")
             .execute("name" to name, "legion_name" to legionName)
             .map { it > 0 }
-            .getOrDefault(false)
+            .getOrElse { false }
     }
 }
 ```
@@ -270,10 +270,10 @@ class TributeRepository(private val dataAccess: DataAccess) {
         return dataAccess.select("*")
             .from("tributes")
             .where("id = @id")
-            .toSingleOf<Tribute>("id" to id)
+            .toSingleOf<Tribute?>("id" to id)
     }
 
-    fun update(tribute: Tribute): DataResult<Tribute?> {
+    fun update(tribute: Tribute): DataResult<Tribute> {
         val data = tribute.toDataMap("id", "collected_at", "recorded_at")
 
         return dataAccess.update("tributes")
@@ -303,7 +303,7 @@ class TributeRepository(private val dataAccess: DataAccess) {
 ### Upsert Pattern
 
 ```kotlin
-fun upsertTribute(tribute: Tribute): DataResult<Tribute?> {
+fun upsertTribute(tribute: Tribute): DataResult<Tribute> {
     val data = tribute.toDataMap("id", "collected_at", "recorded_at")
 
     return dataAccess.insertInto("tributes")

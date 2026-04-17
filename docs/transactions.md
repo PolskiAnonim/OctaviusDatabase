@@ -137,17 +137,17 @@ val updateStep = dataAccess.update("citizens")
 
 ### Step Terminal Methods
 
-| Method                    | Result Type               | Use Case                             |
-|---------------------------|---------------------------|--------------------------------------|
-| `toField<T>(params)`      | `T`                       | Single value (e.g., inserted ID)     |
-| `toFieldStrict<T>(params)`| `T`                       | Single value, always fails if no rows|
-| `toColumn<T>(params)`     | `List<T>`                 | All values from first column         |
-| `toSingle(params)`        | `Map<String, Any?>?`      | Single row as map                    |
-| `toSingleStrict(params)`  | `Map<String, Any?>`       | Single row as map (fails if no rows) |
-| `toSingleOf<T>(params)`   | `T`                       | Single row as data class             |
-| `toList(params)`          | `List<Map<String, Any?>>` | All rows as maps                     |
-| `toListOf<T>(params)`     | `List<T>`                 | All rows as data classes             |
-| `execute(params)`         | `Int`                     | Affected row count                   |
+| Method                     | Result Type               | Use Case                              |
+|----------------------------|---------------------------|---------------------------------------|
+| `toField<T>(params)`       | `T`                       | Single value (e.g., inserted ID)      |
+| `toFieldStrict<T>(params)` | `T`                       | Single value, always fails if no rows |
+| `toColumn<T>(params)`      | `List<T>`                 | All values from first column          |
+| `toSingle(params)`         | `Map<String, Any?>?`      | Single row as map                     |
+| `toSingleStrict(params)`   | `Map<String, Any?>`       | Single row as map (fails if no rows)  |
+| `toSingleOf<T>(params)`    | `T`                       | Single row as data class              |
+| `toList(params)`           | `List<Map<String, Any?>>` | All rows as maps                      |
+| `toListOf<T>(params)`      | `List<T>`                 | All rows as data classes              |
+| `execute(params)`          | `Int`                     | Affected row count                    |
 
 ---
 
@@ -248,7 +248,7 @@ val idRef = 123.toTransactionValue()
 val nullRef = null.toTransactionValue()
 
 // Transform a TransactionValue
-val upperName = someHandle.field("name").map { (it as String).uppercase() }
+val upperName = someHandle.field("name").map { it.uppercase() }
 ```
 
 ---
@@ -322,7 +322,7 @@ plan.add(
     dataAccess.insertInto("citizen_templates")
         .values(listOf("name", "tribe", "rank"))
         .asStep()
-        .execute(sourceHandle.row())  // Spreads {name: ..., tribe: ..., rank: ...}
+        .execute("row" to sourceHandle.row())  // Spreads {name: ..., tribe: ..., rank: ...}, "row" is placeholder which disappears
 )
 ```
 
@@ -336,7 +336,7 @@ plan.add(
         .values(listOf("name", "tribe", "rank", "archived_at", "archived_by"))
         .asStep()
         .execute(
-            "row" to sourceHandle.row(),          // Spreads name, tribe, rank - row disappears
+            "row" to sourceHandle.row(),          // Spreads name, tribe, rank
             "archived_at" to Instant.now(),
             "archived_by" to currentCensorId
         )
@@ -429,58 +429,9 @@ dataAccess.executeTransactionPlan(mainPlan)
 
 ## Null Handling in Transactions
 
-Nullability in terminal methods is controlled by the type parameter. Use non-nullable types when you expect a result, or nullable types when the result may be absent.
+Nullability in both **Transaction Blocks** and **Transaction Plans** behaves exactly the same way as in regular queries. Whether a missing row results in a `Failure(EMPTY_RESULT)` or a `Success(null)` depends entirely on the nullability of your type parameter and the terminal method used.
 
-### In Transaction Blocks
-
-```kotlin
-val result = dataAccess.transaction { tx ->
-    // Non-nullable — Failure if citizen not found
-    val citizen = tx.select("*")
-        .from("citizens")
-        .where("id = @id")
-        .toSingleOf<Citizen>("id" to citizenId)
-        .getOrElse { return@transaction DataResult.Failure(it) }
-
-    // citizen is guaranteed non-null here
-    DataResult.Success(citizen)
-}
-```
-
-### With Transaction Plans
-
-When using `TransactionPlanResult.get()`, the returned value is typed based on the step's terminal method:
-
-```kotlin
-val plan = TransactionPlan()
-
-// Non-nullable — step fails if no rows
-val citizenHandle = plan.add(
-    dataAccess.select("*")
-        .from("citizens")
-        .where("id = @id")
-        .asStep()
-        .toSingleOf<Citizen>("id" to citizenId)
-)
-
-// Nullable — step succeeds with null if no rows
-val maybeCitizenHandle = plan.add(
-    dataAccess.select("*")
-        .from("citizens")
-        .where("id = @id")
-        .asStep()
-        .toSingleOf<Citizen?>("id" to citizenId)
-)
-
-val result = dataAccess.executeTransactionPlan(plan)
-
-result.onSuccess { planResult ->
-    val citizen: Citizen = planResult.get(citizenHandle)             // guaranteed non-null
-    val maybeCitizen: Citizen? = planResult.get(maybeCitizenHandle)  // may be null
-}
-```
-
-See [Executing Queries - Null Handling](executing-queries.md#null-handling-via-type-parameter) for more details.
+For a detailed breakdown, see the [Terminal Method Behavior Matrix](executing-queries.md#terminal-method-behavior-matrix) in the Executing Queries guide.
 
 ---
 

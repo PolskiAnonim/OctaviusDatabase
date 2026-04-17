@@ -132,58 +132,14 @@ val senators = dataAccess.select("id", "rank", "home_province")
     .toListOf<Senator>()  // Types converted automatically
 ```
 
-## Dynamic Type System
+## Dynamic Type System (`dynamic_dto`)
 
-Octavius uses `dynamic_dto` — a PostgreSQL composite type combining a type discriminator with JSONB payload — to bridge static SQL and Kotlin's type system. This type is automatically initialized in the **`public`** schema on startup.
+Octavius provides a powerful bridge between PostgreSQL and Kotlin's type system using the `dynamic_dto` composite type (`type_name TEXT`, `data_payload JSONB`).
+It allows you to map complex, nested, or polymorphic data on the fly without creating strict database schema types for every nested object.
+This type is automatically initialized in the **`public`** schema on startup.
 
-```sql
--- Created automatically by Octavius in "public" schema
-CREATE TYPE public.dynamic_dto AS (
-    type_name    TEXT,
-    data_payload JSONB
-);
 
--- Helper function for constructing values
-CREATE OR REPLACE FUNCTION public.dynamic_dto(p_type_name TEXT, p_data JSONB)
-RETURNS public.dynamic_dto AS $$
-BEGIN
-    RETURN ROW(p_type_name, p_data)::public.dynamic_dto;
-END;
-$$ LANGUAGE plpgsql;
-```
-
-### 1. Polymorphic Storage
-
-Store different types in a single column or array. The framework deserializes each element to its correct Kotlin class based on `type_name`.
-
-```kotlin
-@DynamicallyMappable(typeName = "inscription")
-@Serializable
-data class Inscription(val text: String, val language: String)
-
-@DynamicallyMappable(typeName = "relief")
-@Serializable
-data class Relief(val subject: String, val depictedBattle: String?)
-
-// Database: CREATE TABLE monuments (id INT, records dynamic_dto[]);
-
-val records: List<Any> = listOf(
-    Inscription("SENATUS POPULUSQUE ROMANUS", "Latin"),
-    Relief("Triumph of Trajan", "Dacian Wars")
-)
-
-dataAccess.insertInto("monuments")
-    .value("records")
-    .execute("records" to records)
-
-// Read back — each element deserialized to its correct type
-val monument = dataAccess.select("records")
-    .from("monuments")
-    .where("id = 1")
-    .toField<List<Any>>()  // Returns [Inscription(...), Relief(...)]
-```
-
-### 2. Ad-hoc Object Mapping
+### 1. Ad-hoc Object Mapping
 
 Construct Kotlin objects directly in SQL using `jsonb_build_object` — no need to define PostgreSQL COMPOSITE types. Perfect for JOINs and projections where you want nested results without schema changes.
 
@@ -194,24 +150,48 @@ data class CitizenProfile(val tribe: String, val rights: List<String>)
 
 data class CitizenWithProfile(val id: Int, val name: String, val profile: CitizenProfile)
 
+// The database packages the nested object, Octavius unpacks it. Zero boilerplate.
 val citizens = dataAccess.rawQuery("""
     SELECT
         c.id,
         c.name,
         dynamic_dto(
             'citizen_profile',
-            jsonb_build_object(
-                'tribe', p.tribe,
-                'rights', p.rights
-            )
+            jsonb_build_object('tribe', p.tribe, 'rights', p.rights)
         ) AS profile
     FROM citizens c
     JOIN citizen_profiles p ON p.citizen_id = c.id
 """).toListOf<CitizenWithProfile>()
 ```
 
-> **Why use this?** Usually, to get a citizen with their profile in one query, you'd fetch flat columns (`citizen_id`, `citizen_name`, `profile_tribe`...) and manually map them, or create a database VIEW. With ad-hoc mapping, you construct the nested structure directly in SQL. The database does the packaging, Octavius does the unpacking — zero boilerplate.
+> **Why use this?** Usually, to get a citizen with their profile in one query, you'd fetch flat columns (`citizen_id`, `citizen_name`, `profile_tribe`...) 
+> and manually map them, create a database VIEW or COMPOSITE. With ad-hoc mapping, you construct the nested structure directly in SQL. 
+> The database does the packaging, Octavius does the unpacking — zero boilerplate.
 
+### 2. Polymorphic Queries (Row-level)
+Store different entity types in a single table and query them safely as a list of Kotlin interfaces.
+
+```kotlin
+// 1. Define a sealed interface
+sealed interface MonumentRecord
+
+@DynamicallyMappable(typeName = "inscription")
+@Serializable
+data class Inscription(val text: String, val lang: String) : MonumentRecord
+
+@DynamicallyMappable(typeName = "relief")
+@Serializable
+data class Relief(val subject: String) : MonumentRecord
+
+// Database: CREATE TABLE monument_records (id INT, record dynamic_dto);
+
+// 2. Fetch directly to a list of your interface
+val records = dataAccess.select("record")
+    .from("monument_records")
+    .toColumn<MonumentRecord>()
+
+// Returns: [Inscription(...), Relief(...), Inscription(...)]
+```
 
 ## Functions and Procedures
 
@@ -223,8 +203,11 @@ val result = dataAccess.select("*").from("calculate_tribute(@province, @year)")
     .toField<Int>("province" to "Britannia", "year" to 43)
 
 // Procedures (CALL proc)
-val result = dataAccess.rawQuery("CALL register_conscript(@legion_id, NULL::text)")
-    .toSingleStrict("legion_id" to 7)
+val result = dataAccess.rawQuery("CALL register_conscript(@legion_id, @new_rank)")
+    .toSingleStrict(
+        "legion_id" to 7,
+        "new_rank" to null.withPgType("text")
+    )
 ```
 
 ## Safe Dynamic Filters
@@ -318,6 +301,10 @@ db.password=spqr
 db.schemas=public,cursus_honorum
 db.packagesToScan=com.roma.domain,com.roma.dto
 
+# Custom HikariCP settings
+db.hikari.maximumPoolSize=20
+db.hikari.minimumIdle=5
+
 # Optional settings
 db.setSearchPath=true
 db.dynamicDtoStrategy=AUTOMATIC_WHEN_UNAMBIGUOUS
@@ -343,7 +330,8 @@ val dataAccess = OctaviusDatabase.fromConfig(
         dbUsername = "augustus",
         dbPassword = "spqr",
         dbSchemas = listOf("public"),
-        packagesToScan = listOf("com.roma.domain")
+        packagesToScan = listOf("com.roma.domain"),
+        hikariProperties = mapOf("maximumPoolSize" to "20")
     )
 )
 
@@ -362,13 +350,13 @@ Octavius Database integrates [Flyway](https://flywaydb.org/) for schema migratio
 
 For detailed guides and examples, see the [full documentation](docs/README.md):
 
-- [Configuration](docs/configuration.md) - Initialization, Flyway, core types, DynamicDto strategy
+- [Configuration](docs/configuration.md) - Initialization, HikariCP pool, Flyway, core types, DynamicDto strategy
 - [Lifecycle & Shutdown](docs/lifecycle-and-shutdown.md) - Proper cleanup, .use {} block, common integration patterns
-- [Query Builders](docs/query-builders.md) - SELECT, INSERT, UPDATE, DELETE, CTEs, subqueries, ON CONFLICT
-- [Functions & Procedures](docs/functions-and-procedures.md) - CALL, SELECT, IN/OUT, functions vs procedures
-- [Executing Queries](docs/executing-queries.md) - Terminal methods, DataResult, async, streaming
-- [Parameter Handling](docs/parameter-handling.md) - Named parameters (@), JSONB operator escaping (?), expansion & conversion, type inference, collections & flattening
-- [Data Mapping](docs/data-mapping.md) - toDataMap(), toDataObject(), @MapKey, nested structures & strict typing
+- [Query Builders](docs/query-builders.md) - SELECT (FOR UPDATE), INSERT (ON CONFLICT), UPDATE, DELETE, fragments
+- [Functions & Procedures](docs/functions-and-procedures.md) - CALL, SELECT, IN/OUT, PgTyped resolution
+- [Executing Queries](docs/executing-queries.md) - Terminal methods, DataResult matrix, async, streaming
+- [Parameter Handling](docs/parameter-handling.md) - Named parameters (@), JSONB operator escaping (?), collections & flattening
+- [Data Mapping](docs/data-mapping.md) - toDataMap(), toDataObject(), @MapKey, nested structures
 - [ORM-Like Patterns](docs/orm-patterns.md) - CRUD patterns, real-world examples
 - [Transactions](docs/transactions.md) - Transaction plans, StepHandle, passing data between steps
 - [Notifications](docs/notifications.md) - LISTEN/NOTIFY, PgChannelListener, Flow-based receiving

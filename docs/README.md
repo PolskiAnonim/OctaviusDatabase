@@ -12,7 +12,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 | [Lifecycle & Shutdown](lifecycle-and-shutdown.md)     | Proper cleanup, .use {} block, common integration patterns                                |
 | [Query Builders](query-builders.md)                   | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT                |
 | [Functions & Procedures](functions-and-procedures.md) | Calling functions and procedures                                                          |
-| [Executing Queries](executing-queries.md)             | Terminal methods, DataResult, assertNotNull, async execution, streaming                   |
+| [Executing Queries](executing-queries.md)             | Terminal methods, DataResult, getOrThrow, async execution, streaming                      |
 | [Parameter Handling](parameter-handling.md)           | Named parameters (@), JSONB operator escaping (?), expansion & conversion, type inference |
 | [Data Mapping](data-mapping.md)                       | toDataMap(), toDataObject(), @MapKey - converting between objects and maps                |
 | [ORM-Like Patterns](orm-patterns.md)                  | CRUD patterns, real-world examples, PostgreSQL composite types                            |
@@ -31,12 +31,12 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Common Table Expressions (CTE)](query-builders.md#common-table-expressions-cte) - WITH clauses and recursion
 - [Subqueries](query-builders.md#subqueries) - Using subqueries in SELECT/FROM/WHERE
 - [ON CONFLICT (Upsert)](query-builders.md#on-conflict-upsert) - Insert or update on conflict
-- [Row-Level Locking](query-builders.md#row-level-locking-for-update) - FOR UPDATE, FOR SHARE, SKIP LOCKED
+- [Row-Level Locking](query-builders.md#row-level-locking-for-update) - FOR UPDATE, NOWAIT, SKIP LOCKED
 - [Auto Placeholders](query-builders.md#auto-generated-placeholders) - `values()`, `setValues()` auto-generation
 
 ### Parameter Handling
 - [Named Parameters Syntax](parameter-handling.md#named-parameters-syntax) - Why `@` is used instead of `:`
-- [JSONB Operators & Question Marks](parameter-handling.md#what-about-the--operator) - Automatic escaping of `?` for JSONB
+- [JSONB Operators & Question Marks](parameter-handling.md#what-about-the-operator) - Automatic escaping of `?` for JSONB
 - [Expansion & Conversion](parameter-handling.md#parameter-expansion--conversion) - How Kotlin values become SQL parameters
 - [Type Inference & Safety](parameter-handling.md#type-inference--safety) - Default resolution and `PgTyped` casts
 - [Collections & Flattening](parameter-handling.md#collections--parameter-flattening) - Handling lists, arrays, and composites
@@ -50,7 +50,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Terminal Methods](executing-queries.md#terminal-methods) - `toList()`, `toListOf()`, `toField()`, `execute()`
 - [DataResult](executing-queries.md#dataresult) - Success/Failure result pattern
 - [Async Execution](executing-queries.md#async-execution) - Coroutine-based async queries
-- [Streaming](executing-queries.md#streaming) - Process large datasets via `Flow`
+- [Streaming](executing-queries.md#streaming) - Process large datasets via `asStream`
 
 ### Data Mapping
 - [toDataObject()](data-mapping.md#todataobject---map-to-data-class) - Map rows to data classes
@@ -79,7 +79,6 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Connection Management](notifications.md#connection-management) - Dedicated connections and `use { }`
 
 ### Error Handling
-- [Fatal vs. Execution Errors](error-handling.md#error-handling) - Categorization of error types
 - [BuilderException](error-handling.md#builderexception) - Programmer errors thrown during query building
 - [InitializationException](error-handling.md#initializationexception) - Setup and configuration failures
 - [Exception Hierarchy](error-handling.md#exception-hierarchy) - `DatabaseException` subtypes returned in `DataResult`
@@ -93,20 +92,22 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Infinity Values](type-system.md#infinity-values-for-datetime) - Support for `infinity` in dates and durations
 - [@PgEnum](type-system.md#pgenum) - Map Kotlin enums to PostgreSQL ENUMs
 - [@PgComposite](type-system.md#pgcomposite) - Map data classes to COMPOSITE types
-- [PgCompositeMapper](type-system.md#manual-composite-mapping-pgcompositemapper) - Manual mapping of composite types
+- [Manual Composite Mapping](type-system.md#manual-composite-mapping-pgcompositemapper) - Manual mapping of composite types
 - [@DynamicallyMappable](type-system.md#dynamicallymappable) - Polymorphic storage with `dynamic_dto`
 - [Helper Serializers](type-system.md#helper-serializers) - `BigDecimalAsNumberSerializer`, etc.
 
 ### Configuration
 - [Initialization](configuration.md#initialization) - `fromConfig()` and `fromDataSource()`
 - [DatabaseConfig Reference](configuration.md#databaseconfig-reference) - All configuration options
+- [Properties File Reference](configuration.md#properties-file) - All property keys (including HikariCP)
 - [Flyway Migrations](configuration.md#flyway-migrations) - Automatic migrations and baselining
 - [Core Type Initialization](configuration.md#core-type-initialization) - `dynamic_dto` setup
 - [DynamicDto Strategy](configuration.md#dynamicdto-serialization-strategy) - Serialization options
+- [Connection Pool](configuration.md#connection-pool) - HikariCP customization
 
 ### Lifecycle & Shutdown
 - [AutoCloseable](lifecycle-and-shutdown.md#standard-usage) - Using `.use { }` for automatic cleanup
-- [Integration Patterns](lifecycle-and-shutdown.md#common-integration-patterns) - Ktor, Spring, and Koin integration
+- [Integration Patterns](lifecycle-and-shutdown.md#integration-patterns) - Ktor, Spring, and Koin integration
 - [DataSource Management](lifecycle-and-shutdown.md#behavior-with-existing-datasource) - External vs internal pool management
 
 ## API Reference

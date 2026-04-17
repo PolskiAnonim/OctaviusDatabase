@@ -13,15 +13,15 @@ Octavius Database provides fluent query builders for all CRUD operations. Each b
 ## Table of Contents
 
 - [SelectQueryBuilder](#selectquerybuilder)
+  - [Row-Level Locking (FOR UPDATE)](#row-level-locking-for-update)
 - [InsertQueryBuilder](#insertquerybuilder)
+  - [ON CONFLICT (Upsert)](#on-conflict-upsert)
 - [UpdateQueryBuilder](#updatequerybuilder)
 - [DeleteQueryBuilder](#deletequerybuilder)
 - [RawQueryBuilder](#rawquerybuilder)
 - [QueryFragment & Dynamic Queries](#queryfragment--dynamic-queries)
 - [Common Table Expressions (CTE)](#common-table-expressions-cte)
 - [Subqueries](#subqueries)
-- [ON CONFLICT (Upsert)](#on-conflict-upsert)
-- [Row-Level Locking (FOR UPDATE)](#row-level-locking-for-update)
 - [Auto-Generated Placeholders](#auto-generated-placeholders)
 - [Builder Modes](#builder-modes)
 
@@ -39,12 +39,12 @@ Builds SQL SELECT queries with full support for all standard clauses.
 |---------------------------------|------------------------------------------------------------------------------------|
 | `from(source)`                  | FROM clause - table name, alias, or JOIN expression                                |
 | `fromSubquery(subquery, alias)` | FROM with a subquery (auto-wrapped in parentheses)                                 |
-| `where(condition)`              | WHERE clause (nullable - pass null to skip)                                        |
-| `groupBy(columns)`              | GROUP BY clause                                                                    |
-| `having(condition)`             | HAVING clause (requires GROUP BY)                                                  |
-| `orderBy(ordering)`             | ORDER BY clause                                                                    |
-| `limit(count)`                  | LIMIT clause                                                                       |
-| `offset(position)`              | OFFSET clause                                                                      |
+| `where(condition)`              | WHERE clause (skipped if null or blank)                                            |
+| `groupBy(columns)`              | GROUP BY clause (skipped if null or blank)                                         |
+| `having(condition)`             | HAVING clause (requires GROUP BY, skipped if null or blank)                        |
+| `orderBy(ordering)`             | ORDER BY clause (skipped if null or blank)                                         |
+| `limit(count)`                  | LIMIT clause (skipped if less or equals 0)                                         |
+| `offset(position)`              | OFFSET clause (skipped ifless than 0)                                              |
 | `page(page, size)`              | Pagination helper (zero-indexed pages)                                             |
 | `forUpdate(of?, mode?)`         | FOR UPDATE locking clause (see [Row-Level Locking](#row-level-locking-for-update)) |
 
@@ -78,6 +78,80 @@ val campaignsWithCommanders = dataAccess.select("c.id", "c.name", "l.name as com
     .from("campaigns c JOIN legionnaires l ON c.commander_id = l.id")
     .where("c.status = @status")
     .toListOf<CampaignWithCommander>("status" to "active")
+```
+
+### Row-Level Locking (FOR UPDATE)
+
+The `forUpdate()` method appends a `FOR UPDATE` clause, which locks the selected rows for the duration of the current transaction. This prevents other transactions from modifying or deleting them before your transaction commits.
+
+> **Requires an active transaction.** `FOR UPDATE` is only meaningful inside a `dataAccess.transaction { ... }` block. Outside of one, the lock is released immediately after the query.
+
+#### Method Signature
+
+```kotlin
+fun forUpdate(of: String? = null, mode: LockWaitMode? = null): SelectQueryBuilder
+```
+
+#### `LockWaitMode`
+
+Controls what happens if another transaction already holds a lock on one of the selected rows.
+
+| Value         | Behavior                                                       |
+|---------------|----------------------------------------------------------------|
+| *(none)*      | Wait until the lock is available (default PostgreSQL behavior) |
+| `NOWAIT`      | Return `Failure` immediately instead of waiting                |
+| `SKIP_LOCKED` | Silently skip rows that are currently locked                   |
+
+#### Examples
+
+```kotlin
+// Basic FOR UPDATE - lock the campaign, then update it
+dataAccess.transaction { tx ->
+    val result = tx.select("*")
+        .from("campaigns")
+        .where("id = @id")
+        .forUpdate()
+        .toSingleOf<Campaign>("id" to campaignId)
+
+    result.onSuccess { campaign ->
+        dataAccess.update("campaigns")
+            .setExpression("status", "@status")
+            .where("id = @id")
+            .execute("status" to "marching", "id" to campaign?.id)
+    }
+}
+
+// FOR UPDATE OF - lock only the specified table in a JOIN query
+dataAccess.transaction { tx ->
+    tx.select("c.id", "c.tribute_total", "a.balance")
+        .from("campaigns c JOIN aerarium a ON c.province_id = a.province_id")
+        .where("c.id = @id")
+        .forUpdate(of = "c")  // only lock rows in 'campaigns', not 'aerarium'
+        .toSingleOf<CampaignWithBalance>("id" to campaignId)
+}
+
+// FOR UPDATE NOWAIT - return Failure immediately if row is already locked
+dataAccess.transaction { tx ->
+    tx.select("*")
+        .from("grain_depots")
+        .where("id = @id AND status = 'available'")
+        .forUpdate(mode = LockWaitMode.NOWAIT)
+        .toSingleOf<GrainDepot>("id" to depotId)
+        .onSuccess { depot -> /* requisition it */ }
+        .onFailure { error -> /* depot claimed by another legion */ }
+}
+
+// FOR UPDATE SKIP LOCKED - levy queue / conscription processing pattern
+dataAccess.transaction { tx ->
+    tx.select("*")
+        .from("conscription_queue")
+        .where("status = 'pending'")
+        .orderBy("enrolled_at")
+        .limit(10)
+        .forUpdate(mode = LockWaitMode.SKIP_LOCKED) // skip recruits claimed by other centurions
+        .toListOf<Conscript>()
+        .onSuccess { recruits -> /* process conscription */ }
+}
 ```
 
 ---
@@ -140,6 +214,72 @@ dataAccess.insertInto("archived_campaigns")
 dataAccess.insertInto("archived_campaigns")
     .fromSelect("SELECT id, tribute_total, NOW() FROM campaigns WHERE ended_at < @cutoff")
     .execute("cutoff" to cutoffDate)
+```
+
+### ON CONFLICT (Upsert)
+
+The `onConflict` builder allows configuring PostgreSQL's ON CONFLICT clause for upsert operations.
+
+#### Configuration Methods
+
+| Method                            | Description                           |
+|-----------------------------------|---------------------------------------|
+| `onColumns(columns)`              | Conflict target: columns              |
+| `onConstraint(name)`              | Conflict target: constraint name      |
+| `doNothing()`                     | ON CONFLICT DO NOTHING                |
+| `doUpdate(setExpression, where?)` | DO UPDATE SET with raw expression     |
+| `doUpdate(vararg pairs, where?)`  | DO UPDATE SET with column-value pairs |
+| `doUpdate(map, where?)`           | DO UPDATE SET from map                |
+
+#### Examples
+
+```kotlin
+// DO NOTHING on conflict
+dataAccess.insertInto("citizens")
+    .values(listOf("name", "tribe"))
+    .onConflict {
+        onColumns("name")
+        doNothing()
+    }
+    .execute("name" to "Marcus Aurelius", "tribe" to "Aurelia")
+
+// DO UPDATE (upsert)
+dataAccess.insertInto("citizen_census")
+    .values(listOf("citizen_id", "census_count", "last_recorded"))
+    .onConflict {
+        onColumns("citizen_id")
+        doUpdate(
+            "census_count" to "citizen_census.census_count + 1",
+            "last_recorded" to "EXCLUDED.last_recorded"
+        )
+    }
+    .execute(
+        "citizen_id" to citizenId,
+        "census_count" to 1,
+        "last_recorded" to now
+    )
+
+// Using EXCLUDED to reference attempted insert values
+dataAccess.insertInto("tributes")
+    .values(listOf("province", "year", "amount", "goods"))
+    .onConflict {
+        onColumns("province", "year")
+        doUpdate(
+            "amount" to "EXCLUDED.amount",
+            "goods" to "tributes.goods + EXCLUDED.goods",
+            whereCondition = "tributes.amount != EXCLUDED.amount OR tributes.goods != EXCLUDED.goods"
+        )
+    }
+    .execute(tributeData)
+
+// Using constraint name
+dataAccess.insertInto("senate_records")
+    .values(senateData)
+    .onConflict {
+        onConstraint("senate_records_session_key")
+        doNothing()
+    }
+    .execute(senateData)
 ```
 
 ---
@@ -231,7 +371,7 @@ val expelled = dataAccess.deleteFrom("senate")
 
 ## RawQueryBuilder
 
-Executes arbitrary SQL queries. Use when the fluent builders don't cover your use case.
+Executes arbitrary SQL queries. Use when the fluent builders don't cover your use case, when you want to leverage IDE features like **SQL Language Injection** (providing syntax highlighting and autocompletion), or when copying queries directly from an external SQL editor.
 
 ### Usage
 
@@ -324,26 +464,33 @@ fun searchCitizens(name: String?, minAge: Int?, tribe: String?): List<Citizen> {
 }
 ```
 
-### Example: Dynamic Updates (Raw Query)
+### Example: Dynamic Raw Queries
 
-`join` is particularly useful with `RawQueryBuilder` for dynamic SET clauses. You can use `prefix` and `postfix` to format the final SQL string.
+`QueryFragment.join()` is a powerful tool for building complex, ad-hoc queries with `RawQueryBuilder`. It can be used to dynamically construct `SET` clauses for updates, `VALUES` for inserts, or complex `WHERE` filters, ensuring that parameters are always correctly merged and SQL syntax remains valid even when some fragments are missing.
 
 ```kotlin
 val updates = listOfNotNull(
     newRank?.let { "rank = @rank" withParam ("rank" to it) },
     newTribe?.let { "tribe = @tribe" withParam ("tribe" to it) },
-    QueryFragment("last_census_at = NOW()") // Always update census timestamp
+    QueryFragment("last_census_at = NOW()") 
 )
 
+// Construct dynamic SET clause
 val setClause = updates.join(
     separator = ", ", 
-    prefix = "SET ",        // Prepend "SET " to the result
-    addParenthesis = false // Don't wrap SET assignments in ()
+    prefix = "SET ",        
+    addParenthesis = false 
 )
 
-// Result SQL: "UPDATE citizens SET rank = @rank, tribe = @tribe, last_census_at = NOW() WHERE id = @id"
-dataAccess.rawQuery("UPDATE citizens ${setClause.sql} WHERE id = @id")
-    .execute(setClause.params + ("id" to citizenId))
+// Construct dynamic WHERE clause
+val filters = listOfNotNull(
+    citizenId?.let { "id = @id" withParam ("id" to it) },
+    region?.let { "region = @region" withParam ("region" to it) }
+).join(separator = " AND ", prefix = "WHERE ")
+
+// Final SQL: "UPDATE citizens SET rank = @rank, last_census_at = NOW() WHERE id = @id"
+dataAccess.rawQuery("UPDATE citizens ${setClause.sql} ${filters.sql}")
+    .execute(setClause.params + filters.params)
 ```
 
 ---
@@ -427,150 +574,6 @@ val commanders = dataAccess.select("*")
     .from("citizens")
     .where("id IN (SELECT commander_id FROM campaigns WHERE tribute_collected > @minTribute)")
     .toListOf<Citizen>("minTribute" to 10000)
-```
-
----
-
-## ON CONFLICT (Upsert)
-
-The `onConflict` builder allows configuring PostgreSQL's ON CONFLICT clause for upsert operations.
-
-### Configuration Methods
-
-| Method                            | Description                           |
-|-----------------------------------|---------------------------------------|
-| `onColumns(columns)`              | Conflict target: columns              |
-| `onConstraint(name)`              | Conflict target: constraint name      |
-| `doNothing()`                     | ON CONFLICT DO NOTHING                |
-| `doUpdate(setExpression, where?)` | DO UPDATE SET with raw expression     |
-| `doUpdate(vararg pairs, where?)`  | DO UPDATE SET with column-value pairs |
-| `doUpdate(map, where?)`           | DO UPDATE SET from map                |
-
-### Examples
-
-```kotlin
-// DO NOTHING on conflict
-dataAccess.insertInto("citizens")
-    .values(listOf("name", "tribe"))
-    .onConflict {
-        onColumns("name")
-        doNothing()
-    }
-    .execute("name" to "Marcus Aurelius", "tribe" to "Aurelia")
-
-// DO UPDATE (upsert)
-dataAccess.insertInto("citizen_census")
-    .values(listOf("citizen_id", "census_count", "last_recorded"))
-    .onConflict {
-        onColumns("citizen_id")
-        doUpdate(
-            "census_count" to "citizen_census.census_count + 1",
-            "last_recorded" to "EXCLUDED.last_recorded"
-        )
-    }
-    .execute(
-        "citizen_id" to citizenId,
-        "census_count" to 1,
-        "last_recorded" to now
-    )
-
-// Using EXCLUDED to reference attempted insert values
-dataAccess.insertInto("tributes")
-    .values(listOf("province", "year", "amount", "goods"))
-    .onConflict {
-        onColumns("province", "year")
-        doUpdate(
-            "amount" to "EXCLUDED.amount",
-            "goods" to "tributes.goods + EXCLUDED.goods",
-            whereCondition = "tributes.amount != EXCLUDED.amount OR tributes.goods != EXCLUDED.goods"
-        )
-    }
-    .execute(tributeData)
-
-// Using constraint name
-dataAccess.insertInto("senate_records")
-    .values(senateData)
-    .onConflict {
-        onConstraint("senate_records_session_key")
-        doNothing()
-    }
-    .execute(senateData)
-```
-
----
-
-## Row-Level Locking (FOR UPDATE)
-
-The `forUpdate()` method appends a `FOR UPDATE` clause, which locks the selected rows for the duration of the current transaction. This prevents other transactions from modifying or deleting them before your transaction commits.
-
-> **Requires an active transaction.** `FOR UPDATE` is only meaningful inside a `dataAccess.transaction { ... }` block. Outside of one, the lock is released immediately after the query.
-
-### Method Signature
-
-```kotlin
-fun forUpdate(of: String? = null, mode: LockWaitMode? = null): SelectQueryBuilder
-```
-
-### `LockWaitMode`
-
-Controls what happens if another transaction already holds a lock on one of the selected rows.
-
-| Value         | Behavior                                                       |
-|---------------|----------------------------------------------------------------|
-| *(none)*      | Wait until the lock is available (default PostgreSQL behavior) |
-| `NOWAIT`      | Return `Failure` immediately instead of waiting                |
-| `SKIP_LOCKED` | Silently skip rows that are currently locked                   |
-
-### Examples
-
-```kotlin
-// Basic FOR UPDATE - lock the campaign, then update it
-dataAccess.transaction { tx ->
-    val result = tx.select("*")
-        .from("campaigns")
-        .where("id = @id")
-        .forUpdate()
-        .toSingleOf<Campaign>("id" to campaignId)
-
-    result.onSuccess { campaign ->
-        dataAccess.update("campaigns")
-            .setExpression("status", "@status")
-            .where("id = @id")
-            .execute("status" to "marching", "id" to campaign?.id)
-    }
-}
-
-// FOR UPDATE OF - lock only the specified table in a JOIN query
-dataAccess.transaction { tx ->
-    tx.select("c.id", "c.tribute_total", "a.balance")
-        .from("campaigns c JOIN aerarium a ON c.province_id = a.province_id")
-        .where("c.id = @id")
-        .forUpdate(of = "c")  // only lock rows in 'campaigns', not 'aerarium'
-        .toSingleOf<CampaignWithBalance>("id" to campaignId)
-}
-
-// FOR UPDATE NOWAIT - return Failure immediately if row is already locked
-dataAccess.transaction { tx ->
-    tx.select("*")
-        .from("grain_depots")
-        .where("id = @id AND status = 'available'")
-        .forUpdate(mode = LockWaitMode.NOWAIT)
-        .toSingleOf<GrainDepot>("id" to depotId)
-        .onSuccess { depot -> /* requisition it */ }
-        .onFailure { error -> /* depot claimed by another legion */ }
-}
-
-// FOR UPDATE SKIP LOCKED - levy queue / conscription processing pattern
-dataAccess.transaction { tx ->
-    tx.select("*")
-        .from("conscription_queue")
-        .where("status = 'pending'")
-        .orderBy("enrolled_at")
-        .limit(10)
-        .forUpdate(mode = LockWaitMode.SKIP_LOCKED) // skip recruits claimed by other centurions
-        .toListOf<Conscript>()
-        .onSuccess { recruits -> /* process conscription */ }
-}
 ```
 
 ---

@@ -197,6 +197,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 
+-- Overload for literals ('unknown' type)
+CREATE OR REPLACE FUNCTION public.to_dynamic_dto(p_type_name TEXT, p_value TEXT)
+    RETURNS public.dynamic_dto AS $$
+BEGIN
+    RETURN ROW(p_type_name, to_jsonb(p_value))::public.dynamic_dto;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+
+
 -- Unwrap function
 CREATE OR REPLACE FUNCTION public.unwrap_dto_payload(p_dto public.dynamic_dto)
 RETURNS JSONB AS $$
@@ -398,9 +407,32 @@ class OctaviusConfig {
 
 ### Connection Pool
 
-When using `fromConfig()`, Octavius creates a HikariCP pool with:
+When using `fromConfig()`, Octavius creates a HikariCP pool with the following defaults:
 - `maximumPoolSize = 10`
 - `connectionInitSql` set to `SET search_path TO ...` if enabled
+
+You can customize the pool by providing additional HikariCP properties in `DatabaseConfig.hikariProperties`. These properties will override the defaults.
+
+#### Programmatic Configuration
+
+```kotlin
+val config = DatabaseConfig(
+    dbUrl = "jdbc:postgresql://localhost:5432/roma",
+    dbUsername = "augustus",
+    dbPassword = "spqr",
+    // ...
+    hikariProperties = mapOf(
+        "maximumPoolSize" to "20",
+        "minimumIdle" to "5",
+        "connectionTimeout" to "30000"
+    )
+)
+val dataAccess = OctaviusDatabase.fromConfig(config)
+```
+
+#### Properties File Configuration
+
+When loading from a properties file, use the `db.hikari.` prefix for all HikariCP settings. See the [Properties File](#properties-file) section for more details.
 
 When using `fromDataSource()`, you manage the pool configuration yourself.
 

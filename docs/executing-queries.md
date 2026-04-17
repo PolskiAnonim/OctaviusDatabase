@@ -32,20 +32,6 @@ All query builders share common terminal methods that execute the query and retu
 | `toColumn<T>(params)`      | `DataResult<List<T>>`                 | All values from first column            |
 | `toSql()`                  | `String`                              | Generated SQL (no execution)            |
 
-Nullability is controlled by the type parameter `T`. Use nullable types when null results are expected:
-
-```kotlin
-// Non-nullable — returns Failure if no rows or null value
-val id: DataResult<Int> = query.toField<Int>()
-
-// Nullable — returns Success(null) if no rows or null value
-val id: DataResult<Int?> = query.toField<Int?>()
-
-// Strict — always Failure if no rows, null value controlled by type
-val id: DataResult<Int> = query.toFieldStrict<Int>()      // Failure if no rows OR null value
-val id: DataResult<Int?> = query.toFieldStrict<Int?>()     // Failure if no rows, Success(null) if null value
-```
-
 > **Single-row guard**: All single-row methods (`toSingle`, `toSingleStrict`, `toSingleOf`, `toField`, `toFieldStrict`) return `Failure(TOO_MANY_ROWS)` if the query returns more than one row. Use `toList`/`toColumn` for multi-row results, or add `LIMIT 1` to your query.
 
 ### Modification Methods (`TerminalModificationMethods`)
@@ -161,8 +147,6 @@ val row: DataResult<Map<String, Any?>> = dataAccess.select("*")
 
 ### Terminal Method Behavior Matrix
 
-All failures are `DataResult.Failure(DatabaseException)` with specific subclasses like `StatementException` or `ConstraintViolationException`. If the error occurred during mapping, the `error` will be a `ConversionException`.
-
 | Method               | 0 rows                                       | non-null value   | null value, non-null `T` | null value, nullable `T?` | >1 rows          |
 |----------------------|----------------------------------------------|------------------|--------------------------|---------------------------|------------------|
 | `toField<T>()`       | `T` → `EMPTY_RESULT`, `T?` → `Success(null)` | `Success(value)` | `UNEXPECTED_NULL_VALUE`  | `Success(null)`           | `TOO_MANY_ROWS`  |
@@ -251,7 +235,7 @@ class CitizenService(private val dataAccess: DataAccess) {
 // Spring global exception handler catches DatabaseException
 @ControllerAdvice
 class GlobalExceptionHandler {
-    @ExceptionHandler(DatabaseException:@class)
+    @ExceptionHandler(DatabaseException::class)
     fun handleDatabaseError(e: DatabaseException): ResponseEntity<*> {
         logger.error(e.toString())
         return ResponseEntity.status(500).body(ErrorResponse("Database error"))
@@ -275,30 +259,6 @@ val citizen = dataAccess.select("*")
     .toSingleOf<Citizen>("id" to citizenId)
     .getOrElse { null }
 ```
-
----
-
-## Calling Void-Returning Functions
-
-PostgreSQL functions that return `void` (e.g. `pg_notify`, `pg_advisory_lock`, custom procedures) map to `Unit` in Kotlin. Use `toField<Unit>()` to call them through the query builders:
-
-```kotlin
-// Call a void function — result is DataResult<Unit>
-dataAccess.rawQuery("SELECT pg_notify(@channel, @payload)")
-    .toField<Unit>("channel" to "senate_decrees", "payload" to "edict_99")
-
-// Also works inside transactions
-dataAccess.transaction { tx ->
-    tx.rawQuery("SELECT pg_advisory_lock(@key)")
-        .toField<Unit>("key" to lockKey)
-        .getOrElse { return@transaction DataResult.Failure(it) }
-
-    // ... do work ...
-    DataResult.Success(Unit)
-}
-```
-
-`void` columns are mapped to `Unit` at the JDBC boundary — before the type registry is consulted — so no additional configuration is needed.
 
 ---
 
