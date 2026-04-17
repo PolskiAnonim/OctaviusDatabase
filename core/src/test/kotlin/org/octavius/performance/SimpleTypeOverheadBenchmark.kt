@@ -21,10 +21,9 @@ import kotlin.system.measureTimeMillis
 /**
  * Benchmark porównujący wydajność mapowania prostych typów.
  *
- * Porównuje 3 strategie:
+ * Porównuje 2 strategie:
  * 1. Raw JDBC - linia bazowa, najszybsza możliwa implementacja.
- * 2. Old Framework (getString) - narzut związany z konwersją wszystkiego przez String.
- * 3. Optimized Framework (Fast Path) - nowa, zoptymalizowana wersja z "szybką ścieżką".
+ * 2. Framework (Fast Path)
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Disabled
@@ -37,7 +36,6 @@ class SimpleTypeOverheadBenchmark {
 
     // --- Wyniki ---
     private val rawJdbcTimings = mutableListOf<Long>()
-    private val oldFrameworkTimings = mutableListOf<Long>()
     private val optimizedFrameworkTimings = mutableListOf<Long>() // NOWA LISTA
 
     private lateinit var dataSource: HikariDataSource
@@ -96,15 +94,13 @@ class SimpleTypeOverheadBenchmark {
     fun `run full benchmark comparison`() {
         val sql = "SELECT * FROM simple_type_benchmark LIMIT $TOTAL_ROWS_TO_FETCH"
         val rawMapper = RawJdbcRowMapper()
-        val oldFrameworkMapper = OldFrameworkRowMapper(typesConverter)
-        val optimizedFrameworkMapper = RowMappers(typeRegistry).ColumnNameMapper() // NOWY MAPPER
+        val frameworkMapper = RowMappers(typeRegistry).ColumnNameMapper() // NOWY MAPPER
 
         // --- WARM-UP ---
         println("\n--- ROZGRZEWKA (x$WARMUP_ITERATIONS iteracji, wyniki ignorowane) ---")
         repeat(WARMUP_ITERATIONS) {
             jdbcTemplate.query(PositionalQuery(sql, listOf()), rawMapper)
-            jdbcTemplate.query(PositionalQuery(sql, listOf()), oldFrameworkMapper)
-            jdbcTemplate.query(PositionalQuery(sql, listOf()), optimizedFrameworkMapper) // Rozgrzewamy też nowy
+            jdbcTemplate.query(PositionalQuery(sql, listOf()), frameworkMapper) // Rozgrzewamy też nowy
         }
         println("--- ROZGRZEWKA ZAKOŃCZONA ---\n")
 
@@ -116,11 +112,8 @@ class SimpleTypeOverheadBenchmark {
             // Mierz Raw JDBC
             rawJdbcTimings.add(measureTimeMillis { jdbcTemplate.query(PositionalQuery(sql, listOf()), rawMapper) })
 
-            // Mierz Stary Framework
-            oldFrameworkTimings.add(measureTimeMillis { jdbcTemplate.query(PositionalQuery(sql, listOf()), oldFrameworkMapper) })
-
-            // Mierz Nowy, Zoptymalizowany Framework
-            optimizedFrameworkTimings.add(measureTimeMillis { jdbcTemplate.query(PositionalQuery(sql, listOf()), optimizedFrameworkMapper) })
+            // Mierz Framework
+            optimizedFrameworkTimings.add(measureTimeMillis { jdbcTemplate.query(PositionalQuery(sql, listOf()), frameworkMapper) })
         }
         println("\n--- POMIAR ZAKOŃCZONY ---\n")
     }
@@ -128,38 +121,25 @@ class SimpleTypeOverheadBenchmark {
     @AfterAll
     fun printResults() {
         val avgRaw = rawJdbcTimings.average()
-        val avgOld = oldFrameworkTimings.average()
         val avgOptimized = optimizedFrameworkTimings.average()
 
-        val overheadOldMs = avgOld - avgRaw
-        val overheadOldPercent = (overheadOldMs / avgRaw) * 100
-
-        val overheadOptimizedMs = avgOptimized - avgRaw
-        val overheadOptimizedPercent = (overheadOptimizedMs / avgRaw) * 100
+        val overheadFrameworkMs = avgOptimized - avgRaw
+        val overheadFrameworkPercent = (overheadFrameworkMs / avgRaw) * 100
 
         println("\n--- OSTATECZNE WYNIKI PORÓWNANIA (średnia z $ITERATIONS iteracji) ---")
         println("==================================================================================")
         println("  Pobieranie i mapowanie $TOTAL_ROWS_TO_FETCH wierszy:")
         println("----------------------------------------------------------------------------------")
         println("  1. Raw JDBC (linia bazowa):      ${String.format("%7.2f", avgRaw)} ms")
-        println("  2. Stary Framework (getString):    ${String.format("%7.2f", avgOld)} ms")
-        println("  3. Nowy Framework (Optimized):   ${String.format("%7.2f", avgOptimized)} ms")
+        println("  2. Framework:                    ${String.format("%7.2f", avgOptimized)} ms")
         println("----------------------------------------------------------------------------------")
         println(
-            "  Narzut Starego Frameworka:   +${String.format("%.2f", overheadOldMs)} ms (+${
-                String.format(
-                    "%.1f",
-                    overheadOldPercent
-                )
-            }%)"
-        )
-        println(
-            "  Narzut Nowego Frameworka:    +${
+            "  Narzut Frameworka:    +${
                 String.format(
                     "%.2f",
-                    overheadOptimizedMs
+                    overheadFrameworkMs
                 )
-            } ms (+${String.format("%.1f", overheadOptimizedPercent)}%)"
+            } ms (+${String.format("%.1f", overheadFrameworkPercent)}%)"
         )
         println("==================================================================================")
 
@@ -182,27 +162,9 @@ private class RawJdbcRowMapper : RowMapper<Map<String, Any?>> {
         data["int_val"] = rs.getInt(2)
         data["long_val"] = rs.getLong(3)
         data["text_val"] = rs.getString(4)
-        data["ts_val"] = rs.getTimestamp(5)?.toLocalDateTime()
+        data["ts_val"] = rs.getObject(5, java.time.LocalDateTime::class.java)
         data["bool_val"] = rs.getBoolean(6)
         data["numeric_val"] = rs.getBigDecimal(7)
-        return data
-    }
-}
-
-/**
- * Mapper implementujący starą strategię frameworka (wszystko przez getString).
- */
-private class OldFrameworkRowMapper(private val converter: PostgresToKotlinConverter) : RowMapper<Map<String, Any?>> {
-    override fun mapRow(rs: ResultSet, rowNum: Int): Map<String, Any?> {
-        val data = mutableMapOf<String, Any?>()
-        val metaData = rs.metaData
-        val pgRs = rs.unwrap(PgResultSet::class.java)
-        for (i in 1..metaData.columnCount) {
-            val columnName = metaData.getColumnName(i)
-            val oid = pgRs.getColumnOID(i)
-            val rawValue = rs.getString(i)
-            data[columnName] = converter.convert(rawValue, oid)
-        }
         return data
     }
 }
