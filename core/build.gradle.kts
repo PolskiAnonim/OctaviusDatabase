@@ -29,10 +29,8 @@ dependencies {
     implementation(libs.logback.classic)
     implementation(libs.kotlin.logging)
 
-    // Database-specific dependencies
     implementation(libs.postgres)
     implementation(libs.hikari)
-    implementation(libs.spring.jdbc)
     implementation(libs.classgraph)
     implementation(libs.flyway.postgres)
 
@@ -44,6 +42,7 @@ dependencies {
     testImplementation(libs.junit.jupiter.params)
     testImplementation(libs.mockk)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.spring.jdbc)
 }
 
 tasks.withType<Test> {

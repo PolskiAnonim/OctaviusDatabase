@@ -14,4 +14,4 @@ dependencyResolutionManagement {
     }
 }
 
-include(":api", ":core")
+include(":api", ":core", ":spring-integration")

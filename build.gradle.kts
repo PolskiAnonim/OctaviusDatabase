@@ -26,6 +26,7 @@ dokka {
 dependencies {
     dokka(project(":api"))
     dokka(project(":core"))
+    dokka(project(":spring-integration"))
 }
 
 subprojects {

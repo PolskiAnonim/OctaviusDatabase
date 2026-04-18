@@ -17,9 +17,9 @@ interface JdbcTransactionProvider {
 
     fun <T> execute(
         propagation: TransactionPropagation,
-        isolation: IsolationLevel,
-        readOnly: Boolean,
-        timeoutSeconds: Int?,
+        isolation: IsolationLevel = IsolationLevel.DEFAULT,
+        readOnly: Boolean = false,
+        timeoutSeconds: Int? = null,
         block: (TransactionStatus) -> T
     ): T
 }
