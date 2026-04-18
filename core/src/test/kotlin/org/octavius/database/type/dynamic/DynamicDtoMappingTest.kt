@@ -13,10 +13,11 @@ import org.octavius.data.getOrThrow
 import org.octavius.data.toDataObject
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
+import org.octavius.database.jdbc.DefaultJdbcTransactionProvider
+import org.octavius.database.jdbc.JdbcTemplate
 import org.octavius.domain.test.dynamic.DynamicProfile
 import org.octavius.domain.test.dynamic.UserStats
 import org.octavius.domain.test.dynamic.UserWithDynamicProfile
-import org.springframework.jdbc.core.JdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -43,18 +44,16 @@ class DynamicDtoMappingTest {
             username = databaseConfig.dbUsername
             password = databaseConfig.dbPassword
         })
-        val jdbcTemplate = JdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(DefaultJdbcTransactionProvider(dataSource))
 
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
         jdbcTemplate.execute("CREATE SCHEMA public;")
-        val initSql = String(
+        fun loadSql(name: String) = String(
             Files.readAllBytes(
-                Paths.get(
-                    this::class.java.classLoader.getResource("init-dynamic-test-db.sql")!!.toURI()
-                )
+                Paths.get(this::class.java.classLoader.getResource(name)!!.toURI())
             )
         )
-        jdbcTemplate.execute(initSql)
+        jdbcTemplate.execute(loadSql("init-dynamic-test-db.sql"))
         println("Dynamic DTO test DB schema initialized successfully.")
 
         // --- Krok 3: Stworzenie pełnego DAL-a ---

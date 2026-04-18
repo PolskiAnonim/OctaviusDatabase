@@ -11,7 +11,8 @@ import org.octavius.data.DataAccess
 import org.octavius.data.builder.toSingleStrict
 import org.octavius.data.getOrThrow
 import org.octavius.database.config.DatabaseConfig
-import org.springframework.jdbc.core.JdbcTemplate
+import org.octavius.database.jdbc.DefaultJdbcTransactionProvider
+import org.octavius.database.jdbc.JdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -31,7 +32,7 @@ class ArraySliceIntegrationTest {
             password = databaseConfig.dbPassword
         }
         dataSource = HikariDataSource(hikariConfig)
-        val jdbcTemplate = JdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(DefaultJdbcTransactionProvider(dataSource))
 
         // Drop table if exists
         jdbcTemplate.execute("DROP TABLE IF EXISTS array_test_table CASCADE;")
@@ -110,4 +111,3 @@ class ArraySliceIntegrationTest {
         assertThat(result["slice"] as List<*>).containsExactly(20, 30, 40)
     }
 }
-

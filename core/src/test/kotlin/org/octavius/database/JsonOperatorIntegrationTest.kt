@@ -11,7 +11,8 @@ import org.octavius.data.DataAccess
 import org.octavius.data.builder.toFieldStrict
 import org.octavius.data.getOrThrow
 import org.octavius.database.config.DatabaseConfig
-import org.springframework.jdbc.core.JdbcTemplate
+import org.octavius.database.jdbc.DefaultJdbcTransactionProvider
+import org.octavius.database.jdbc.JdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -31,7 +32,7 @@ class JsonOperatorIntegrationTest {
             password = databaseConfig.dbPassword
         }
         dataSource = HikariDataSource(hikariConfig)
-        val jdbcTemplate = JdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(DefaultJdbcTransactionProvider(dataSource))
 
         // Drop table if exists
         jdbcTemplate.execute("DROP TABLE IF EXISTS json_test CASCADE;")

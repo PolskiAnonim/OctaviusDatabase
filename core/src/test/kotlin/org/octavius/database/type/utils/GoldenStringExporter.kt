@@ -5,8 +5,10 @@ import com.zaxxer.hikari.HikariDataSource
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.octavius.database.config.DatabaseConfig
+import org.octavius.database.jdbc.DefaultJdbcTransactionProvider
+import org.octavius.database.jdbc.JdbcTemplate
+import org.octavius.database.type.PositionalQuery
 import org.postgresql.jdbc.PgResultSetMetaData
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -36,15 +38,15 @@ class GoldenStringExporter {
             password = databaseConfig.dbPassword
         }
         val dataSource = HikariDataSource(hikariConfig)
-        val jdbcTemplate = NamedParameterJdbcTemplate(dataSource)
+        val jdbcTemplate = JdbcTemplate(DefaultJdbcTransactionProvider(dataSource))
 
         // --- 2. Przygotowanie bazy danych ---
         try {
-            jdbcTemplate.jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
-            jdbcTemplate.jdbcTemplate.execute("CREATE SCHEMA public;")
+            jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
+            jdbcTemplate.execute("CREATE SCHEMA public;")
             val initSqlUrl = this::class.java.classLoader.getResource("init-complex-test-db.sql")!!
             val initSql = String(Files.readAllBytes(Paths.get(initSqlUrl.toURI())))
-            jdbcTemplate.jdbcTemplate.execute(initSql)
+            jdbcTemplate.execute(initSql)
             println("Baza testowa zainicjalizowana.")
         } catch (e: Exception) {
             e.printStackTrace(); throw e
@@ -82,7 +84,7 @@ class GoldenStringExporter {
         val sql = "SELECT $selectClause FROM complex_test_data WHERE id = 1"
 
         // Wynik trafia do mapy Map<String, String>
-        val goldenStringsMap = jdbcTemplate.queryForObject(sql, emptyMap<String, Any>()) { rs, _ ->
+        val goldenStringsMap = jdbcTemplate.query(PositionalQuery(sql, emptyList())) { rs, _ ->
             val data = mutableMapOf<String, String>()
             val metaData = rs.metaData as PgResultSetMetaData
             for (i in 1..metaData.columnCount) {
@@ -90,7 +92,7 @@ class GoldenStringExporter {
                 data[columnName] = rs.getString(i)
             }
             data
-        }
+        }.first()
 
         // --- 4. Wygenerowanie kodu z mapy w pętli ---
         val stringBuilder = StringBuilder()

@@ -42,7 +42,6 @@ dependencies {
     testImplementation(libs.junit.jupiter.params)
     testImplementation(libs.mockk)
     testImplementation(libs.assertj.core)
-    testImplementation(libs.spring.jdbc)
 }
 
 tasks.withType<Test> {

@@ -11,7 +11,8 @@ import org.octavius.data.getOrThrow
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.config.DynamicDtoSerializationStrategy
-import org.springframework.jdbc.core.JdbcTemplate
+import org.octavius.database.jdbc.DefaultJdbcTransactionProvider
+import org.octavius.database.jdbc.JdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -48,7 +49,7 @@ class PolymorphicPrimitivesRoundTripTest {
         })
         this.dataSource = hikariDataSource
 
-        val jdbcTemplate = JdbcTemplate(hikariDataSource)
+        val jdbcTemplate = JdbcTemplate(DefaultJdbcTransactionProvider(hikariDataSource))
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE;")
         jdbcTemplate.execute("CREATE SCHEMA public;")
         val initSql = String(Files.readAllBytes(Paths.get(this::class.java.classLoader.getResource("init-polymorphic-primitives-test-db.sql")!!.toURI())))
