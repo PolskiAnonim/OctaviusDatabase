@@ -9,9 +9,19 @@ import javax.sql.DataSource
 /**
  * Default implementation of [JdbcTransactionProvider] using [ThreadLocal] to manage transactions.
  * This implementation does not depend on any external transaction managers (like Spring).
+ * 
+ * It supports:
+ * - Nested transactions via Savepoints.
+ * - Propagation (REQUIRED, REQUIRES_NEW).
+ * - Automatic restoration of connection state (isolation level, read-only) after transaction completion.
+ * - Transaction timeouts via PostgreSQL 'statement_timeout'.
  */
 internal class DefaultJdbcTransactionProvider(override val dataSource: DataSource) : JdbcTransactionProvider {
 
+    /**
+     * Stack of active transactions for the current thread. 
+     * Multiple contexts exist when propagation is REQUIRES_NEW.
+     */
     private val transactionStack = ThreadLocal<MutableList<TransactionContext>>()
 
     private fun getStackOrNull(): MutableList<TransactionContext>? = transactionStack.get()
@@ -28,14 +38,17 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
     override fun getConnection(): Connection {
         val stack = getStackOrNull()
         return if (!stack.isNullOrEmpty()) {
+            // Use the connection bound to the most recent transaction context
             stack.last().connection
         } else {
+            // No active transaction, get a raw connection from the pool
             dataSource.connection
         }
     }
 
     override fun releaseConnection(connection: Connection) {
         val stack = getStackOrNull()
+        // Only close if it's not a connection managed by the current transaction stack
         if (stack.isNullOrEmpty() || stack.last().connection != connection) {
             connection.close()
         }
@@ -74,6 +87,9 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
         }
     }
 
+    /**
+     * Joins an existing transaction. Rollback in this block will mark the parent transaction as rollback-only.
+     */
     private fun <T> executeExisting(context: TransactionContext, block: (TransactionStatus) -> T): T {
         val status = DefaultTransactionStatus { context.rollbackOnly = true }
         return try {
@@ -84,6 +100,10 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
         }
     }
 
+    /**
+     * Starts a completely new transaction on a new connection.
+     * Saves original connection state and restores it in 'finally' block.
+     */
     private fun <T> executeNew(
         stack: MutableList<TransactionContext>,
         isolation: IsolationLevel,
@@ -96,6 +116,7 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
 
         val context = try {
             connection.autoCommit = false
+            // 1. Configure connection and capture original state for restoration
             originalState = connection.applyConfigAndSaveState(isolation, readOnly, timeoutSeconds)
             TransactionContext(connection)
         } catch (e: Throwable) {
@@ -111,6 +132,7 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
         return try {
             val result = block(status)
 
+            // 2. Commit or Rollback based on status
             if (context.rollbackOnly) {
                 runCatching { connection.rollback() }
             } else {
@@ -122,6 +144,7 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
             runCatching { connection.rollback() }
             throw e
         } finally {
+            // 3. Cleanup: restore state, reset autocommit, close connection, and pop stack
             originalState.let { connection.restoreState(it) }
 
             runCatching { connection.autoCommit = true }
@@ -135,6 +158,9 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
         }
     }
 
+    /**
+     * Creates a Savepoint within the current connection.
+     */
     private fun <T> executeNested(context: TransactionContext, block: (TransactionStatus) -> T): T {
         val savepoint = context.connection.setSavepoint()
         var nestedRollbackOnly = false
@@ -155,7 +181,8 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
     }
 
     override fun applyTimeout(statement: Statement) {
-        // Spring...
+        // Not needed for default provider as it uses 'SET LOCAL statement_timeout' 
+        // which applies to the whole session (transaction duration).
     }
 
     private class TransactionContext(
@@ -171,6 +198,9 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
     }
 }
 
+/**
+ * Capture of connection properties to be restored after transaction.
+ */
 private class OriginalConnectionState(val isolation: Int, val readOnly: Boolean)
 
 private fun Connection.applyConfigAndSaveState(
@@ -184,6 +214,7 @@ private fun Connection.applyConfigAndSaveState(
 
     this.isReadOnly = readOnly
 
+    // Implementation of transaction timeout via PostgreSQL LOCAL setting
     timeoutSeconds?.let {
         this.createStatement().use { stmt -> stmt.execute("SET LOCAL statement_timeout = '${it}s'") }
     }

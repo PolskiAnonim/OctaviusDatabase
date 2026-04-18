@@ -10,6 +10,12 @@ import java.sql.Connection
 import java.sql.Statement
 import javax.sql.DataSource
 
+/**
+ * Implementation of [JdbcTransactionProvider] that delegates all transaction management to Spring Framework.
+ * 
+ * This allows Octavius to participate in Spring-managed transactions (e.g., using `@Transactional`)
+ * and use Spring's [DataSourceTransactionManager].
+ */
 class SpringJdbcTransactionProvider(
     override val dataSource: DataSource
 ) : JdbcTransactionProvider {
@@ -17,10 +23,12 @@ class SpringJdbcTransactionProvider(
     private val transactionManager = DataSourceTransactionManager(dataSource)
 
     override fun getConnection(): Connection {
+        // Delegates to Spring's DataSourceUtils to obtain a connection bound to the current transaction
         return DataSourceUtils.doGetConnection(dataSource)
     }
 
     override fun releaseConnection(connection: Connection) {
+        // Delegates to Spring's DataSourceUtils to correctly release (or NOT close) the connection
         DataSourceUtils.doReleaseConnection(connection, dataSource)
     }
 
@@ -31,6 +39,7 @@ class SpringJdbcTransactionProvider(
         timeoutSeconds: Int?,
         block: (TransactionStatus) -> T
     ): T {
+        // Maps Octavius propagation to Spring's TransactionDefinition
         val transactionTemplate = TransactionTemplate(transactionManager).apply {
             propagationBehavior = when (propagation) {
                 TransactionPropagation.REQUIRED -> TransactionDefinition.PROPAGATION_REQUIRED
@@ -53,6 +62,8 @@ class SpringJdbcTransactionProvider(
     }
 
     override fun applyTimeout(statement: Statement) {
+        // CRITICAL: Spring's transaction timeout is stored in a ThreadLocal. 
+        // It must be manually applied to every JDBC Statement to be enforced.
         DataSourceUtils.applyTransactionTimeout(statement, dataSource)
     }
 }
