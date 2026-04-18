@@ -15,7 +15,6 @@ internal class JdbcTemplate(private val transactionProvider: JdbcTransactionProv
         private val logger = KotlinLogging.logger {}
     }
 
-    @Throws(SQLException::class)
     fun execute(sql: String) {
         val conn = transactionProvider.getConnection()
         try {
@@ -28,7 +27,6 @@ internal class JdbcTemplate(private val transactionProvider: JdbcTransactionProv
         }
     }
 
-    @Throws(SQLException::class)
     fun <T> query(query: PositionalQuery, rowMapper: RowMapper<T>): List<T> {
         val conn = transactionProvider.getConnection()
         try {
@@ -49,7 +47,6 @@ internal class JdbcTemplate(private val transactionProvider: JdbcTransactionProv
         }
     }
 
-    @Throws(SQLException::class)
     fun update(query: PositionalQuery): Int {
         val conn = transactionProvider.getConnection()
         try {
@@ -63,7 +60,6 @@ internal class JdbcTemplate(private val transactionProvider: JdbcTransactionProv
         }
     }
 
-    @Throws(SQLException::class)
     fun query(query: PositionalQuery, fetchSize: Int, resultSetHandler: (ResultSet) -> Unit) {
         val conn = transactionProvider.getConnection()
         try {

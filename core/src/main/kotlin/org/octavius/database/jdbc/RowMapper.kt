@@ -1,7 +1,6 @@
 package org.octavius.database.jdbc
 
 import java.sql.ResultSet
-import java.sql.SQLException
 
 
 /**
@@ -19,9 +18,6 @@ internal fun interface RowMapper<T> {
      * @param rs the `ResultSet` to map (pre-initialized for the current row)
      * @param rowNum the number of the current row
      * @return the result object for the current row (may be `null`)
-     * @throws SQLException if an SQLException is encountered while getting
-     * column values (that is, there's no need to catch SQLException)
      */
-    @Throws(SQLException::class)
     fun mapRow(rs: ResultSet, rowNum: Int): T
 }
