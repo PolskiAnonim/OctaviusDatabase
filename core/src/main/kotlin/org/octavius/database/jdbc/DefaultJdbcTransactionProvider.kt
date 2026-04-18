@@ -1,8 +1,8 @@
 package org.octavius.database.jdbc
 
+import org.octavius.data.transaction.IsolationLevel
 import org.octavius.data.transaction.TransactionPropagation
 import java.sql.Connection
-import java.sql.Savepoint
 import javax.sql.DataSource
 
 /**
@@ -13,7 +13,9 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
 
     private val transactionStack = ThreadLocal<MutableList<TransactionContext>>()
 
-    private fun getStack(): MutableList<TransactionContext> {
+    private fun getStackOrNull(): MutableList<TransactionContext>? = transactionStack.get()
+
+    private fun getOrCreateStack(): MutableList<TransactionContext> {
         var stack = transactionStack.get()
         if (stack == null) {
             stack = mutableListOf()
@@ -23,8 +25,8 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
     }
 
     override fun getConnection(): Connection {
-        val stack = getStack()
-        return if (stack.isNotEmpty()) {
+        val stack = getStackOrNull()
+        return if (!stack.isNullOrEmpty()) {
             stack.last().connection
         } else {
             dataSource.connection
@@ -32,16 +34,20 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
     }
 
     override fun releaseConnection(connection: Connection) {
-        val stack = getStack()
-        // If the connection is the one managed by the current transaction, do not close it.
-        // JdbcTemplate will call this after every operation.
-        if (stack.isEmpty() || stack.last().connection != connection) {
+        val stack = getStackOrNull()
+        if (stack.isNullOrEmpty() || stack.last().connection != connection) {
             connection.close()
         }
     }
 
-    override fun <T> execute(propagation: TransactionPropagation, block: (TransactionStatus) -> T): T {
-        val stack = getStack()
+    override fun <T> execute(
+        propagation: TransactionPropagation,
+        isolation: IsolationLevel,
+        readOnly: Boolean,
+        timeoutSeconds: Int?,
+        block: (TransactionStatus) -> T
+    ): T {
+        val stack = getOrCreateStack()
         val currentContext = stack.lastOrNull()
 
         return when (propagation) {
@@ -49,48 +55,58 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
                 if (currentContext != null) {
                     executeExisting(currentContext, block)
                 } else {
-                    executeNew(stack, block)
+                    executeNew(stack, isolation, readOnly, timeoutSeconds, block)
                 }
             }
+
             TransactionPropagation.REQUIRES_NEW -> {
-                executeNew(stack, block)
+                executeNew(stack, isolation, readOnly, timeoutSeconds, block)
             }
+
             TransactionPropagation.NESTED -> {
                 if (currentContext != null) {
                     executeNested(currentContext, block)
                 } else {
-                    executeNew(stack, block)
+                    executeNew(stack, isolation, readOnly, timeoutSeconds, block)
                 }
             }
         }
     }
 
     private fun <T> executeExisting(context: TransactionContext, block: (TransactionStatus) -> T): T {
-        context.depth++
         val status = DefaultTransactionStatus { context.rollbackOnly = true }
         return try {
             block(status)
         } catch (e: Throwable) {
             context.rollbackOnly = true
             throw e
-        } finally {
-            context.depth--
         }
     }
 
-    private fun <T> executeNew(stack: MutableList<TransactionContext>, block: (TransactionStatus) -> T): T {
+    private fun <T> executeNew(
+        stack: MutableList<TransactionContext>,
+        isolation: IsolationLevel,
+        readOnly: Boolean,
+        timeoutSeconds: Int?,
+        block: (TransactionStatus) -> T
+    ): T {
         val connection = dataSource.connection
+        var originalState: OriginalConnectionState?
+
         val context = try {
             connection.autoCommit = false
+            originalState = connection.applyConfigAndSaveState(isolation, readOnly, timeoutSeconds)
             TransactionContext(connection)
         } catch (e: Throwable) {
             runCatching { connection.close() }
+            if (stack.isEmpty()) transactionStack.remove()
             throw e
         }
 
         stack.add(context)
 
         val status = DefaultTransactionStatus { context.rollbackOnly = true }
+
         return try {
             val result = block(status)
 
@@ -105,9 +121,12 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
             runCatching { connection.rollback() }
             throw e
         } finally {
-            stack.removeLast()
+            originalState.let { connection.restoreState(it) }
+
             runCatching { connection.autoCommit = true }
             runCatching { connection.close() }
+
+            stack.removeLast()
 
             if (stack.isEmpty()) {
                 transactionStack.remove()
@@ -119,7 +138,7 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
         val savepoint = context.connection.setSavepoint()
         var nestedRollbackOnly = false
         val status = DefaultTransactionStatus { nestedRollbackOnly = true }
-        
+
         return try {
             val result = block(status)
             if (nestedRollbackOnly) {
@@ -138,7 +157,6 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
         val connection: Connection
     ) {
         var rollbackOnly: Boolean = false
-        var depth: Int = 0
     }
 
     private class DefaultTransactionStatus(private val onRollbackOnly: () -> Unit) : TransactionStatus {
@@ -146,4 +164,28 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
             onRollbackOnly()
         }
     }
+}
+
+private class OriginalConnectionState(val isolation: Int, val readOnly: Boolean)
+
+private fun Connection.applyConfigAndSaveState(
+    isolation: IsolationLevel, readOnly: Boolean, timeoutSeconds: Int?
+): OriginalConnectionState {
+    val state = OriginalConnectionState(this.transactionIsolation, this.isReadOnly)
+
+    if (isolation != IsolationLevel.DEFAULT) {
+        this.transactionIsolation = isolation.jdbcValue
+    }
+
+    this.isReadOnly = readOnly
+
+    timeoutSeconds?.let {
+        this.createStatement().use { stmt -> stmt.execute("SET LOCAL statement_timeout = '${it}s'") }
+    }
+    return state
+}
+
+private fun Connection.restoreState(state: OriginalConnectionState) {
+    runCatching { this.transactionIsolation = state.isolation }
+    runCatching { this.isReadOnly = state.readOnly }
 }

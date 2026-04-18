@@ -1,5 +1,6 @@
 package org.octavius.database.jdbc
 
+import org.octavius.data.transaction.IsolationLevel
 import org.octavius.data.transaction.TransactionPropagation
 import java.sql.Connection
 import javax.sql.DataSource
@@ -10,11 +11,17 @@ import javax.sql.DataSource
  */
 interface JdbcTransactionProvider {
     val dataSource: DataSource
-    
+
     fun getConnection(): Connection
     fun releaseConnection(connection: Connection)
-    
-    fun <T> execute(propagation: TransactionPropagation, block: (TransactionStatus) -> T): T
+
+    fun <T> execute(
+        propagation: TransactionPropagation,
+        isolation: IsolationLevel,
+        readOnly: Boolean,
+        timeoutSeconds: Int?,
+        block: (TransactionStatus) -> T
+    ): T
 }
 
 /**

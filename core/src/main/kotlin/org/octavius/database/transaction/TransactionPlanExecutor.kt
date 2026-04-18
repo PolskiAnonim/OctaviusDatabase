@@ -32,7 +32,7 @@ internal class TransactionPlanExecutor(
         private val logger = KotlinLogging.logger {}
     }
 
-    fun execute(plan: TransactionPlan, propagation: TransactionPropagation): DataResult<TransactionPlanResult> {
+    fun execute(plan: TransactionPlan, propagation: TransactionPropagation, isolation: IsolationLevel, readOnly: Boolean, timeoutSeconds: Int?): DataResult<TransactionPlanResult> {
         val stepsWithHandles = plan.steps // Retrieve list of (Handle, Step) pairs
         if (stepsWithHandles.isEmpty()) {
             logger.debug { "Executing an empty transaction plan." }
@@ -42,7 +42,7 @@ internal class TransactionPlanExecutor(
             // Step 1: Create a map for quick translation of handles to indices
             val handleToIndexMap = validatePlan(stepsWithHandles)
 
-            val finalResultsMap = transactionProvider.execute(propagation) {
+            val finalResultsMap = transactionProvider.execute(propagation, isolation, readOnly, timeoutSeconds) {
                 executeStepsInTransaction(stepsWithHandles, handleToIndexMap)
             }
 

@@ -18,6 +18,7 @@ import org.octavius.database.jdbc.JdbcTemplate
 import org.octavius.database.jdbc.JdbcTransactionProvider
 import org.octavius.database.jdbc.RowMappers
 import org.octavius.database.notification.DatabasePgChannelListener
+import org.octavius.data.transaction.IsolationLevel
 import org.octavius.database.transaction.TransactionPlanExecutor
 import org.octavius.database.type.KotlinToPostgresConverter
 import org.octavius.database.type.registry.TypeRegistry
@@ -25,14 +26,14 @@ import java.sql.Connection
 
 internal class DatabaseAccess(
     private val jdbcTemplate: JdbcTemplate,
-    private val transactionManager: JdbcTransactionProvider,
+    private val transactionProvider: JdbcTransactionProvider,
     typeRegistry: TypeRegistry,
     private val kotlinToPostgresConverter: KotlinToPostgresConverter,
     private val listenerConnectionFactory: () -> Connection,
     private val onClose: (() -> Unit)? = null
 ) : DataAccess {
     private val rowMappers = RowMappers(typeRegistry)
-    val transactionPlanExecutor = TransactionPlanExecutor(transactionManager)
+    val transactionPlanExecutor = TransactionPlanExecutor(transactionProvider)
     // --- QueryOperations implementation (for single queries and transaction usage) ---
 
     override fun select(vararg columns: String): SelectQueryBuilder {
@@ -64,16 +65,22 @@ internal class DatabaseAccess(
 
     override fun executeTransactionPlan(
         plan: TransactionPlan,
-        propagation: TransactionPropagation
+        propagation: TransactionPropagation,
+        isolation: IsolationLevel,
+        readOnly: Boolean,
+        timeoutSeconds: Int?
     ): DataResult<TransactionPlanResult> {
-        return transactionPlanExecutor.execute(plan, propagation)
+        return transactionPlanExecutor.execute(plan, propagation, isolation, readOnly, timeoutSeconds)
     }
 
     override fun <T> transaction(
         propagation: TransactionPropagation,
+        isolation: IsolationLevel,
+        readOnly: Boolean,
+        timeoutSeconds: Int?,
         block: (tx: QueryOperations) -> DataResult<T>
     ): DataResult<T> {
-        return transactionManager.execute(propagation) { status ->
+        return transactionProvider.execute(propagation, isolation, readOnly, timeoutSeconds) { status ->
             try {
                 // `this` is an instance of `QueryOperations`, so we pass it directly.
                 val result = block(this)

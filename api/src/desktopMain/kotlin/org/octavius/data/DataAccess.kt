@@ -2,6 +2,7 @@ package org.octavius.data
 
 import org.octavius.data.builder.*
 import org.octavius.data.notification.PgChannelListener
+import org.octavius.data.transaction.IsolationLevel
 import org.octavius.data.transaction.TransactionPlan
 import org.octavius.data.transaction.TransactionPlanResult
 import org.octavius.data.transaction.TransactionPropagation
@@ -83,7 +84,10 @@ interface DataAccess : QueryOperations, AutoCloseable {
      */
     fun executeTransactionPlan(
         plan: TransactionPlan,
-        propagation: TransactionPropagation = TransactionPropagation.REQUIRED
+        propagation: TransactionPropagation = TransactionPropagation.REQUIRED,
+        isolation: IsolationLevel = IsolationLevel.DEFAULT,
+        readOnly: Boolean = false,
+        timeoutSeconds: Int? = null,
     ): DataResult<TransactionPlanResult>
 
     /**
@@ -111,6 +115,9 @@ interface DataAccess : QueryOperations, AutoCloseable {
      */
     fun <T> transaction(
         propagation: TransactionPropagation = TransactionPropagation.REQUIRED,
+        isolation: IsolationLevel = IsolationLevel.DEFAULT,
+        readOnly: Boolean = false,
+        timeoutSeconds: Int? = null,
         block: (tx: QueryOperations) -> DataResult<T>
     ): DataResult<T>
 
