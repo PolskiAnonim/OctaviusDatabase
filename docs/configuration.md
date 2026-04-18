@@ -61,6 +61,7 @@ val dataAccess = OctaviusDatabase.fromConfig(
 | `flywayBaselineVersion`         | `String?`                         | No       | `null`                       | Baseline version for existing schemas |
 | `disableFlyway`                 | `Boolean`                         | No       | `false`                      | Disable automatic migrations          |
 | `disableCoreTypeInitialization` | `Boolean`                         | No       | `false`                      | Disable `dynamic_dto` type creation   |
+| `showBanner`                    | `Boolean`                         | No       | `true`                       | Show Octavius banner on startup       |
 | `hikariProperties`              | `Map<String, String>`             | No       | `emptyMap()`                 | HikariCP & Driver properties          |
 
 ---
@@ -83,6 +84,7 @@ db.dynamicDtoStrategy=AUTOMATIC_WHEN_UNAMBIGUOUS
 db.flywayBaselineVersion=
 db.disableFlyway=false
 db.disableCoreTypeInitialization=false
+db.showBanner=true
 
 # HikariCP Pool Settings (prefixed with db.hikari.)
 db.hikari.maximumPoolSize=20

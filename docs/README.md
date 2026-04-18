@@ -6,20 +6,20 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 
 ## Guides
 
-| Document                                              | Description                                                                               |
-|-------------------------------------------------------|-------------------------------------------------------------------------------------------|
-| [Configuration](configuration.md)                     | Initialization, DatabaseConfig, Flyway, core types, DynamicDto strategy                   |
-| [Lifecycle & Shutdown](lifecycle-and-shutdown.md)     | Proper cleanup, .use {} block, common integration patterns                                |
-| [Query Builders](query-builders.md)                   | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT                |
-| [Functions & Procedures](functions-and-procedures.md) | Calling functions and procedures                                                          |
-| [Executing Queries](executing-queries.md)             | Terminal methods, DataResult, getOrThrow, async execution, streaming                      |
-| [Parameter Handling](parameter-handling.md)           | Named parameters (@), JSONB operator escaping (?), expansion & conversion, type inference |
-| [Data Mapping](data-mapping.md)                       | toDataMap(), toDataObject(), @MapKey - converting between objects and maps                |
-| [ORM-Like Patterns](orm-patterns.md)                  | CRUD patterns, real-world examples, PostgreSQL composite types                            |
-| [Transactions](transactions.md)                       | Transaction blocks, TransactionPlan, StepHandle, passing data between steps               |
-| [Notifications](notifications.md)                     | PostgreSQL LISTEN/NOTIFY, PgChannelListener, Flow-based receiving                         |
-| [Error Handling](error-handling.md)                   | Fatal errors vs. DataResult, Exception hierarchy, Statement/Constraint errors             |
-| [Type System](type-system.md)                         | @PgEnum, @PgComposite, @DynamicallyMappable, standard type mappings                       |
+| Document                                              | Description                                                                                             |
+|-------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| [Configuration](configuration.md)                     | Initialization, DatabaseConfig, Flyway, core types, DynamicDto strategy                                 |
+| [Lifecycle & Shutdown](lifecycle-and-shutdown.md)     | Proper cleanup, .use {} block, common integration patterns                                              |
+| [Query Builders](query-builders.md)                   | SELECT, INSERT, UPDATE, DELETE, raw queries, CTEs, subqueries, ON CONFLICT                              |
+| [Functions & Procedures](functions-and-procedures.md) | Calling functions and procedures                                                                        |
+| [Executing Queries](executing-queries.md)             | Terminal methods, DataResult, getOrThrow, async execution, streaming                                    |
+| [Parameter Handling](parameter-handling.md)           | Named parameters (@), JSONB operator escaping (?), collections & flattening, unnest and bulk operations |
+| [Data Mapping](data-mapping.md)                       | toDataMap(), toDataObject(), @MapKey - converting between objects and maps                              |
+| [ORM-Like Patterns](orm-patterns.md)                  | CRUD patterns, real-world examples, PostgreSQL composite types                                          |
+| [Transactions](transactions.md)                       | Transaction blocks, TransactionPlan, StepHandle, passing data between steps                             |
+| [Notifications](notifications.md)                     | PostgreSQL LISTEN/NOTIFY, PgChannelListener, Flow-based receiving                                       |
+| [Error Handling](error-handling.md)                   | Fatal errors vs. DataResult, Exception hierarchy, Statement/Constraint errors                           |
+| [Type System](type-system.md)                         | @PgEnum, @PgComposite, @DynamicallyMappable, dynamic data insertion, standard type mappings             |
 
 ## Quick Links
 
@@ -40,6 +40,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [Expansion & Conversion](parameter-handling.md#parameter-expansion--conversion) - How Kotlin values become SQL parameters
 - [Type Inference & Safety](parameter-handling.md#type-inference--safety) - Default resolution and `PgTyped` casts
 - [Collections & Flattening](parameter-handling.md#collections--parameter-flattening) - Handling lists, arrays, and composites
+- [Bulk Operations (unnest)](parameter-handling.md#high-performance-bulk-operations-unnest) - Fastest way to insert/update large datasets
 
 ### Functions and Procedures
 - [Functions](functions-and-procedures.md#functions-create-function) - Calling functions via SELECT
@@ -94,6 +95,7 @@ Detailed documentation for Octavius Database - an SQL-first data access layer fo
 - [@PgComposite](type-system.md#pgcomposite) - Map data classes to COMPOSITE types
 - [Manual Composite Mapping](type-system.md#manual-composite-mapping-pgcompositemapper) - Manual mapping of composite types
 - [@DynamicallyMappable](type-system.md#dynamicallymappable) - Polymorphic storage with `dynamic_dto`
+- [Inserting Dynamic Data](type-system.md#inserting-dynamic-data) - How to persist dynamic_dto and polymorphic lists
 - [Helper Serializers](type-system.md#helper-serializers) - `BigDecimalAsNumberSerializer`, etc.
 
 ### Configuration

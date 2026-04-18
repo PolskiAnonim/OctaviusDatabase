@@ -23,6 +23,7 @@ Octavius Database provides automatic bidirectional mapping between PostgreSQL an
     - [@PgComposite](#pgcomposite)
 4. [Dynamic Types (dynamic_dto)](#dynamic-types-dynamic_dto)
     - [@DynamicallyMappable](#dynamicallymappable)
+    - [Inserting Dynamic Data](#inserting-dynamic-data)
     - [Enum Serialization in dynamic_dto](#enum-serialization-in-dynamic_dto)
     - [Helper Serializers](#helper-serializers)
 5. [Object Conversion Utilities](#object-conversion-utilities)
@@ -380,6 +381,31 @@ val archives = dataAccess.rawQuery("""
 Trade-off: This decoupled approach keeps your database pristine and perfectly readable for non-Kotlin microservices or raw SQL scripts. 
 However, it requires you to write custom INSERT and SELECT queries to split and merge the columns, 
 sacrificing the "zero-maintenance" aspect of directly mapping a dynamic_dto column.
+
+---
+
+### Inserting Dynamic Data
+
+Octavius makes it easy to persist polymorphic data by automatically wrapping objects into `dynamic_dto` structures.
+
+```kotlin
+val record: MonumentRecord = Inscription("Veni, Vidi, Vici", "Latin")
+
+// Insert a single dynamic object
+dataAccess.insertInto("monument_records")
+    .value("record")
+    .execute("record" to record)
+
+// Bulk insert using unnest (Pattern D)
+dataAccess.rawQuery("""
+    INSERT INTO imperial_archives (record_type, document_payload)
+    SELECT (r).type_name, (r).data_payload
+    FROM (SELECT unnest(@records) as r) sub
+""").execute("records" to archives)
+```
+
+For maximum performance in high-volume scenarios (using **Parallel Lists**), see the [High-Performance Bulk Operations](parameter-handling.md#high-performance-bulk-operations-unnest) section in Parameter Handling.
+
 ---
 
 ### Enum Serialization in dynamic_dto

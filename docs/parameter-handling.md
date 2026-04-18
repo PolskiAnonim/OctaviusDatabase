@@ -10,6 +10,7 @@ Octavius Database uses a custom SQL parser to handle named parameters, providing
 - [Parameter Expansion & Conversion](#parameter-expansion--conversion)
 - [Type Inference & Safety](#type-inference--safety)
 - [Collections & Parameter Flattening](#collections--parameter-flattening)
+- [High-Performance Bulk Operations (unnest)](#high-performance-bulk-operations-unnest)
 - [Automatic Placeholder Generation](#automatic-placeholder-generation)
 
 ---
@@ -151,6 +152,55 @@ When collections, arrays, or composite types are passed as named parameters (`@p
 
 - **`List<T>` (Recommended):** Uses Octavius serialization (text literal like `(value1,value2)` or `{1,2,3}`). Supports **all types**, including custom `@PgComposite` and `@PgEnum`.
 - **`Array<T>` (Native):** Uses native PgJDBC array protocol. Slightly faster for large collections of primitive types, but **does not support custom types**.
+
+---
+
+## High-Performance Bulk Operations (unnest)
+
+For inserting or updating a large number of rows, PostgreSQL's `unnest` function is often superior to standard JDBC batching. Octavius supports three main strategies for bulk data delivery, allowing you to choose the best balance between ergonomics and performance.
+
+### Strategy 1: Composite Unnest (Ergonomic)
+
+Pass a list of `@PgComposite` objects (or `dynamic_dto`). This is the cleanest approach as it uses a single parameter.
+
+```kotlin
+@PgComposite(name = "census_entry")
+data class CensusEntry(val name: String, val age: Int)
+
+dataAccess.rawQuery("""
+    INSERT INTO citizens (name, age)
+    SELECT (r).name, (r).age
+    FROM (SELECT unnest(@data) as r) sub
+""").execute("data" to entries)
+```
+
+### Strategy 2: Parallel Lists (Efficient)
+
+Pass multiple Kotlin `List<T>` objects. It's faster than composites because PostgreSQL iterates through flat arrays in memory without the overhead of "unpacking" composite fields. Note that lists are serialized into text literals (e.g., `'{1,2,3}'`) as described in [List vs Array](#list-vs-array).
+
+```kotlin
+dataAccess.rawQuery("INSERT INTO citizens (name, age) SELECT * FROM unnest(@names, @ages)")
+    .execute("names" to entries.map { it.name }, "ages" to entries.map { it.age })
+```
+
+### Strategy 3: Parallel Arrays (Absolute Maximum Performance)
+
+By converting Kotlin `List` to native JVM `Array` using `.toTypedArray()`, you bypass text serialization entirely. The JDBC driver passes these directly to the database using the native binary protocol.
+
+```kotlin
+// Prepare parallel arrays
+val names = entries.map { it.name }.toTypedArray()
+val ages = entries.map { it.age }.toTypedArray()
+
+dataAccess.rawQuery("INSERT INTO citizens (name, age) SELECT * FROM unnest(@names, @ages)")
+    .execute("names" to names, "ages" to ages)
+```
+
+**Technical advantages of this approach:**
+- **Zero Parsing:** PostgreSQL iterates through flat arrays in memory without accessing composite fields.
+- **Binary Efficiency:** Strategy 3 uses the native JDBC binary protocol, avoiding the overhead of converting and parsing large text-format literals.
+- **Consistency:** Unlike standard JDBC batching, this method provides consistent high performance regardless of JDBC driver settings (like `reWriteBatchedInserts`).
+- **Low Overhead:** The framework's internal mapping and SQL parsing add negligible latency, staying very close to raw JDBC performance.
 
 ---
 

@@ -355,13 +355,13 @@ For detailed guides and examples, see the [full documentation](docs/README.md):
 - [Query Builders](docs/query-builders.md) - SELECT (FOR UPDATE), INSERT (ON CONFLICT), UPDATE, DELETE, fragments
 - [Functions & Procedures](docs/functions-and-procedures.md) - CALL, SELECT, IN/OUT, PgTyped resolution
 - [Executing Queries](docs/executing-queries.md) - Terminal methods, DataResult matrix, async, streaming
-- [Parameter Handling](docs/parameter-handling.md) - Named parameters (@), JSONB operator escaping (?), collections & flattening
+- [Parameter Handling](docs/parameter-handling.md) - Named parameters (@), JSONB operator escaping (?), collections & flattening, unnest and bulk operations
 - [Data Mapping](docs/data-mapping.md) - toDataMap(), toDataObject(), @MapKey, nested structures
 - [ORM-Like Patterns](docs/orm-patterns.md) - CRUD patterns, real-world examples
 - [Transactions](docs/transactions.md) - Transaction plans, StepHandle, passing data between steps
 - [Notifications](docs/notifications.md) - LISTEN/NOTIFY, PgChannelListener, Flow-based receiving
 - [Error Handling](docs/error-handling.md) - Exception hierarchy, debugging
-- [Type System](docs/type-system.md) - @PgEnum, @PgComposite, @DynamicallyMappable, standard type mappings
+- [Type System](docs/type-system.md) - @PgEnum, @PgComposite, @DynamicallyMappable, dynamic data insertion, standard type mappings
 
 ## Architecture
 
