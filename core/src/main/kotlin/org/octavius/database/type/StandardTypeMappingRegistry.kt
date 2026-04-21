@@ -25,7 +25,7 @@ import java.time.LocalDateTime as JLocalDateTime
 import java.time.LocalTime as JLocalTime
 import java.time.OffsetDateTime as JOffsetDateTime
 
-internal data class StandardTypeHandler<T: Any>(
+internal data class StandardTypeHandler<T : Any>(
     val pgTypeName: String,
     val kotlinClass: KClass<T>,
     val fromResultSet: ((ResultSet, Int) -> T?)?,
@@ -194,7 +194,13 @@ internal object StandardTypeMappingRegistry {
                     pgType.typeName,
                     Instant::class,
                     { getObject(it, JOffsetDateTime::class.java) },
-                    { it.toInstant().toKotlinInstant() },
+                    { v ->
+                        when (v) {
+                            JOffsetDateTime.MAX -> Instant.DISTANT_FUTURE
+                            JOffsetDateTime.MIN -> Instant.DISTANT_PAST
+                            else -> v.toInstant().toKotlinInstant()
+                        }
+                    },
                     {
                         parseWithInfinity(
                             it,
