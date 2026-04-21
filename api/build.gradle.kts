@@ -18,15 +18,15 @@ afterEvaluate {
 
 kotlin {
 
-    jvm("desktop") // Dla aplikacji desktopowej
-    js(IR) {       // Dla wtyczki
+    jvm("desktop")
+    js(IR) {
         browser()
     }
 
     sourceSets {
         val commonMain by getting {
             dependencies {
-                api(libs.kotlinx.serialization.json) // @DynamicallyMappable opiera się na kotlinx.serialization
+                api(libs.kotlinx.serialization.json)
                 api(libs.kotlinx.datetime)
                 api(libs.kotlinx.coroutines.core)
             }

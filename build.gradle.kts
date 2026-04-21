@@ -12,7 +12,7 @@ plugins {
 
 allprojects {
     group = "io.github.octavius-framework"
-    version = "9.0.0"
+    version = "9.0.1"
 }
 
 dokka {
@@ -27,6 +27,7 @@ dependencies {
     dokka(project(":api"))
     dokka(project(":core"))
     dokka(project(":spring-integration"))
+    dokka(project(":flyway-integration"))
 }
 
 subprojects {
