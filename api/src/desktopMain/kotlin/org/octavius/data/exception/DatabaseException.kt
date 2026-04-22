@@ -38,12 +38,12 @@ sealed class DatabaseException(
 
     override fun toString(): String {
         val contextStr = queryContext?.toString() ?: ""
-        val detailedMsg = getDetailedMessage()?.let { "| DETAILS: $it\n" } ?: ""
+        val detailedMsg = getDetailedMessage()?.let { "DETAILS: $it\n" } ?: ""
         
         val causeSection = if (includeCauseInToString) {
-            val nestedError = cause?.toString()?.prependIndent("|   ") ?: "|   No cause available"
+            val nestedError = cause?.toString() ?: "No cause available"
             """
-| CAUSE:
+CAUSE:
 ------------------------------------------------------------
 $nestedError
 ------------------------------------------------------------
@@ -54,8 +54,8 @@ $nestedError
 $contextStr
 
 ------------------------------------------------------------
-| ERROR: ${this::class.simpleName}
-| MESSAGE: $message
+ERROR: ${this::class.simpleName}
+MESSAGE: $message
 ${detailedMsg}------------------------------------------------------------
 $causeSection
 """

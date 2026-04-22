@@ -58,11 +58,11 @@ class ConversionException(
 ) {
     override fun getDetailedMessage(): String {
         return """
-| message: ${generateDeveloperMessage(this.messageEnum, value, targetType, propertyName)}
-| value: $value
-| targetType: $targetType
-| rowData: $rowData
-| propertyName: $propertyName
+message: ${generateDeveloperMessage(this.messageEnum, value, targetType, propertyName)}
+value: $value
+targetType: $targetType
+rowData: $rowData
+propertyName: $propertyName
 """
     }
 }

@@ -96,7 +96,7 @@ DatabaseException (sealed)
 
 Every `DatabaseException` contains a `QueryContext` when it is available. This object stores the original SQL, parameters, and the low-level SQL actually sent to PostgreSQL. It also tracks the `transactionStepIndex` when running inside a `TransactionPlan`.
 
-The `QueryContext` is automatically printed as part of the exception's `toString()` output, providing a clear, framed visualization of the execution state.
+The `QueryContext` is automatically printed as part of the exception's `toString()` output, providing a clean visualization of the execution state.
 
 ---
 
@@ -251,38 +251,39 @@ result.onFailure { error ->
 
 ### Typical Output Format
 
-Octavius uses a double-line frame to clearly separate the execution context from the error details.
+Octavius uses simple line separators to clearly separate the execution context from the error details.
 
 ```text
-╔══════════════════════════════════════════════════════════════════════════════╗
-║ DATABASE EXECUTION CONTEXT                                                   ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║ HIGH-LEVEL SQL:                                                              ║
-║   INSERT INTO citizens (name, tribe) VALUES (@name, @tribe)                  ║
-╟──────────────────────────────────────────────────────────────────────────────╢
-║ PARAMETERS:                                                                  ║
-║   name = Marcus Tullius                                                      ║
-║   tribe = Cornelia                                                           ║
-╟──────────────────────────────────────────────────────────────────────────────╢
-║ DATABASE-LEVEL SQL (SENT TO DB):                                             ║
-║   INSERT INTO citizens (name, tribe) VALUES ($1, $2)                         ║
-╟──────────────────────────────────────────────────────────────────────────────╢
-║ DATABASE-LEVEL PARAMETERS:                                                   ║
-║   Marcus Tullius                                                             ║
-║   Cornelia                                                                   ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+================================================================================
+DATABASE EXECUTION CONTEXT
+================================================================================
+HIGH-LEVEL SQL:
+INSERT INTO citizens (name, tribe) VALUES (@name, @tribe)
+--------------------------------------------------------------------------------
+PARAMETERS:
+name = Marcus Tullius
+tribe = Cornelia
+--------------------------------------------------------------------------------
+DATABASE-LEVEL SQL (SENT TO DB):
+INSERT INTO citizens (name, tribe) VALUES ($1, $2)
+--------------------------------------------------------------------------------
+DATABASE-LEVEL PARAMETERS:
+Marcus Tullius
+Cornelia
+================================================================================
 
 ------------------------------------------------------------
-| ERROR: ConstraintViolationException
-| MESSAGE: UNIQUE_CONSTRAINT_VIOLATION
-| DETAILS: 
-| message: Unique constraint violation in table 'citizens'.
-| table: citizens
-| column: name
-| constraint: citizens_name_tribe_key
+ERROR: ConstraintViolationException
+MESSAGE: UNIQUE_CONSTRAINT_VIOLATION
+DETAILS: 
+message: Unique constraint violation in table 'citizens'.
+table: citizens
+column: name
+constraint: citizens_name_tribe_key
 ------------------------------------------------------------
-| CAUSE: 
-|   org.postgresql.util.PSQLException: ERROR: duplicate key value ...
+CAUSE: 
+------------------------------------------------------------
+org.postgresql.util.PSQLException: ERROR: duplicate key value ...
 ------------------------------------------------------------
 ```
 

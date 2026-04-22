@@ -44,8 +44,8 @@ class StepDependencyException(
 
     override fun getDetailedMessage(): String {
         return """
-| message: ${generateDeveloperMessage(this.messageEnum, referencedStepIndex, args)}
-| referencedStepIndex: $referencedStepIndex
+message: ${generateDeveloperMessage(this.messageEnum, referencedStepIndex, args)}
+referencedStepIndex: $referencedStepIndex
 """
     }
 }

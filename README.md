@@ -316,7 +316,7 @@ Each `PgChannelListener` holds its own dedicated JDBC connection, separate from 
 Octavius distinguishes between **Database Execution Errors** (returned safely) and **Fatal/Setup Errors** (thrown).
 
 - **Queries Never Throw:** If a query reaches the database, it returns a `DataResult.Failure(error)` instead of throwing. This forces explicit handling of database errors like constraint violations or syntax issues.
-- **Rich Context:** Every `DatabaseException` includes a `QueryContext` that provides a framed visualization of the SQL and parameters involved (great for logging!).
+- **Rich Context:** Every `DatabaseException` includes a `QueryContext` that provides a clean visualization of the SQL and parameters involved (great for logging!).
 - **Structured Exceptions:** Specific types like `ConstraintViolationException` provide direct access to table and constraint names.
 
 ```kotlin

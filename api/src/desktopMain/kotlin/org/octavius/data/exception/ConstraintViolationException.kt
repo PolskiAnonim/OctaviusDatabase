@@ -37,10 +37,10 @@ class ConstraintViolationException(
     override fun getDetailedMessage(): String {
         return buildString {
             append("\n")
-            appendLine("| message: ${generateDeveloperMessage(messageEnum, tableName, columnName, constraintName)}")
-            tableName?.let { appendLine("| table: $it") }
-            columnName?.let { appendLine("| column: $it") }
-            constraintName?.let { appendLine("| constraint: $it") }
+            appendLine("message: ${generateDeveloperMessage(messageEnum, tableName, columnName, constraintName)}")
+            tableName?.let { appendLine("table: $it") }
+            columnName?.let { appendLine("column: $it") }
+            constraintName?.let { appendLine("constraint: $it") }
         }
     }
 }

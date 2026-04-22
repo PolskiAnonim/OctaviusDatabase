@@ -20,8 +20,8 @@ class TypeRegistryException(
 
     override fun getDetailedMessage(): String {
         return """
-| message: ${generateDeveloperMessage(this.messageEnum, typeName)}
-| Related Type: $typeName
+message: ${generateDeveloperMessage(this.messageEnum, typeName)}
+Related Type: $typeName
 """
     }
 }

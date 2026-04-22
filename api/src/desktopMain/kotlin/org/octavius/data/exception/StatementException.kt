@@ -34,7 +34,7 @@ class StatementException(
     override fun getDetailedMessage(): String {
         return buildString {
             append("\n")
-            appendLine("| message: ${generateDeveloperMessage(messageEnum)}")
+            appendLine("message: ${generateDeveloperMessage(messageEnum)}")
         }
     }
 }

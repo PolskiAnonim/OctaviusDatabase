@@ -31,18 +31,18 @@ class InitializationException(
 
     override fun toString(): String {
         val contextStr = queryContext?.toString() ?: ""
-        val detailedMsg = getDetailedMessage().let { "| DETAILS: $it\n" }
+        val detailedMsg = getDetailedMessage().let { "DETAILS: $it\n" }
 
-        val nestedError = cause?.toString()?.prependIndent("|   ") ?: "|   No cause available"
+        val nestedError = cause?.toString() ?: "No cause available"
 
         return """
 $contextStr
 
 ------------------------------------------------------------
-| ERROR: ${this::class.simpleName}
-| MESSAGE: $message
+ERROR: ${this::class.simpleName}
+MESSAGE: $message
 ${detailedMsg}------------------------------------------------------------
-| CAUSE:
+CAUSE:
 ------------------------------------------------------------
 $nestedError
 ------------------------------------------------------------
