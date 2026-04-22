@@ -70,11 +70,11 @@ internal class DatabaseTypeScanner(
         }
 
         return DatabaseScanResult(
-            enums.mapValues { schemaMap -> 
-                schemaMap.value.mapValues { Triple(it.value.first, it.value.second, it.value.third.toList()) } 
+            enums.mapValues { schemaMap ->
+                schemaMap.value.mapValues { Triple(it.value.first, it.value.second, it.value.third.toList()) }
             },
-            composites.mapValues { schemaMap -> 
-                schemaMap.value.mapValues { Triple(it.value.first, it.value.second, it.value.third.toMap()) } 
+            composites.mapValues { schemaMap ->
+                schemaMap.value.mapValues { Triple(it.value.first, it.value.second, it.value.third.toMap()) }
             },
             allOidNames
         )
@@ -82,10 +82,9 @@ internal class DatabaseTypeScanner(
 
     fun fetchSearchPath(): List<String> {
         return try {
-            val raw = jdbcTemplate.query(PositionalQuery("SHOW search_path", emptyList())) { rs, _ ->
+            jdbcTemplate.query(PositionalQuery("SELECT UNNEST(current_schemas(true))", emptyList())) { rs, _ ->
                 rs.getString(1)
-            }.firstOrNull() ?: ""
-            raw.split(",").map { it.trim().removeSurrounding("\"") }.filter { it.isNotEmpty() }
+            }
         } catch (e: Exception) {
             logger.warn { "Failed to fetch search_path, falling back to default schemas. Error: ${e.message}" }
             dbSchemas

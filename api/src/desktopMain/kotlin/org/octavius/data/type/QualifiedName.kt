@@ -14,36 +14,38 @@ data class QualifiedName(
         return if (isArray) "$base[]" else base
     }
 
-    /**
-     * Escapes a PostgreSQL identifier (e.g. table name, type name) by wrapping it in double quotes
-     * and escaping any internal double quotes if it contains special characters.
-     */
-    private fun String.quoteIdentifier(): String {
-        if (this.isBlank()) return ""
-        // If already quoted, we assume it's correctly escaped and return as is.
-        if (this.startsWith('"') && this.endsWith('"')) return this
+    companion object {
+        /**
+         * Escapes a PostgreSQL identifier (e.g. table name, type name) by wrapping it in double quotes
+         * and escaping any internal double quotes if it contains special characters.
+         */
+        fun quoteIdentifier(value: String): String {
+            if (value.isBlank()) return ""
+            // If already quoted, we assume it's correctly escaped and return as is.
+            if (value.startsWith('"') && value.endsWith('"')) return value
 
-        // According to PostgreSQL rules, unquoted identifiers must start with a letter or underscore,
-        // and can contain letters, underscores, digits, or dollar signs.
-        // If it starts with a digit, or contains any other character (dots, spaces, quotes, dashes, etc.),
-        // it MUST be quoted to be handled correctly as a single identifier.
-        val shouldQuote = this[0].isDigit() || this.any { char ->
-            !(char.isLetter() || char == '_' || char == '$' || char.isDigit())
-        }
-
-        if (shouldQuote) {
-            return buildString(this.length + 2) {
-                append('"')
-                for (c in this@quoteIdentifier) {
-                    if (c == '"') append('"')
-                    append(c)
-                }
-                append('"')
+            // According to PostgreSQL rules, unquoted identifiers must start with a letter or underscore,
+            // and can contain letters, underscores, digits, or dollar signs.
+            // If it starts with a digit, or contains any other character (dots, spaces, quotes, dashes, etc.),
+            // it MUST be quoted to be handled correctly as a single identifier.
+            val shouldQuote = value[0].isDigit() || value.any { char ->
+                !(char.isLetter() || char == '_' || char == '$' || char.isDigit())
             }
+
+            if (shouldQuote) {
+                return buildString(value.length + 2) {
+                    append('"')
+                    for (c in value) {
+                        if (c == '"') append('"')
+                        append(c)
+                    }
+                    append('"')
+                }
+            }
+
+            // Otherwise, we don't add quotes "artificially" to stay explicit and allow PG folding.
+            return value
         }
-        
-        // Otherwise, we don't add quotes "artificially" to stay explicit and allow PG folding.
-        return this
     }
 
     /**
@@ -52,9 +54,9 @@ data class QualifiedName(
      */
     fun quote(): String {
         val quotedBase = if (schema.isBlank()) {
-            name.quoteIdentifier()
+            quoteIdentifier(name)
         } else {
-            "${schema.quoteIdentifier()}.${name.quoteIdentifier()}"
+            "${quoteIdentifier(schema)}.${quoteIdentifier(name)}"
         }
         return if (isArray) "$quotedBase[]" else quotedBase
     }
