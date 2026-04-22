@@ -233,7 +233,7 @@ class NullHandlingTest {
 
         @Test
         fun `toSingleOf with non-nullable type and 0 rows should return Failure with EMPTY_RESULT`() {
-            every { mockMappers.DataObjectMapper<Any>(any()) } returns RowMapper<Any> { _, _ -> "dummy" }
+            every { mockMappers.DataObjectMapper<Any>(any()) } returns RowMapper { _, _ -> "dummy" }
             every { mockJdbcTemplate.query(any<PositionalQuery>(), any<RowMapper<Any>>()) } returns emptyList<Any>()
 
             val result: DataResult<String> = builder.toSingleOf<String>()
@@ -243,7 +243,7 @@ class NullHandlingTest {
 
         @Test
         fun `toSingleOf with nullable type and 0 rows should return Success(null)`() {
-            every { mockMappers.DataObjectMapper<Any>(any()) } returns RowMapper<Any> { _, _ -> "dummy" }
+            every { mockMappers.DataObjectMapper<Any>(any()) } returns RowMapper { _, _ -> "dummy" }
             every { mockJdbcTemplate.query(any<PositionalQuery>(), any<RowMapper<Any>>()) } returns emptyList<Any>()
 
             val result: DataResult<String?> = builder.toSingleOf<String?>()

@@ -1,16 +1,3 @@
--- Usuwamy wszystko, żeby zapewnić czysty start
-DROP TABLE IF EXISTS logs CASCADE;
-DROP TABLE IF EXISTS profiles CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-
--- Uniwersalny typ-przenośnik - będzie obecny także na zwykłej bazie. Wymagany przez rejestr
-DROP TYPE IF EXISTS dynamic_dto CASCADE;
-CREATE TYPE dynamic_dto AS
-(
-    type_name    TEXT,
-    data_payload JSONB
-);
-
 -- Tabela użytkowników z ograniczeniem unikalności na nazwę
 CREATE TABLE users
 (

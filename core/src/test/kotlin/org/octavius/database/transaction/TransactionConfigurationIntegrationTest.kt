@@ -16,54 +16,27 @@ import org.octavius.data.exception.StatementException
 import org.octavius.data.exception.StatementExceptionMessage
 import org.octavius.data.getOrThrow
 import org.octavius.data.transaction.IsolationLevel
+import org.octavius.database.AbstractIntegrationTest
 import org.octavius.database.OctaviusDatabase
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.jdbc.DefaultJdbcTransactionProvider
 import org.octavius.database.jdbc.JdbcTemplate
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class TransactionConfigurationIntegrationTest {
+class TransactionConfigurationIntegrationTest: AbstractIntegrationTest() {
 
-    private lateinit var dataAccess: DataAccess
-    private lateinit var dataSource: HikariDataSource
-    private lateinit var jdbcTemplate: JdbcTemplate
-
-    @BeforeAll
-    fun setup() {
-        val dbConfig = DatabaseConfig.loadFromFile("test-database.properties")
-        dataSource = HikariDataSource(HikariConfig().apply {
-            jdbcUrl = dbConfig.dbUrl
-            username = dbConfig.dbUsername
-            password = dbConfig.dbPassword
-            maximumPoolSize = 5
-        })
-        jdbcTemplate = JdbcTemplate(DefaultJdbcTransactionProvider(dataSource))
-
-        val initSql = String(Files.readAllBytes(Paths.get(this::class.java.classLoader.getResource("init-transaction-test-db.sql")!!.toURI())))
-        jdbcTemplate.execute(initSql)
-
-        dataAccess = OctaviusDatabase.fromDataSource(
-            dataSource = dataSource,
-            packagesToScan = emptyList(),
-            dbSchemas = listOf("public"),
-            disableCoreTypeInitialization = true
-        )
-    }
+    override val scriptName: String = "init-transaction-test-db.sql"
 
     @BeforeEach
     fun cleanup() {
-        jdbcTemplate.execute("TRUNCATE TABLE users CASCADE")
-    }
-
-    @AfterAll
-    fun tearDown() {
-        dataSource.close()
+        dataAccess.rawQuery("TRUNCATE TABLE users CASCADE").execute()
     }
 
     @Test
@@ -101,22 +74,23 @@ class TransactionConfigurationIntegrationTest {
 
     @Test
     fun `should catch serialization failure in SERIALIZABLE mode`() {
-        jdbcTemplate.execute("INSERT INTO users (name) VALUES ('User1'), ('User2')")
+        dataAccess.rawQuery("INSERT INTO users (name) VALUES ('User1'), ('User2')").execute().getOrThrow()
 
-        val latch1 = CountDownLatch(1)
-        val latch2 = CountDownLatch(1)
+        val barrier = CyclicBarrier(2)
         val t1Error = AtomicReference<Throwable?>(null)
         val t2Error = AtomicReference<Throwable?>(null)
 
         val t1 = thread {
             try {
                 dataAccess.transaction(isolation = IsolationLevel.SERIALIZABLE) { tx ->
+                    // Synchronize start to ensure both have connections and are in SERIALIZABLE mode
+                    barrier.await(60, TimeUnit.SECONDS)
                     val u1 = tx.rawQuery("SELECT name FROM users WHERE name = 'User1'").toField<String>().getOrThrow()
-                    latch1.countDown()
-                    latch2.await(5, TimeUnit.SECONDS)
+                    
+                    // Synchronize after read to ensure both have taken snapshots and SIREAD locks before any update
+                    barrier.await(60, TimeUnit.SECONDS)
                     
                     tx.update("users").setValue("name").where("name = 'User2'").execute("name" to "Modified by T1 ($u1)")
-                    DataResult.Success(Unit)
                 }.getOrThrow()
             } catch (e: Throwable) {
                 t1Error.set(e)
@@ -125,21 +99,23 @@ class TransactionConfigurationIntegrationTest {
 
         val t2 = thread {
             try {
-                latch1.await(5, TimeUnit.SECONDS)
                 dataAccess.transaction(isolation = IsolationLevel.SERIALIZABLE) { tx ->
+                    // Synchronize start
+                    barrier.await(60, TimeUnit.SECONDS)
                     val u2 = tx.rawQuery("SELECT name FROM users WHERE name = 'User2'").toField<String>().getOrThrow()
-                    latch2.countDown()
+                    
+                    // Synchronize after read
+                    barrier.await(60, TimeUnit.SECONDS)
                     
                     tx.update("users").setValue("name").where("name = 'User1'").execute("name" to "Modified by T2 ($u2)")
-                    DataResult.Success(Unit)
                 }.getOrThrow()
             } catch (e: Throwable) {
                 t2Error.set(e)
             }
         }
 
-        t1.join(10000)
-        t2.join(10000)
+        t1.join(120000)
+        t2.join(120000)
 
         val error1 = t1Error.get()
         val error2 = t2Error.get()

@@ -6,13 +6,9 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.TestInstance
 import org.octavius.data.DataAccess
-import org.octavius.data.getOrThrow
 import org.octavius.database.config.DatabaseConfig
 import org.octavius.database.jdbc.DefaultJdbcTransactionProvider
 import org.octavius.database.jdbc.JdbcTemplate
-import org.octavius.database.type.PositionalQuery
-import java.sql.DriverManager
-
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 abstract class AbstractIntegrationTest {
@@ -36,6 +32,11 @@ abstract class AbstractIntegrationTest {
     fun setup() {
         val databaseConfig = DatabaseConfig.loadFromFile("test-database.properties")
 
+        val connectionUrl = databaseConfig.dbUrl
+        val dbName = connectionUrl.substringAfterLast("/")
+        if (!connectionUrl.contains("localhost:5432") || dbName != "octavius_test") {
+            throw IllegalStateException("ABORTING TEST! Attempting to run on a non-test database. URL: '$connectionUrl'")
+        }
         val hikariConfig = HikariConfig().apply {
             jdbcUrl = databaseConfig.dbUrl
             username = databaseConfig.dbUsername
@@ -45,13 +46,13 @@ abstract class AbstractIntegrationTest {
         val jdbcTemplate = JdbcTemplate(DefaultJdbcTransactionProvider(dataSource))
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
         scriptName?.let {  jdbcTemplate.execute(loadSql(it)) }
-        sqlToExecuteOnSetup?.let { jdbcTemplate.execute(it) }
 
         dataAccess = OctaviusDatabase.fromDataSource(
             dataSource = dataSource,
-            packagesToScan = emptyList(),
+            packagesToScan = packagesToScan,
             dbSchemas = listOf("public")
         )
+        sqlToExecuteOnSetup?.let { jdbcTemplate.execute(it) }
     }
 
     @AfterAll

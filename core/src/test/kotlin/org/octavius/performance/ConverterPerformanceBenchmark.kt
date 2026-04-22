@@ -6,7 +6,7 @@ import org.junit.jupiter.params.provider.MethodSource
 import org.octavius.data.type.QualifiedName
 import org.octavius.database.type.PostgresToKotlinConverter
 import org.octavius.database.type.registry.TypeRegistry
-import org.octavius.database.type.utils.createFakeTypeRegistry
+import org.octavius.database.mapping.utils.createFakeTypeRegistry
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.measureNanoTime
 

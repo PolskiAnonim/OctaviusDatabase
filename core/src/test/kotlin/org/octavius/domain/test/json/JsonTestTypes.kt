@@ -5,13 +5,11 @@ import kotlinx.datetime.LocalTime
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.octavius.data.annotation.PgComposite
 import java.math.BigDecimal
 import kotlin.time.Instant
 
 @Serializable
-@PgComposite(name = "products")
-data class ProductComposite(
+data class Product(
     val id: Int? = null,
     val name: String,
     @Contextual val price: BigDecimal,

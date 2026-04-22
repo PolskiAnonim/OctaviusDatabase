@@ -1,32 +1,15 @@
 package org.octavius.database.exception
 
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.exception.StatementException
 import org.octavius.data.exception.StatementExceptionMessage
-import org.octavius.database.OctaviusDatabase
-import org.octavius.database.config.DatabaseConfig
+import org.octavius.database.AbstractIntegrationTest
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class StatementIntegrationTest {
-
-    private lateinit var dataAccess: DataAccess
-
-    @BeforeAll
-    fun setup() {
-        val config = DatabaseConfig.loadFromFile("test-database.properties")
-        dataAccess = OctaviusDatabase.fromConfig(config)
-    }
-
-    @AfterAll
-    fun tearDown() {
-        dataAccess.close()
-    }
+class StatementIntegrationTest: AbstractIntegrationTest() {
 
     @Test
     fun `should return OBJECT_NOT_FOUND for non-existent table`() {

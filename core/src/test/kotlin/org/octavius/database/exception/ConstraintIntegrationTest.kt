@@ -1,33 +1,18 @@
 package org.octavius.database.exception
 
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import org.octavius.data.DataAccess
 import org.octavius.data.DataResult
 import org.octavius.data.exception.ConstraintViolationException
 import org.octavius.data.exception.ConstraintViolationExceptionMessage
-import org.octavius.database.OctaviusDatabase
-import org.octavius.database.config.DatabaseConfig
+import org.octavius.database.AbstractIntegrationTest
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class ConstraintIntegrationTest {
+class ConstraintIntegrationTest: AbstractIntegrationTest() {
 
-    private lateinit var dataAccess: DataAccess
-
-    @BeforeAll
-    fun setup() {
-        val config = DatabaseConfig.loadFromFile("test-database.properties")
-        dataAccess = OctaviusDatabase.fromConfig(config)
-
-        // Setup tables
-        dataAccess.rawQuery("""
-            DROP TABLE IF EXISTS constraint_child;
-            DROP TABLE IF EXISTS constraint_test;
-            
-            CREATE TABLE constraint_test (
+    override val sqlToExecuteOnSetup: String = """
+        CREATE TABLE constraint_test (
                 id INT PRIMARY KEY,
                 name TEXT NOT NULL,
                 age INT CHECK (age > 0),
@@ -38,13 +23,7 @@ class ConstraintIntegrationTest {
                 id INT PRIMARY KEY,
                 parent_id INT REFERENCES constraint_test(id)
             );
-        """.trimIndent()).execute()
-    }
-
-    @AfterAll
-    fun tearDown() {
-        dataAccess.close()
-    }
+    """.trimIndent()
 
     @Test
     fun `should return UNIQUE_CONSTRAINT_VIOLATION`() {

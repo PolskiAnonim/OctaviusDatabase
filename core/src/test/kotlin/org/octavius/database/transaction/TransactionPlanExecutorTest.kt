@@ -1,11 +1,10 @@
 package org.octavius.database.transaction
 
-import com.zaxxer.hikari.HikariConfig
-import com.zaxxer.hikari.HikariDataSource
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.junit.jupiter.api.*
-import org.octavius.data.DataAccess
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.octavius.data.DataResult
 import org.octavius.data.builder.execute
 import org.octavius.data.builder.toColumn
@@ -13,61 +12,19 @@ import org.octavius.data.builder.toField
 import org.octavius.data.exception.BuilderException
 import org.octavius.data.exception.ConstraintViolationException
 import org.octavius.data.exception.StepDependencyException
+import org.octavius.data.getOrThrow
 import org.octavius.data.transaction.TransactionPlan
-import org.octavius.database.OctaviusDatabase
-import org.octavius.database.config.DatabaseConfig
-import org.octavius.database.jdbc.JdbcTemplate
-import org.octavius.database.jdbc.DefaultJdbcTransactionProvider
-import org.octavius.database.type.PositionalQuery
-import java.nio.file.Files
-import java.nio.file.Paths
+import org.octavius.database.AbstractIntegrationTest
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class TransactionPlanExecutorTest {
+class TransactionPlanExecutorTest: AbstractIntegrationTest() {
 
-    private lateinit var dataAccess: DataAccess
-    private lateinit var jdbcTemplate: JdbcTemplate
-
-    private lateinit var dataSource: HikariDataSource
-
-    @BeforeAll
-    fun setup() {
-        // --- Krok 1: Bezpieczna konfiguracja i połączenie ---
-        val dbConfig = DatabaseConfig.loadFromFile("test-database.properties")
-        val dbUrl = dbConfig.dbUrl
-        if (!dbUrl.contains("localhost:5432") || !dbUrl.endsWith("octavius_test")) {
-            throw IllegalStateException("ABORTING TEST! Attempting to run on a non-test database: $dbUrl")
-        }
-
-        dataSource = HikariDataSource(HikariConfig().apply {
-            jdbcUrl = dbConfig.dbUrl
-            username = dbConfig.dbUsername
-            password = dbConfig.dbPassword
-        })
-        jdbcTemplate = JdbcTemplate(DefaultJdbcTransactionProvider(dataSource))
-
-        // --- Krok 2: Inicjalizacja schematu bazy danych ---
-        val initSql = String(Files.readAllBytes(Paths.get(this::class.java.classLoader.getResource("init-transaction-test-db.sql")!!.toURI())))
-        jdbcTemplate.execute(initSql)
-
-        // --- Krok 3: Stworzenie pełnej instancji DataAccess ---
-        dataAccess = OctaviusDatabase.fromDataSource(
-            dataSource = dataSource,
-            packagesToScan = listOf(),
-            dbSchemas = dbConfig.dbSchemas,
-            disableCoreTypeInitialization = true
-        )
-    }
-
-    @AfterAll
-    fun tearDown() {
-        dataSource.close()
-    }
+    override val scriptName: String = "init-transaction-test-db.sql"
 
     @BeforeEach
     fun cleanup() {
         // Czyścimy tabele przed każdym testem, aby zapewnić izolację
-        jdbcTemplate.update(PositionalQuery("TRUNCATE TABLE users, profiles, logs RESTART IDENTITY", listOf()))
+        dataAccess.rawQuery("TRUNCATE TABLE users, profiles, logs RESTART IDENTITY").execute()
     }
 
     @Test
@@ -95,7 +52,7 @@ class TransactionPlanExecutorTest {
         assertThat(successResult.get(userHandle)).isEqualTo(1)
         assertThat(successResult.get(logHandle)).isEqualTo(1)
 
-        val userCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM users", listOf())) { rs, _ -> rs.getLong(1) }.first()
+        val userCount = dataAccess.rawQuery("SELECT COUNT(*) FROM users").toField<Long>().getOrThrow()
         assertThat(userCount).isEqualTo(1)
     }
 
@@ -123,7 +80,7 @@ class TransactionPlanExecutorTest {
 
         // Assert
         assertThat(result).isInstanceOf(DataResult.Success::class.java)
-        val profileUserId = jdbcTemplate.query(PositionalQuery("SELECT user_id FROM profiles WHERE bio = ?", listOf("A bio for John"))) { rs, _ -> rs.getInt(1) }.first()
+        val profileUserId = dataAccess.rawQuery("SELECT user_id FROM profiles WHERE bio = @bio").toField<Int>("bio" to "A bio for John").getOrThrow()
         assertThat(profileUserId).isEqualTo(1) // Powinno być ID Johna
     }
 
@@ -153,14 +110,14 @@ class TransactionPlanExecutorTest {
 
         // Assert
         assertThat(result).isInstanceOf(DataResult.Success::class.java)
-        val logCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM logs", listOf())) { rs, _ -> rs.getLong(1) }.first()
+        val logCount = dataAccess.rawQuery("SELECT COUNT(*) FROM logs").toField<Long>().getOrThrow()
         assertThat(logCount).isEqualTo(3)
     }
 
     @Test
     fun `should roll back all changes if a step fails`() {
         // Arrange: User "Admin" już istnieje w schemacie (UNIQUE constraint)
-        jdbcTemplate.update(PositionalQuery("INSERT INTO users (name) VALUES ('Admin')", listOf()))
+        dataAccess.rawQuery("INSERT INTO users (name) VALUES ('Admin')").execute()
 
         val plan = TransactionPlan()
         // Krok 1: Wstaw log (powinien się udać)
@@ -180,7 +137,7 @@ class TransactionPlanExecutorTest {
         assertThat(failure.queryContext!!.transactionStepIndex).isEqualTo(1) // Błąd w drugim kroku (indeks 1)
 
         // Kluczowa asercja: Sprawdzamy, czy Krok 1 został wycofany
-        val logCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM logs", listOf())) { rs, _ -> rs.getLong(1) }.first()
+        val logCount = dataAccess.rawQuery("SELECT COUNT(*) FROM logs").toField<Long>().getOrThrow()
         assertThat(logCount).isEqualTo(0)
     }
 
@@ -228,9 +185,9 @@ class TransactionPlanExecutorTest {
 
         // Assert
         assertThat(result).isInstanceOf(DataResult.Success::class.java)
-        val userCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM users", listOf())) { rs, _ -> rs.getLong(1) }.first()
-        val logCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM logs", listOf())) { rs, _ -> rs.getLong(1) }.first()
-        val profileCount = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM profiles", listOf())) { rs, _ -> rs.getLong(1) }.first()
+        val userCount = dataAccess.rawQuery("SELECT COUNT(*) FROM users").toField<Long>().getOrThrow()
+        val logCount = dataAccess.rawQuery("SELECT COUNT(*) FROM logs").toField<Long>().getOrThrow()
+        val profileCount = dataAccess.rawQuery("SELECT COUNT(*) FROM profiles").toField<Long>().getOrThrow()
 
         assertThat(userCount).isEqualTo(1)
         assertThat(logCount).isEqualTo(1)
