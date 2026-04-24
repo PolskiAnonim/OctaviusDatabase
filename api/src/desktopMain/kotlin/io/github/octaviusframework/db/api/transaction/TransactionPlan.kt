@@ -4,24 +4,28 @@ package io.github.octaviusframework.db.api.transaction
  * Mutable container for building a sequence of database operations to be executed atomically.
  *
  * Collects [TransactionStep] instances and their corresponding [StepHandle]s,
- * enabling deferred execution within a single transaction via [io.github.octaviusframework.db.api.DataAccess.executeTransactionPlan].
+ * enabling deferred execution within a single transaction via [DataAccess.executeTransactionPlan][io.github.octaviusframework.db.api.DataAccess.executeTransactionPlan].
  *
  * Useful when transaction steps need to be constructed dynamically based on runtime data
- * (e.g., form submissions with variable number of related entities).
+ * (e.g., enrolling a variable number of legionnaires into a newly created legion).
  *
  * ### Usage Example
  * ```kotlin
  * val plan = TransactionPlan()
  *
- * val userHandle = plan.add(
- *     dataAccess.insertInto("users").values(userData).asStep().toField<Int>()
+ * // Step 1: Create the legion, get its generated ID back
+ * val legionHandle = plan.add(
+ *     dataAccess.insertInto("legions").values(legionData).asStep().toField<Int>()
  * )
  *
- * plan.add(
- *     dataAccess.insertInto("profiles")
- *         .values(mapOf("user_id" to userHandle.field()))
- *         .asStep().execute()
- * )
+ * // Step 2: Enroll each legionnaire, referencing the legion ID from Step 1
+ * legionnaires.forEach { legionnaire ->
+ *     plan.add(
+ *         dataAccess.insertInto("legionnaire_assignments")
+ *             .values(mapOf("legion_id" to legionHandle.field(), "legionnaire_id" to legionnaire.id))
+ *             .asStep().execute()
+ *     )
+ * }
  *
  * dataAccess.executeTransactionPlan(plan)
  * ```

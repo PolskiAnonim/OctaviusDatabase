@@ -59,7 +59,7 @@ val generateVersionKotlin = tasks.register("generateVersionKotlin") {
     inputs.property("version", project.version)
 
     doLast {
-        val packagePath = "org/octavius/database/config"
+        val packagePath = "io/github/octaviusframework/db/core/config"
         val fileDir = outputDir.get().dir(packagePath).asFile
         fileDir.mkdirs()
 

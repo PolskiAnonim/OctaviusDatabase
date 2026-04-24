@@ -12,44 +12,41 @@ import io.github.octaviusframework.db.api.util.CaseConvention
  *
  * **Naming convention:**
  * By default, the type name in PostgreSQL is derived from the simple class name
- * by converting from `CamelCase` to `snake_case` (e.g., `OrderStatus` class will be
- * mapped to `order_status` type). Enum values are by default mapped from PascalCase to
- * `SNAKE_CASE_UPPER` (e.g., `Pending` -> `PENDING`).
+ * by converting from `CamelCase` to `snake_case` (e.g., `LegionStatus` class will be
+ * mapped to `legion_status` type). Enum values are by default mapped from PascalCase to
+ * `SNAKE_CASE_UPPER` (e.g., `OnMarch` -> `ON_MARCH`).
  *
  * **Explicit name specification:**
  * You can override the default type name by providing it in the [name] parameter.
  *
+ * ### Examples
+ * ```kotlin
+ * // Example 1: Using default naming convention
+ * // `LegionStatus` class will be mapped to `legion_status` type in PostgreSQL.
+ * // Values (OnMarch, InBattle) will be mapped as 'ON_MARCH', 'IN_BATTLE'.
+ * @PgEnum
+ * enum class LegionStatus { Garrisoned, OnMarch, InBattle, Victorious }
+ *
+ * // Example 2: Explicit type name and lowercase value convention
+ * // `Magistrature` class will be mapped to `magistrature_rank` type.
+ * // Values (Quaestor, Aedile) will be mapped as 'quaestor', 'aedile'.
+ * @PgEnum(name = "magistrature_rank", pgConvention = CaseConvention.SNAKE_CASE_LOWER)
+ * enum class Magistrature { Quaestor, Aedile, Praetor, Consul }
+ * ```
  * @param name Optional, explicit name of the corresponding type in PostgreSQL database.
  *             If left empty, the name will be generated automatically
  *             according to the `CamelCase` -> `snake_case` convention.
  * @param schema Optional, explicit schema name. If left empty, the type will be resolved
  *               based on the database `search_path`, or by searching for an unambiguous
  *               match in all scanned schemas.
- * @param pgConvention Naming convention for enum values in Postgres
- * @param kotlinConvention Naming convention for enum values in Kotlin
- *
- * ### Examples
- * ```kotlin
- * // Example 1: Using default naming convention
- * // `OrderStatus` class will be mapped to `order_status` type in PostgreSQL.
- * // Values (Pending, Completed) will be mapped as 'PENDING', 'COMPLETED'.
- * @PgEnum
- * enum class OrderStatus { Pending, Completed }
- *
- * // Example 2: Explicit type name specification and different value convention
- * // `PaymentMethod` class will be mapped to `payment_method_enum` type.
- * // Values (CreditCard) will be mapped as 'credit_card'.
- * @PgEnum(name = "payment_method_enum", pgConvention = CaseConvention.SNAKE_CASE_LOWER)
- * enum class PaymentMethod { CreditCard, BankTransfer }
- * ```
+ * @param pgConvention Naming convention for enum values in PostgreSQL.
+ * @param kotlinConvention Naming convention for enum values in Kotlin.
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class PgEnum(
     val name: String = "",
     val schema: String = "",
-    // How values are stored in PostgreSQL database (e.g., 'PENDING', 'in_progress')
     val pgConvention: CaseConvention = CaseConvention.SNAKE_CASE_UPPER,
-    // How values are stored in Kotlin Enum class (e.g., Pending, IN_PROGRESS)
     val kotlinConvention: CaseConvention = CaseConvention.PASCAL_CASE
 )

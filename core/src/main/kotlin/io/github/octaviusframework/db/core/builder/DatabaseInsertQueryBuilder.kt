@@ -66,11 +66,20 @@ internal class DatabaseInsertQueryBuilder(
 
     /**
      * Configures the ON CONFLICT clause in a fluent and safe manner.
-     * Example:
-     * .onConflict {
-     *   onColumns("email")
-     *   doUpdate("last_login = NOW()")
-     * }
+     *
+     * ```kotlin
+     * // Re-enlist a legionnaire under the same legion — update their rank if the record already exists
+     * dataAccess.insertInto("legionnaires")
+     *     .values(data)
+     *     .onConflict {
+     *         onColumns("name", "legion_id")
+     *         doUpdate(
+     *             "rank" to "EXCLUDED.rank",
+     *             "re_enlisted_at" to "NOW()"
+     *         )
+     *     }
+     *     .execute(data)
+     * ```
      */
     override fun onConflict(config: OnConflictClauseBuilder.() -> Unit): InsertQueryBuilder = apply {
         if (onConflictBuilder == null) {
@@ -161,7 +170,9 @@ internal class DatabaseInsertQueryBuilder(
 }
 
 internal class DatabaseOnConflictClauseBuilder : OnConflictClauseBuilder {
+    /** Defines the conflict target as a list of columns. */
     internal var target: String? = null
+    /** Defines the conflict target as an existing constraint name. */
     internal var action: String? = null
 
     /** Defines the conflict target (columns). */
@@ -174,13 +185,18 @@ internal class DatabaseOnConflictClauseBuilder : OnConflictClauseBuilder {
         target = "ON CONSTRAINT $constraintName"
     }
 
-    /** Defines the DO NOTHING action. */
+    /** In case of conflict, do nothing (DO NOTHING). */
     override fun doNothing() {
         action = "DO NOTHING"
     }
 
     /**
-     * Defines the DO UPDATE action.
+     * Defines the DO UPDATE action using a raw SET expression.
+     * Use `EXCLUDED` to reference the values that were attempted to insert.
+     *
+     * ```kotlin
+     * doUpdate("tribute_amount = EXCLUDED.tribute_amount")
+     * ```
      */
     override fun doUpdate(setExpression: String, whereCondition: String?) {
         requireBuilder(setExpression.isNotBlank()) { "doUpdate cannot be blank." }
@@ -192,7 +208,14 @@ internal class DatabaseOnConflictClauseBuilder : OnConflictClauseBuilder {
     }
 
     /**
-     * Overload for vararg Pair
+     * Defines the DO UPDATE action using column-value pairs.
+     *
+     * ```kotlin
+     * doUpdate(
+     *     "tribute_amount" to "EXCLUDED.tribute_amount",
+     *     "last_collected_at" to "NOW()"
+     * )
+     * ```
      */
     override fun doUpdate(vararg setPairs: Pair<String, String>, whereCondition: String?) {
         val setExpression = setPairs.joinToString(",\n") { (column, expression) ->
@@ -204,7 +227,9 @@ internal class DatabaseOnConflictClauseBuilder : OnConflictClauseBuilder {
     }
 
     /**
-     * Overload for Map
+     * Defines the DO UPDATE action using a map.
+     * Useful when the update columns are determined at runtime,
+     * e.g., when only non-null fields of a patch request should be updated.
      */
     override fun doUpdate(setMap: Map<String, String>, whereCondition: String?) {
         val setExpression = setMap.map { (column, expression) ->

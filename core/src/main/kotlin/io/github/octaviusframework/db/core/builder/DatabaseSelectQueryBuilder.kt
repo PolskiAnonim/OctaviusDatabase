@@ -10,8 +10,7 @@ import io.github.octaviusframework.db.core.type.KotlinToPostgresConverter
 
 /**
  * Internal implementation of [SelectQueryBuilder] for building SQL SELECT queries.
- * Inherits from [AbstractQueryBuilder] to reuse WITH clause logic
- * and terminal methods.
+ * Inherits from [AbstractQueryBuilder] to reuse WITH clause logic and terminal methods.
  */
 internal class DatabaseSelectQueryBuilder(
     jdbcTemplate: JdbcTemplate,
@@ -41,16 +40,16 @@ internal class DatabaseSelectQueryBuilder(
 
     /**
      * Sets the FROM clause.
-     * The programmer is fully responsible for passing correct syntax.
+     *
+     * The programmer is fully responsible for passing correct SQL syntax.
      * The method does not perform any formatting or wrapping in parentheses.
      *
      * Examples of valid values:
-     * - "users"
-     * - "users u"
-     * - "users AS u JOIN profiles p ON u.id = p.user_id"
-     * - "(SELECT id FROM active_users) AS u"
-     * - "UNNEST(@ids) AS id"
-     *
+     * - `"legions"`
+     * - `"legions l"`
+     * - `"legions l JOIN provinces p ON l.province_id = p.id"`
+     * - `"(SELECT id FROM active_legions) AS l"`
+     * - `"UNNEST(@ids) AS id"`
      */
     override fun from(source: String): SelectQueryBuilder = apply {
         this.fromClause = source
@@ -142,6 +141,17 @@ internal class DatabaseSelectQueryBuilder(
     //                                          COPY
     //------------------------------------------------------------------------------------------------------------------
 
+    /**
+     * Creates and returns a deep copy of this builder.
+     * Enables safe creation of query variants from a shared base without modifying the original.
+     *
+     * ```kotlin
+     * val base = dataAccess.select("*").from("legions").orderBy("name ASC")
+     * val onMarch    = base.copy().where("status = 'ON_MARCH'")
+     * val garrisoned = base.copy().where("status = 'GARRISONED'")
+     * // 'base' is unchanged — both variants are independent
+     * ```
+     */
     override fun copy(): DatabaseSelectQueryBuilder {
         // 1. Create a new, "clean" instance using the main constructor
         val newBuilder = DatabaseSelectQueryBuilder(

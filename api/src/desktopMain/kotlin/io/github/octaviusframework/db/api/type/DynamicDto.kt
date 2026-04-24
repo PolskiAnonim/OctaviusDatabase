@@ -14,21 +14,23 @@ import kotlin.reflect.full.findAnnotation
 /**
  * Represents a polymorphic object for database storage, mapping to the `dynamic_dto` PostgreSQL type.
  *
- * `DynamicDto` acts as a "transport container" that bundles a type name and a JSON payload. 
+ * `DynamicDto` acts as a "transport container" that bundles a type name and a JSON payload.
  * This allows PostgreSQL to store and query polymorphic data structures without requiring
  * dedicated `COMPOSITE` types. Corresponds to the `dynamic_dto` type in the database.
  *
  * ### Asymmetric Data Flow
- * - **Writing (Kotlin -> DB)**: Wrap your domain object in a `DynamicDto` using [DynamicDto.from]. 
+ * - **Writing (Kotlin -> DB)**: Wrap your domain object in a `DynamicDto` using [DynamicDto.from].
  *   The framework converts this into the database's `dynamic_dto(text, jsonb)` structure.
- * - **Reading (DB -> Kotlin)**: The framework automatically unmarshals `dynamic_dto` values 
+ * - **Reading (DB -> Kotlin)**: The framework automatically unmarshals `dynamic_dto` values
  *   directly into your domain classes (annotated with [DynamicallyMappable]).
  *
  * ### Example: Writing Polymorphic Data
  * ```kotlin
- * val profile: UserProfile = UserProfile(bio = "Hello!")
- * val dto = DynamicDto.from(profile)
- * dataAccess.insertInto("users").values("id" to 1, "profile_data" to dto).execute()
+ * // A legionnaire's benefit can be either a land grant or a military pension —
+ * // both stored in the same 'veteran_benefit' column.
+ * val grant = LandGrant(province = "Gallia Narbonensis", areraActa = BigDecimal("120.5"))
+ * val dto = DynamicDto.from(grant)
+ * dataAccess.insertInto("veterans").values("id" to 1, "benefit" to dto).execute()
  * ```
  *
  * @property typeName Identifier linked to a [DynamicallyMappable] class.

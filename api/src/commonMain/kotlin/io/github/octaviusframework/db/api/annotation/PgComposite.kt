@@ -41,8 +41,8 @@ object DefaultPgCompositeMapper : PgCompositeMapper<Any> {
  *
  * **Naming convention:**
  * By default, the type name in PostgreSQL is derived from the simple class name
- * by converting from `CamelCase` to `snake_case` (e.g., `TestPerson` class will be
- * mapped to `test_person` type).
+ * by converting from `CamelCase` to `snake_case` (e.g., `ProvinceRecord` class will be
+ * mapped to `province_record` type).
  *
  * **Explicit name specification:**
  * You can override the default name by providing it in the [name] parameter. This is useful
@@ -53,6 +53,29 @@ object DefaultPgCompositeMapper : PgCompositeMapper<Any> {
  * You can provide a custom [PgCompositeMapper] via the [mapper] parameter to bypass reflection,
  * which can significantly improve performance for high-volume operations.
  *
+ *
+ * ### Examples
+ * ```kotlin
+ * // Example 1: Using default naming convention and reflection
+ * // `LegionPost` class will be mapped to `legion_post` composite type in PostgreSQL.
+ * @PgComposite
+ * data class LegionPost(val name: String, val province: String)
+ *
+ * // Example 2: Explicit type name and custom mapper
+ * @PgComposite(name = "battle_record", mapper = BattleRecordMapper::class)
+ * data class BattleRecord(val location: String, val outcome: String)
+ *
+ * object BattleRecordMapper : PgCompositeMapper<BattleRecord> {
+ *     override fun toDataObject(map: Map<String, Any?>) = BattleRecord(
+ *         location = map["location"] as String,
+ *         outcome = map["outcome"] as String
+ *     )
+ *     override fun toDataMap(obj: BattleRecord) = mapOf(
+ *         "location" to obj.location,
+ *         "outcome" to obj.outcome
+ *     )
+ * }
+ * ```
  * @param name Optional, explicit name of the corresponding type in PostgreSQL database.
  *             If left empty, the name will be generated automatically
  *             according to the `CamelCase` -> `snake_case` convention.
@@ -61,28 +84,6 @@ object DefaultPgCompositeMapper : PgCompositeMapper<Any> {
  *               match in all scanned schemas.
  * @param mapper Optional, custom mapper implementation to use instead of reflection.
  *               Must implement [PgCompositeMapper].
- *
- * ### Examples
- * ```kotlin
- * // Example 1: Using default naming convention and reflection
- * @PgComposite
- * data class UserInfo(val id: Int, val username: String)
- *
- * // Example 2: Explicit type name and custom mapper
- * @PgComposite(name = "stats_type", mapper = StatsMapper::class)
- * data class Stats(val strength: Int, val agility: Int)
- *
- * object StatsMapper : PgCompositeMapper<Stats> {
- *     override fun toDataObject(map: Map<String, Any?>) = Stats(
- *         strength = map["strength"] as Int,
- *         agility = map["agility"] as Int
- *     )
- *     override fun toDataMap(obj: Stats) = mapOf(
- *         "strength" to obj.strength,
- *         "agility" to obj.agility
- *     )
- * }
- * ```
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)

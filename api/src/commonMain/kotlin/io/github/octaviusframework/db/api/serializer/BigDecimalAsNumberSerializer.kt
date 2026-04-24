@@ -9,19 +9,20 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
 /**
- * JSON serializer for [BigDecimal][BigDecimal] that preserves numeric precision.
+ * JSON serializer for [BigDecimal] that preserves numeric precision.
  *
  * Encodes BigDecimal as an unquoted JSON number literal (not a string),
  * which is important for PostgreSQL's JSONB type to correctly interpret
- * the value as a number.
+ * the value as a number rather than text.
  *
  * ### Usage Example
  * ```kotlin
  * @Serializable
- * @DynamicallyMappable("price_data")
- * data class PriceData(
+ * @DynamicallyMappable("tribute_amount")
+ * data class TributeAmount(
+ *     val province: String,
  *     @Serializable(with = BigDecimalAsNumberSerializer::class)
- *     val price: BigDecimal
+ *     val amountInDenarii: BigDecimal
  * )
  * ```
  */

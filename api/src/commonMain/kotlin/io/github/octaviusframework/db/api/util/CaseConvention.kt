@@ -11,25 +11,25 @@ package io.github.octaviusframework.db.api.util
 enum class CaseConvention {
     /**
      * Uppercase words separated by underscores.
-     * Example: `MY_ENUM_VALUE`
+     * Example: `ON_MARCH`, `IN_BATTLE`
      */
     SNAKE_CASE_UPPER,
 
     /**
      * Lowercase words separated by underscores.
-     * Example: `my_table_name`
+     * Example: `legion_status`, `province_name`
      */
     SNAKE_CASE_LOWER,
 
     /**
      * Words concatenated together, each starting with an uppercase letter.
-     * Example: `MyDataClass`
+     * Example: `LegionStatus`, `ProvinceRecord`
      */
     PASCAL_CASE,
 
     /**
      * Words concatenated together, each except the first starting with an uppercase letter.
-     * Example: `myProperty`
+     * Example: `legionStatus`, `provinceRecord`
      */
     CAMEL_CASE,
 }

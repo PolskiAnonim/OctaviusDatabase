@@ -12,12 +12,12 @@ import kotlinx.serialization.encoding.Encoder
 import kotlin.enums.EnumEntries
 
 /**
- * A specialized serializer for mapping Kotlin Enums to their PostgreSQL representations 
+ * A specialized serializer for mapping Kotlin Enums to their PostgreSQL representations
  * within `dynamic_dto`.
  *
- * This serializer is essential when your Enums use different naming conventions 
- * in Kotlin (e.g., `PascalCase`) and PostgreSQL (e.g., `SNAKE_CASE_UPPER`). 
- * It ensures that the value stored in the JSONB payload of a `dynamic_dto` 
+ * This serializer is essential when your Enums use different naming conventions
+ * in Kotlin (e.g., `PascalCase`) and PostgreSQL (e.g., `SNAKE_CASE_UPPER`).
+ * It ensures that the value stored in the JSONB payload of a `dynamic_dto`
  * correctly matches the database's expectations.
  *
  * ### Key Features
@@ -26,13 +26,13 @@ import kotlin.enums.EnumEntries
  *
  * ### Usage Example
  * ```kotlin
- * @Serializable(with = OrderStatusSerializer::class)
+ * @Serializable(with = LegionStatusSerializer::class)
  * @PgEnum(pgConvention = CaseConvention.SNAKE_CASE_UPPER)
- * enum class OrderStatus { Pending, InProgress, Completed }
+ * enum class LegionStatus { Garrisoned, OnMarch, InBattle, Victorious }
  *
- * object OrderStatusSerializer : DynamicDtoEnumSerializer<OrderStatus>(
- *     enumName = "OrderStatus",
- *     entries = OrderStatus.entries,
+ * object LegionStatusSerializer : DynamicDtoEnumSerializer<LegionStatus>(
+ *     enumName = "LegionStatus",
+ *     entries = LegionStatus.entries,
  *     pgConvention = CaseConvention.SNAKE_CASE_UPPER,
  *     kotlinConvention = CaseConvention.PASCAL_CASE
  * )
