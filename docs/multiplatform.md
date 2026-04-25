@@ -53,46 +53,54 @@ This allows you to safely pass high-precision values (like currency or scientifi
 
 ---
 
-## Serializers for PostgreSQL & Multiplatform
+## Serializers & JSON Configuration
 
-Octavius provides specialized serializers in `io.github.octaviusframework.db.api.serializer`. Their primary purpose is to ensure that Kotlin types are correctly represented inside PostgreSQL's JSONB format when using **`dynamic_dto`**. 
+Octavius relies on `kotlinx.serialization` for handling complex data types, especially when using **JSONB** or **`dynamic_dto`**. To ensure consistency across platforms and support for PostgreSQL-specific values (like `infinity`), Octavius provides a pre-configured serialization setup.
 
-Because these serializers are part of the Multiplatform `:api` module, they automatically provide the same consistent behavior when sharing your DTOs with a frontend.
+### Contextual Serialization
+Instead of hardcoding serializers for every field using `@Serializable(with = ...)`, Octavius leverages **Contextual Serialization**. This keeps your DTOs clean and allows the library to automatically handle platform-specific mapping (like the JS `BigDecimal` wrapper).
 
-### BigDecimal: Preserving Precision in JSONB
-By default, `kotlinx.serialization` might serialize large numbers in ways that lead to precision loss in JavaScript or standard JSON parsers. `BigDecimalAsNumberSerializer` ensures the value is stored as a numeric literal in PostgreSQL's JSONB, while maintaining its `String` representation on the JS target for safety.
+You should use `@Contextual` for the following types:
+- **`BigDecimal`**: Ensures precision is preserved in JSON (stored as numeric literal in PG, string in JS).
+- **`LocalDate`, `LocalDateTime`, `Instant`**: Handles PostgreSQL `infinity` and `-infinity` values which standard serializers do not support.
 
 ```kotlin
 @Serializable
-@DynamicallyMappable("denarii_amount")
-data class Tribute(
-    @Serializable(with = BigDecimalAsNumberSerializer::class)
-    val amount: BigDecimal
+@PgComposite(name = "citizen_type")
+data class Citizen(
+    val id: Int,
+    val name: String,
+    @Contextual val balance: BigDecimal,    // Automatic precision handling
+    @Contextual val birthDate: LocalDate,   // Supports PG 'infinity'
+    @Contextual val updatedAt: Instant
 )
 ```
 
-### Date/Time: Handling 'infinity'
-Standard `kotlinx-datetime` serializers fail when encountering PostgreSQL's `infinity` values. These serializers are essential for any `@DynamicallyMappable` class that uses dates:
-- `DynamicDtoLocalDateSerializer`
-- `DynamicDtoLocalDateTimeSerializer`
-- `DynamicDtoInstantSerializer`
-
-### Consistent API between Backend and Frontend
-By using these serializers, you guarantee that:
-1. **In the Database:** `dynamic_dto` payloads are compatible with PostgreSQL's numeric and date logic.
-2. **On the Frontend:** Your JS/TS code receives data in a predictable format that matches the backend model.
-
-### The Octavius Serializers Module
-To ensure these rules are applied globally to your `dynamic_dto` fields and shared models, use the provided configuration:
+### Using OctaviusJson
+The easiest way to work with these types on both the backend (JVM) and frontend (JS) is to use the provided `OctaviusJson` instance. It is a pre-configured `Json` object that includes all necessary contextual mappings.
 
 ```kotlin
-// Use in common code for both Octavius initialization and Frontend JSON parsing
-val octaviusJson = Json {
-    serializersModule = createOctaviusSerializersModule()
-    // recommended for JS compatibility with large numbers
-    encodeDefaults = true 
+import io.github.octaviusframework.db.api.serializer.OctaviusJson
+
+// On the frontend (JS) or backend (JVM)
+val json = OctaviusJson.encodeToString(citizen)
+val decoded = OctaviusJson.decodeFromString<Citizen>(json)
+```
+
+### Custom JSON Configuration
+If you need to merge Octavius serializers with your own configuration (e.g., to add your own `SerializersModule` or change formatting), use `createOctaviusSerializersModule()`:
+
+```kotlin
+val myCustomJson = Json {
+    // Add Octavius support to your custom module
+    serializersModule = createOctaviusSerializersModule() + myAppModule
+    
+    ignoreUnknownKeys = true
+    prettyPrint = true
 }
 ```
+
+Using these tools guarantees that your `dynamic_dto` payloads remain compatible with PostgreSQL's native types while staying fully functional in a Kotlin Multiplatform environment.
 
 ---
 
