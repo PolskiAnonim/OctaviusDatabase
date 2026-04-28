@@ -7,7 +7,8 @@ import io.github.octaviusframework.db.core.config.DatabaseConfig
 import io.github.octaviusframework.db.core.jdbc.DefaultJdbcTransactionProvider
 import io.github.octaviusframework.db.core.jdbc.JdbcTemplate
 import io.github.octaviusframework.db.core.type.PositionalQuery
-import org.assertj.core.api.Assertions
+import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.*
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -53,7 +54,7 @@ class DefaultJdbcTransactionProviderTest {
         }
 
         val count = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM users", listOf())) { rs, _ -> rs.getLong(1) }.first()
-        Assertions.assertThat(count).isEqualTo(1)
+        assertThat(count).isEqualTo(1)
     }
 
     @Test
@@ -67,12 +68,12 @@ class DefaultJdbcTransactionProviderTest {
         }
 
         val count = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM users", listOf())) { rs, _ -> rs.getLong(1) }.first()
-        Assertions.assertThat(count).isEqualTo(2)
+        assertThat(count).isEqualTo(2)
     }
 
     @Test
     fun `REQUIRED should rollback everything if inner fails`() {
-        Assertions.assertThatThrownBy {
+        assertThatThrownBy {
             transactionProvider.execute(TransactionPropagation.REQUIRED) {
                 jdbcTemplate.update(PositionalQuery("INSERT INTO users (name) VALUES ('User 1')", listOf()))
 
@@ -84,7 +85,7 @@ class DefaultJdbcTransactionProviderTest {
         }.isInstanceOf(RuntimeException::class.java)
 
         val count = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM users", listOf())) { rs, _ -> rs.getLong(1) }.first()
-        Assertions.assertThat(count).isEqualTo(0)
+        assertThat(count).isEqualTo(0)
     }
 
     @Test
@@ -103,7 +104,7 @@ class DefaultJdbcTransactionProviderTest {
 
         // User 2 should be committed, User 1 should be rolled back
         val names = jdbcTemplate.query(PositionalQuery("SELECT name FROM users", listOf())) { rs, _ -> rs.getString(1) }
-        Assertions.assertThat(names).containsExactly("User 2")
+        assertThat(names).containsExactly("User 2")
     }
 
     @Test
@@ -125,7 +126,7 @@ class DefaultJdbcTransactionProviderTest {
 
         // User 1 and User 3 should be committed, User 2 should be rolled back
         val names = jdbcTemplate.query(PositionalQuery("SELECT name FROM users ORDER BY name", listOf())) { rs, _ -> rs.getString(1) }
-        Assertions.assertThat(names).containsExactly("User 1", "User 3")
+        assertThat(names).containsExactly("User 1", "User 3")
     }
 
     @Test
@@ -136,6 +137,6 @@ class DefaultJdbcTransactionProviderTest {
         }
 
         val count = jdbcTemplate.query(PositionalQuery("SELECT COUNT(*) FROM users", listOf())) { rs, _ -> rs.getLong(1) }.first()
-        Assertions.assertThat(count).isEqualTo(0)
+        assertThat(count).isEqualTo(0)
     }
 }

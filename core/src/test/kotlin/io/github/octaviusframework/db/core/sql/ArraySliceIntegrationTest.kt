@@ -3,11 +3,9 @@ package io.github.octaviusframework.db.core.sql
 import io.github.octaviusframework.db.api.builder.toSingleStrict
 import io.github.octaviusframework.db.api.getOrThrow
 import io.github.octaviusframework.db.core.AbstractIntegrationTest
-import org.assertj.core.api.Assertions
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ArraySliceIntegrationTest : AbstractIntegrationTest() {
 
     override val sqlToExecuteOnSetup: String = """
@@ -27,7 +25,7 @@ class ArraySliceIntegrationTest : AbstractIntegrationTest() {
             .toSingleStrict(mapOf("idx" to 2))
             .getOrThrow()
 
-        Assertions.assertThat(result["val"] as Int).isEqualTo(20)
+        assertThat(result["val"] as Int).isEqualTo(20)
     }
 
     @Test
@@ -37,7 +35,7 @@ class ArraySliceIntegrationTest : AbstractIntegrationTest() {
             .toSingleStrict(mapOf("start" to 2, "end" to 4))
             .getOrThrow()
 
-        Assertions.assertThat(result["slice"] as List<*>).containsExactly(20, 30, 40)
+        assertThat(result["slice"] as List<*>).containsExactly(20, 30, 40)
     }
 
     @Test
@@ -47,7 +45,7 @@ class ArraySliceIntegrationTest : AbstractIntegrationTest() {
             .toSingleStrict(mapOf("end" to 3))
             .getOrThrow()
 
-        Assertions.assertThat(result["slice"] as List<*>).containsExactly(10, 20, 30)
+        assertThat(result["slice"] as List<*>).containsExactly(10, 20, 30)
     }
 
     @Test
@@ -58,8 +56,8 @@ class ArraySliceIntegrationTest : AbstractIntegrationTest() {
                 .toSingleStrict("index" to 1)
                 .getOrThrow()
 
-        Assertions.assertThat(result["slice"] as List<*>).containsExactly(10, 20, 30)
-        Assertions.assertThat(result["idx"] as Int).isEqualTo(1)
+        assertThat(result["slice"] as List<*>).containsExactly(10, 20, 30)
+        assertThat(result["idx"] as Int).isEqualTo(1)
     }
 
     @Test
@@ -71,6 +69,6 @@ class ArraySliceIntegrationTest : AbstractIntegrationTest() {
                 .toSingleStrict(mapOf("off" to 1, "limit" to 2))
                 .getOrThrow()
 
-        Assertions.assertThat(result["slice"] as List<*>).containsExactly(20, 30, 40)
+        assertThat(result["slice"] as List<*>).containsExactly(20, 30, 40)
     }
 }

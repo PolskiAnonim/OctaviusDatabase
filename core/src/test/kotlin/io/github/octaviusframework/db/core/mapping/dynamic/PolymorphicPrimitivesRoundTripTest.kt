@@ -10,7 +10,6 @@ import io.github.octaviusframework.db.domain.test.polymorphicPrimitives.StringWr
 import io.github.octaviusframework.db.domain.test.polymorphicPrimitives.UserAction
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 
 /**
  * Test weryfikujący pełny cykl zapisu i odczytu dla polimorficznej listy `List<Any>`,
@@ -20,7 +19,6 @@ import org.junit.jupiter.api.TestInstance
  * Jest to ostateczny dowód, że mechanizm `dynamic_dto` poprawnie obsługuje
  * heterogeniczne kolekcje, włączając w to "typowe proste" z metadanymi.
  */
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PolymorphicPrimitivesRoundTripTest: AbstractIntegrationTest() {
 
     override val packagesToScan: List<String> = listOf("io.github.octaviusframework.db.domain.test.polymorphicPrimitives")

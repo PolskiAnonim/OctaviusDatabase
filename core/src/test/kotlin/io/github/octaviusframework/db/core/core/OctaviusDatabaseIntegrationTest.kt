@@ -5,7 +5,7 @@ import io.github.octaviusframework.db.core.DatabaseAccess
 import io.github.octaviusframework.db.core.OctaviusDatabase
 import io.github.octaviusframework.db.core.config.DatabaseConfig
 import io.github.octaviusframework.db.core.jdbc.JdbcTemplate
-import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class OctaviusDatabaseIntegrationTest {
@@ -33,18 +33,18 @@ class OctaviusDatabaseIntegrationTest {
                 jdbcTemplate.dataSource as HikariDataSource
             }
 
-            Assertions.assertEquals(12, dataSource.maximumPoolSize)
-            Assertions.assertEquals("IntegrationTestPool", dataSource.poolName)
-            Assertions.assertFalse(dataSource.isClosed)
+            assertEquals(12, dataSource.maximumPoolSize)
+            assertEquals("IntegrationTestPool", dataSource.poolName)
+            assertFalse(dataSource.isClosed)
 
             // Close DataAccess
             da.close()
 
             // Verify Hikari pool is closed
-            Assertions.assertTrue(dataSource.isClosed)
+            assertTrue(dataSource.isClosed)
 
         } finally {
-            // Ensure cleanup even if assertions fail
+            // Ensure cleanup even if fail
             da.close()
         }
     }

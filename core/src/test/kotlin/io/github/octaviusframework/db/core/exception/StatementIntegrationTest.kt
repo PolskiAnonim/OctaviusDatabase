@@ -5,10 +5,9 @@ import io.github.octaviusframework.db.api.exception.StatementException
 import io.github.octaviusframework.db.api.exception.StatementExceptionMessage
 import io.github.octaviusframework.db.core.AbstractIntegrationTest
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+import org.junit.jupiter.api.Test
+
 class StatementIntegrationTest: AbstractIntegrationTest() {
 
     @Test

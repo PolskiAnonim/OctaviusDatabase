@@ -5,9 +5,8 @@ import io.github.octaviusframework.db.api.builder.toField
 import io.github.octaviusframework.db.core.AbstractIntegrationTest
 import io.github.octaviusframework.db.domain.test.dynamic.DynamicProfile
 import io.github.octaviusframework.db.domain.test.dynamic.UserStats
-import org.assertj.core.api.Assertions
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 
 /**
  * Ostateczny test frameworka - "Grand Unification Round-Trip Test".
@@ -21,7 +20,6 @@ import org.junit.jupiter.api.TestInstance
  * Ten test jest ostatecznym dowodem na spójność i potęgę dwukierunkowego,
  * rekurencyjnego systemu mapowania typów.
  */
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PolymorphicArrayRoundTripTest: AbstractIntegrationTest() {
 
     override val packagesToScan: List<String> = listOf("io.github.octaviusframework.db.domain.test.dynamic")
@@ -71,9 +69,9 @@ class PolymorphicArrayRoundTripTest: AbstractIntegrationTest() {
             ))
 
         // Sprawdzamy, czy zapis się powiódł i pobieramy ID nowego wiersza
-        Assertions.assertThat(insertResult).isInstanceOf(DataResult.Success::class.java)
+        assertThat(insertResult).isInstanceOf(DataResult.Success::class.java)
         val newId = (insertResult as DataResult.Success).value
-        Assertions.assertThat(newId).isNotNull()
+        assertThat(newId).isNotNull()
 
         // --- ACT (READ) ---
         // Odczytujemy tę samą wartość z bazy, używając pobranego ID.
@@ -86,21 +84,21 @@ class PolymorphicArrayRoundTripTest: AbstractIntegrationTest() {
 
         // --- ASSERT ---
         // Krok 1: Sprawdzamy, czy odczyt się powiódł
-        Assertions.assertThat(readResult).isInstanceOf(DataResult.Success::class.java)
+        assertThat(readResult).isInstanceOf(DataResult.Success::class.java)
         val retrievedEvents = (readResult as DataResult.Success).value
-        Assertions.assertThat(retrievedEvents).isNotNull
+        assertThat(retrievedEvents).isNotNull
 
         // Krok 2: OSTATECZNY DOWÓD.
         // Odczytana lista musi być strukturalnie identyczna z oryginalną listą.
         // Ponieważ używamy `data class`, .isEqualTo() wykona głębokie porównanie.
-        Assertions.assertThat(retrievedEvents).isEqualTo(originalEvents)
+        assertThat(retrievedEvents).isEqualTo(originalEvents)
 
         // Krok 3: Dodatkowe, jawne asercje dla pełnej jasności
-        Assertions.assertThat(retrievedEvents).hasSize(3)
-        Assertions.assertThat(retrievedEvents[0]).isInstanceOf(DynamicProfile::class.java)
-        Assertions.assertThat(retrievedEvents[1]).isInstanceOf(UserStats::class.java)
-        Assertions.assertThat(retrievedEvents[2]).isInstanceOf(DynamicProfile::class.java)
-        Assertions.assertThat((retrievedEvents[0] as DynamicProfile).role).isEqualTo("editor")
-        Assertions.assertThat((retrievedEvents[1] as UserStats).commentCount).isEqualTo(1337)
+        assertThat(retrievedEvents).hasSize(3)
+        assertThat(retrievedEvents[0]).isInstanceOf(DynamicProfile::class.java)
+        assertThat(retrievedEvents[1]).isInstanceOf(UserStats::class.java)
+        assertThat(retrievedEvents[2]).isInstanceOf(DynamicProfile::class.java)
+        assertThat((retrievedEvents[0] as DynamicProfile).role).isEqualTo("editor")
+        assertThat((retrievedEvents[1] as UserStats).commentCount).isEqualTo(1337)
     }
 }

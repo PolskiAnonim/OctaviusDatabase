@@ -3,11 +3,9 @@ package io.github.octaviusframework.db.core.sql
 import io.github.octaviusframework.db.api.builder.toFieldStrict
 import io.github.octaviusframework.db.api.getOrThrow
 import io.github.octaviusframework.db.core.AbstractIntegrationTest
-import org.assertj.core.api.Assertions
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class JsonOperatorIntegrationTest: AbstractIntegrationTest() {
 
     override val sqlToExecuteOnSetup: String = """
@@ -28,7 +26,7 @@ class JsonOperatorIntegrationTest: AbstractIntegrationTest() {
             .toFieldStrict<Long>()
             .getOrThrow()
 
-        Assertions.assertThat(result).isEqualTo(1L)
+        assertThat(result).isEqualTo(1L)
     }
 
     @Test
@@ -38,7 +36,7 @@ class JsonOperatorIntegrationTest: AbstractIntegrationTest() {
             .getOrThrow()
 
         // Rows: {"a": 1, "b": 2} (has a), {"b": 2, "c": 3} (has c)
-        Assertions.assertThat(result).isEqualTo(2L)
+        assertThat(result).isEqualTo(2L)
     }
 
     @Test
@@ -48,7 +46,7 @@ class JsonOperatorIntegrationTest: AbstractIntegrationTest() {
             .getOrThrow()
 
         // Rows: {"a": 1, "b": 2} (has a and b)
-        Assertions.assertThat(result).isEqualTo(1L)
+        assertThat(result).isEqualTo(1L)
     }
 
     @Test
@@ -57,6 +55,6 @@ class JsonOperatorIntegrationTest: AbstractIntegrationTest() {
             .toFieldStrict<Long>("key" to "a", "id" to 1)
             .getOrThrow()
 
-        Assertions.assertThat(result).isEqualTo(1L)
+        assertThat(result).isEqualTo(1L)
     }
 }

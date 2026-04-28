@@ -10,7 +10,6 @@ import kotlinx.datetime.LocalDateTime
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 import java.math.BigDecimal
 
 /**
@@ -23,10 +22,7 @@ import java.math.BigDecimal
  * 4. Odczytuje zapisane dane z powrotem.
  * 5. Porównuje odczytany obiekt z oryginałem, aby zapewnić 100% zgodność.
  *
- * UWAGA: Ten test wykonuje operacje modyfikujące dane (DELETE, INSERT, UPDATE).
- * Posiada zabezpieczenie, aby uruchomić się wyłącznie na dedykowanej bazie testowej.
  */
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RealPostgresDataModificationTest: AbstractIntegrationTest() {
 
     override val packagesToScan: List<String> = listOf("io.github.octaviusframework.db.domain.test.pgtype")

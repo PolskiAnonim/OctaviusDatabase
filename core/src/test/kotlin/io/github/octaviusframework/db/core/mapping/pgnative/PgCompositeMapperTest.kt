@@ -7,10 +7,8 @@ import io.github.octaviusframework.db.domain.test.mapper.ClassMappedAddress
 import io.github.octaviusframework.db.domain.test.mapper.MappedAddress
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PgCompositeMapperTest: AbstractIntegrationTest() {
 
     override val packagesToScan: List<String> = listOf("io.github.octaviusframework.db.domain.test.mapper")

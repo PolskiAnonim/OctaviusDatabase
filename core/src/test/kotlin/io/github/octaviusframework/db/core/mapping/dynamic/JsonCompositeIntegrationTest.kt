@@ -12,13 +12,11 @@ import kotlinx.datetime.LocalTime
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
-import org.assertj.core.api.Assertions
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 import java.math.BigDecimal
 import kotlin.time.Instant
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class JsonCompositeIntegrationTest : AbstractIntegrationTest() {
 
     override val packagesToScan: List<String> = listOf("io.github.octaviusframework.db.domain.test.json")
@@ -54,12 +52,12 @@ class JsonCompositeIntegrationTest : AbstractIntegrationTest() {
         // Deserialize using OctaviusJson
         val product = OctaviusJson.decodeFromString<Product>(jsonString)
 
-        Assertions.assertThat(product.name).isEqualTo("Laptop")
-        Assertions.assertThat(product.price).isEqualByComparingTo(BigDecimal("999.99"))
-        Assertions.assertThat(product.tags).containsExactly("electronics", "work")
-        Assertions.assertThat(product.releaseDate).isEqualTo(LocalDate(2024, 1, 1))
-        Assertions.assertThat(product.createdAt).isEqualTo(Instant.parse("2024-01-01T12:00:00Z"))
-        Assertions.assertThat(product.deliveryTime).isEqualTo(LocalTime(10, 0, 0))
+        assertThat(product.name).isEqualTo("Laptop")
+        assertThat(product.price).isEqualByComparingTo(BigDecimal("999.99"))
+        assertThat(product.tags).containsExactly("electronics", "work")
+        assertThat(product.releaseDate).isEqualTo(LocalDate(2024, 1, 1))
+        assertThat(product.createdAt).isEqualTo(Instant.parse("2024-01-01T12:00:00Z"))
+        assertThat(product.deliveryTime).isEqualTo(LocalTime(10, 0, 0))
     }
 
     @Test
@@ -83,13 +81,13 @@ class JsonCompositeIntegrationTest : AbstractIntegrationTest() {
         val json = result["product_json"] as JsonElement
         val product = OctaviusJson.decodeFromJsonElement<Product>(json)
 
-        Assertions.assertThat(product.id).isEqualTo(10)
-        Assertions.assertThat(product.name).isEqualTo("Mechanical Keyboard")
-        Assertions.assertThat(product.price).isEqualByComparingTo(BigDecimal("150.00"))
-        Assertions.assertThat(product.tags).containsExactly("electronics", "peripheral")
-        Assertions.assertThat(product.releaseDate).isEqualTo(LocalDate(2023, 12, 25))
-        Assertions.assertThat(product.createdAt).isEqualTo(Instant.parse("2023-12-25T15:00:00Z"))
-        Assertions.assertThat(product.deliveryTime).isEqualTo(LocalTime(9, 0, 0))
+        assertThat(product.id).isEqualTo(10)
+        assertThat(product.name).isEqualTo("Mechanical Keyboard")
+        assertThat(product.price).isEqualByComparingTo(BigDecimal("150.00"))
+        assertThat(product.tags).containsExactly("electronics", "peripheral")
+        assertThat(product.releaseDate).isEqualTo(LocalDate(2023, 12, 25))
+        assertThat(product.createdAt).isEqualTo(Instant.parse("2023-12-25T15:00:00Z"))
+        assertThat(product.deliveryTime).isEqualTo(LocalTime(9, 0, 0))
     }
 
     @Test
@@ -115,10 +113,10 @@ class JsonCompositeIntegrationTest : AbstractIntegrationTest() {
             .toSingleStrict("json" to json.withPgType(PgStandardType.JSON))
             .getOrThrow()
 
-        Assertions.assertThat(result["name"]).isEqualTo("Mouse")
-        Assertions.assertThat(result["price"]).isEqualTo(BigDecimal("25.50"))
-        Assertions.assertThat(result["release_date"]).isEqualTo(LocalDate.parse("2024-02-10"))
-        Assertions.assertThat(result["created_at"]).isEqualTo(Instant.DISTANT_PAST)
-        Assertions.assertThat(result["delivery_time"]).isEqualTo(LocalTime.parse("18:30"))
+        assertThat(result["name"]).isEqualTo("Mouse")
+        assertThat(result["price"]).isEqualTo(BigDecimal("25.50"))
+        assertThat(result["release_date"]).isEqualTo(LocalDate.parse("2024-02-10"))
+        assertThat(result["created_at"]).isEqualTo(Instant.DISTANT_PAST)
+        assertThat(result["delivery_time"]).isEqualTo(LocalTime.parse("18:30"))
     }
 }

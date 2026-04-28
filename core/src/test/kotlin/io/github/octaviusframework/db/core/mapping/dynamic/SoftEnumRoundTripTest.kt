@@ -7,7 +7,6 @@ import io.github.octaviusframework.db.core.AbstractIntegrationTest
 import io.github.octaviusframework.db.domain.test.softEnum.FeatureFlag
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 
 /**
  * Test weryfikujący pełny cykl zapisu i odczytu ("Round-Trip") dla listy Soft Enumów.
@@ -22,7 +21,6 @@ import org.junit.jupiter.api.TestInstance
  *
  * Jest to dowód na spójne działanie systemu typów dla kolekcji.
  */
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class SoftEnumRoundTripTest: AbstractIntegrationTest() {
 
     override val sqlToExecuteOnSetup: String = """

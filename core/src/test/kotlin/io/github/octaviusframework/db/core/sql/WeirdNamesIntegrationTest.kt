@@ -11,7 +11,7 @@ import io.github.octaviusframework.db.core.jdbc.DefaultJdbcTransactionProvider
 import io.github.octaviusframework.db.core.jdbc.JdbcTemplate
 import io.github.octaviusframework.db.domain.test.weird.WeirdComposite
 import io.github.octaviusframework.db.domain.test.weird.WeirdEnum
-import org.assertj.core.api.Assertions
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -80,8 +80,8 @@ class WeirdNamesIntegrationTest {
             .toSingleStrict()
             .getOrThrow()
 
-        Assertions.assertThat(row["enum_val"]).isEqualTo(enum)
-        Assertions.assertThat(row["comp_val"]).isEqualTo(composite)
-        Assertions.assertThat(row["comp_array"]).isEqualTo(listOf(composite, composite))
+        assertThat(row["enum_val"]).isEqualTo(enum)
+        assertThat(row["comp_val"]).isEqualTo(composite)
+        assertThat(row["comp_array"]).isEqualTo(listOf(composite, composite))
     }
 }

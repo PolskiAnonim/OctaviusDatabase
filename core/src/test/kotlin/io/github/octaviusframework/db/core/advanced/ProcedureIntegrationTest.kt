@@ -4,11 +4,9 @@ import io.github.octaviusframework.db.api.builder.toSingleStrict
 import io.github.octaviusframework.db.api.getOrThrow
 import io.github.octaviusframework.db.api.type.withPgType
 import io.github.octaviusframework.db.core.AbstractIntegrationTest
-import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ProcedureIntegrationTest: AbstractIntegrationTest() {
 
     override val sqlToExecuteOnSetup: String = """
@@ -26,7 +24,7 @@ class ProcedureIntegrationTest: AbstractIntegrationTest() {
             .toSingleStrict("val_in" to 42)
             .getOrThrow()
 
-        Assertions.assertEquals("Result: 42", result["val_out"])
+        assertEquals("Result: 42", result["val_out"])
     }
 
     @Test
@@ -38,6 +36,6 @@ class ProcedureIntegrationTest: AbstractIntegrationTest() {
             )
             .getOrThrow()
 
-        Assertions.assertEquals("Result: 10", result["val_out"])
+        assertEquals("Result: 10", result["val_out"])
     }
 }
