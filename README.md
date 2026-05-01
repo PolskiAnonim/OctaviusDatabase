@@ -36,6 +36,8 @@ Octavius was built to bring order to the chaotic republic of database interactio
 - **Stored Procedures** — CALL with automatic IN/OUT/INOUT handling, composite & array expansion
 - **LISTEN / NOTIFY** — Flow-based async notifications on a dedicated connection outside the pool
 
+Every design choice in Octavius is intentional. The reasoning behind them is laid out in the [Design Philosophy](DESIGN_PHILOSOPHY.md).
+
 ## Quick Start
 
 ```kotlin
