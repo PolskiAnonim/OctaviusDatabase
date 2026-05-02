@@ -17,10 +17,10 @@ import kotlinx.serialization.encoding.Encoder
  * are correctly converted to `infinity` and `-infinity` strings respectively,
  * which are understood by PostgreSQL.
  */
-object DynamicDtoLocalDateTimeSerializer : KSerializer<LocalDateTime> {
+object LocalDateTimeWithInfinitySerializer : KSerializer<LocalDateTime> {
 
     override val descriptor: SerialDescriptor =
-        PrimitiveSerialDescriptor("io.github.octaviusframework.db.api.serializer.DynamicDtoLocalDateTimeSerializer", PrimitiveKind.STRING)
+        PrimitiveSerialDescriptor("io.github.octaviusframework.db.api.serializer.LocalDateTimeWithInfinitySerializer", PrimitiveKind.STRING)
 
     override fun serialize(encoder: Encoder, value: LocalDateTime) {
         when (value) {

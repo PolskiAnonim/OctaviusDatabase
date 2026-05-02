@@ -14,10 +14,10 @@ import kotlin.time.Instant
  * This serializer is specifically designed for use within `dynamic_dto` (JSONB) columns,
  * ensuring that date-time values are correctly mapped to their PostgreSQL representations.
  */
-object DynamicDtoInstantSerializer : KSerializer<Instant> {
+object InstantWithInfinitySerializer : KSerializer<Instant> {
 
     override val descriptor: SerialDescriptor =
-        PrimitiveSerialDescriptor("io.github.octaviusframework.db.api.serializer.DynamicDtoInstantSerializer", PrimitiveKind.STRING)
+        PrimitiveSerialDescriptor("io.github.octaviusframework.db.api.serializer.InstantWithInfinitySerializer", PrimitiveKind.STRING)
 
     override fun serialize(encoder: Encoder, value: Instant) {
         when (value) {

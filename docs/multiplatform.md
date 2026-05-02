@@ -60,9 +60,11 @@ Octavius relies on `kotlinx.serialization` for handling complex data types, espe
 ### Contextual Serialization
 Instead of hardcoding serializers for every field using `@Serializable(with = ...)`, Octavius leverages **Contextual Serialization**. This keeps your DTOs clean and allows the library to automatically handle platform-specific mapping (like the JS `BigDecimal` wrapper).
 
-You should use `@Contextual` for the following types:
-- **`BigDecimal`**: Ensures precision is preserved in JSON (stored as numeric literal in PG, string in JS).
-- **`LocalDate`, `LocalDateTime`, `Instant`**: Handles PostgreSQL `infinity` and `-infinity` values which standard serializers do not support.
+Octavius provides the following contextual serializers:
+- **`BigDecimalAsNumberSerializer`**: Ensures precision is preserved in JSON (stored as numeric literal in PG, string in JS).
+- **`LocalDateWithInfinitySerializer`**, **`LocalDateTimeWithInfinitySerializer`**, **`InstantWithInfinitySerializer`**: Handle PostgreSQL `infinity` and `-infinity` values which standard serializers do not support.
+
+You should use `@Contextual` for these types in your shared DTOs:
 
 ```kotlin
 @Serializable
@@ -70,9 +72,9 @@ You should use `@Contextual` for the following types:
 data class Citizen(
     val id: Int,
     val name: String,
-    @Contextual val balance: BigDecimal,    // Automatic precision handling
-    @Contextual val birthDate: LocalDate,   // Supports PG 'infinity'
-    @Contextual val updatedAt: Instant
+    @Contextual val balance: BigDecimal,    // Uses BigDecimalAsNumberSerializer
+    @Contextual val birthDate: LocalDate,   // Uses LocalDateWithInfinitySerializer
+    @Contextual val updatedAt: Instant      // Uses InstantWithInfinitySerializer
 )
 ```
 

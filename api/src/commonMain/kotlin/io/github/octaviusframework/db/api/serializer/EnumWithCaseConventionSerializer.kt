@@ -12,13 +12,11 @@ import kotlinx.serialization.encoding.Encoder
 import kotlin.enums.EnumEntries
 
 /**
- * A specialized serializer for mapping Kotlin Enums to their PostgreSQL representations
- * within `dynamic_dto`.
+ * A specialized serializer for mapping Kotlin Enums to their PostgreSQL representations.
  *
  * This serializer is essential when your Enums use different naming conventions
  * in Kotlin (e.g., `PascalCase`) and PostgreSQL (e.g., `SNAKE_CASE_UPPER`).
- * It ensures that the value stored in the JSONB payload of a `dynamic_dto`
- * correctly matches the database's expectations.
+ * It ensures that the value stored in the JSONB payload correctly correctly matches the database's expectations.
  *
  * ### Key Features
  * - **Bidirectional Mapping**: Automatically converts names during both serialization and deserialization.
@@ -30,7 +28,7 @@ import kotlin.enums.EnumEntries
  * @PgEnum(pgConvention = CaseConvention.SNAKE_CASE_UPPER)
  * enum class LegionStatus { Garrisoned, OnMarch, InBattle, Victorious }
  *
- * object LegionStatusSerializer : DynamicDtoEnumSerializer<LegionStatus>(
+ * object LegionStatusSerializer : EnumWithCaseConventionSerializer<LegionStatus>(
  *     enumName = "LegionStatus",
  *     entries = LegionStatus.entries,
  *     pgConvention = CaseConvention.SNAKE_CASE_UPPER,
@@ -44,7 +42,7 @@ import kotlin.enums.EnumEntries
  * @param pgConvention The naming convention used in the database (default: `SNAKE_CASE_UPPER`).
  * @param kotlinConvention The naming convention used in your Kotlin code (default: `PASCAL_CASE`).
  */
-open class DynamicDtoEnumSerializer<E : Enum<E>>(
+open class EnumWithCaseConventionSerializer<E : Enum<E>>(
     enumName: String,
     private val entries: EnumEntries<E>,
     private val pgConvention: CaseConvention = CaseConvention.SNAKE_CASE_UPPER,

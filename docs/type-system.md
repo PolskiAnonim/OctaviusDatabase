@@ -410,13 +410,13 @@ For maximum performance in high-volume scenarios (using **Parallel Lists**), see
 
 ### Enum Serialization in dynamic_dto
 
-When using enums inside `@DynamicallyMappable` classes, `kotlinx.serialization` defaults to outputting the exact Kotlin enum name. To match PostgreSQL conventions inside the JSON payload, you **must** use `DynamicDtoEnumSerializer`.
+When using enums inside `@DynamicallyMappable` classes, `kotlinx.serialization` defaults to outputting the exact Kotlin enum name. To match PostgreSQL conventions inside the JSON payload, you **must** use `EnumWithCaseConventionSerializer`.
 
 ```kotlin
-import io.github.octaviusframework.db.api.serializer.DynamicDtoEnumSerializer
+import io.github.octaviusframework.db.api.serializer.EnumWithCaseConventionSerializer
 
 // 1. Create a serializer
-object MagistratureSerializer : DynamicDtoEnumSerializer<Magistrature>(
+object MagistratureSerializer : EnumWithCaseConventionSerializer<Magistrature>(
     enumName = "Magistrature",
     entries = Magistrature.entries,
     pgConvention = CaseConvention.SNAKE_CASE_LOWER,

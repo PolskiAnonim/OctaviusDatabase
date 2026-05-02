@@ -21,9 +21,9 @@ import kotlin.time.Instant
 fun createOctaviusSerializersModule(): SerializersModule {
     return SerializersModule {
         contextual(BigDecimal::class, BigDecimalAsNumberSerializer)
-        contextual(LocalDate::class, DynamicDtoLocalDateSerializer)
-        contextual(LocalDateTime::class, DynamicDtoLocalDateTimeSerializer)
-        contextual(Instant::class, DynamicDtoInstantSerializer)
+        contextual(LocalDate::class, LocalDateWithInfinitySerializer)
+        contextual(LocalDateTime::class, LocalDateTimeWithInfinitySerializer)
+        contextual(Instant::class, InstantWithInfinitySerializer)
     }
 }
 
