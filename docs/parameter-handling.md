@@ -153,6 +153,8 @@ When collections, arrays, or composite types are passed as named parameters (`@p
 - **`List<T>` (Recommended):** Uses Octavius serialization (text literal like `(value1,value2)` or `{1,2,3}`). Supports **all types**, including custom `@PgComposite` and `@PgEnum`.
 - **`Array<T>` (Native):** Uses native PgJDBC array protocol. Slightly faster for large collections of primitive types, but **does not support custom types**.
 
+> **Note on Nesting:** Mixed nesting like `List<Array<T>>` or `Array<List<T>>` is **not supported**. Combining these distinct serialization paths would require exhaustive type checking and complex hybrid logic for minimal benefit. Use consistent nesting (e.g., `List<List<T>>`) for multi-dimensional data.
+
 ---
 
 ## High-Performance Bulk Operations (unnest)
