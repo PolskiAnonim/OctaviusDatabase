@@ -91,7 +91,7 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
      * Joins an existing transaction. Rollback in this block will mark the parent transaction as rollback-only.
      */
     private fun <T> executeExisting(context: TransactionContext, block: (TransactionStatus) -> T): T {
-        val status = DefaultTransactionStatus { context.rollbackOnly = true }
+        val status = TransactionStatus { context.rollbackOnly = true }
         return try {
             block(status)
         } catch (e: Throwable) {
@@ -127,7 +127,7 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
 
         stack.add(context)
 
-        val status = DefaultTransactionStatus { context.rollbackOnly = true }
+        val status = TransactionStatus { context.rollbackOnly = true }
 
         return try {
             val result = block(status)
@@ -164,7 +164,7 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
     private fun <T> executeNested(context: TransactionContext, block: (TransactionStatus) -> T): T {
         val savepoint = context.connection.setSavepoint()
         var nestedRollbackOnly = false
-        val status = DefaultTransactionStatus { nestedRollbackOnly = true }
+        val status = TransactionStatus { nestedRollbackOnly = true }
 
         return try {
             val result = block(status)
@@ -189,12 +189,6 @@ internal class DefaultJdbcTransactionProvider(override val dataSource: DataSourc
         val connection: Connection
     ) {
         var rollbackOnly: Boolean = false
-    }
-
-    private class DefaultTransactionStatus(private val onRollbackOnly: () -> Unit) : TransactionStatus {
-        override fun setRollbackOnly() {
-            onRollbackOnly()
-        }
     }
 }
 

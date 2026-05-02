@@ -54,11 +54,7 @@ class SpringJdbcTransactionProvider(
         }
         
         return transactionTemplate.execute { status ->
-            val wrappedStatus = object : TransactionStatus {
-                override fun setRollbackOnly() {
-                    status.setRollbackOnly()
-                }
-            }
+            val wrappedStatus = TransactionStatus { status.setRollbackOnly() }
             block(wrappedStatus)
         }
     }

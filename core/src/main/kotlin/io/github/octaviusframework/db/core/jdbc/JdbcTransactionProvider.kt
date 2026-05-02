@@ -61,6 +61,6 @@ interface JdbcTransactionProvider {
 /**
  * Minimal interface to control the current transaction.
  */
-interface TransactionStatus {
+fun interface TransactionStatus {
     fun setRollbackOnly()
 }
