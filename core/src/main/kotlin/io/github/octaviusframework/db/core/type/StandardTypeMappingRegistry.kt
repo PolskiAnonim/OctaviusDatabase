@@ -3,6 +3,7 @@ package io.github.octaviusframework.db.core.type
 import io.github.octaviusframework.db.api.type.DISTANT_FUTURE
 import io.github.octaviusframework.db.api.type.DISTANT_PAST
 import io.github.octaviusframework.db.api.type.PgStandardType
+import io.github.octaviusframework.db.api.type.TypeHandler
 import kotlinx.datetime.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -26,13 +27,15 @@ import java.time.LocalTime as JLocalTime
 import java.time.OffsetDateTime as JOffsetDateTime
 
 internal data class StandardTypeHandler<T : Any>(
-    val pgTypeName: String,
-    val kotlinClass: KClass<T>,
-    val fromResultSet: ((ResultSet, Int) -> T?)?,
-    val fromString: (String) -> T,
-    val toJdbc: (T) -> Any,
-    val toPgString: (T) -> String
-)
+    override val pgTypeName: String,
+    override val kotlinClass: KClass<T>,
+    override val fromResultSet: ((ResultSet, Int) -> T?)?,
+    override val fromString: (String) -> T,
+    override val toJdbc: (T) -> Any,
+    override val toPgString: (T) -> String
+): TypeHandler<T> {
+    override val pgSchema: String = ""
+}
 
 /**
  * Central registry and single source of truth for mappings of standard PostgreSQL types to Kotlin types.
@@ -308,23 +311,10 @@ internal object StandardTypeMappingRegistry {
         return map.toMap()
     }
 
-    /**
-     * Resolves the base type name for an array type name (e.g., "_int4" -> "int4", "text[]" -> "text").
-     */
-    fun resolveBaseTypeName(arrayTypeName: String): String {
-        return when {
-            arrayTypeName.startsWith("_") -> arrayTypeName.substring(1)
-            arrayTypeName.endsWith("[]") -> arrayTypeName.removeSuffix("[]")
-            else -> arrayTypeName
-        }
-    }
-
     private fun pgObject(type: String, value: String) = PGobject().apply {
         this.type = type
         this.value = value
     }
-
-
 
     private fun <T> parseWithInfinity(s: String, plus: T, minus: T, parser: (String) -> T): T = when (s.lowercase()) {
         PG_INFINITY, PG_PLUS_INFINITY -> plus
@@ -357,7 +347,6 @@ internal object StandardTypeMappingRegistry {
         return result.toString()
     }
 
-    fun getHandler(pgTypeName: String): StandardTypeHandler<*>? = mappings[pgTypeName]
     fun getHandlerByOid(oid: Int): StandardTypeHandler<*>? = oidToHandler[oid]
     fun getHandlerByClass(kClass: KClass<*>): StandardTypeHandler<*>? {
         kotlinClassToHandler[kClass]?.let { return it }
@@ -367,7 +356,6 @@ internal object StandardTypeMappingRegistry {
         }
         return null
     }
-    fun getAllTypeNames(): Set<String> = mappings.keys
 
     private inline fun <reified T : Any> primitive(
         pgTypeName: String, kClass: KClass<T>, crossinline getter: ResultSet.(Int) -> T,
