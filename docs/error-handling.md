@@ -69,7 +69,7 @@ It inherits directly from **`RuntimeException`** and is **NOT** wrapped in `Data
 | `DB_QUERY_FAILED`                   | Failed to fetch metadata from PostgreSQL                 |
 | `MIGRATION_FAILED`                  | Database migration failed (e.g., via Flyway integration) |
 | `TYPE_DEFINITION_MISSING_IN_DB`     | Annotated class exists, but CREATE TYPE is missing in DB |
-| `DUPLICATE_PG_TYPE_DEFINITION`      | Conflict between two @PgType names                       |
+| `DUPLICATE_PG_TYPE_DEFINITION`      | Conflict between @PgEnum and/or @PgComposite names       |
 | `DUPLICATE_DYNAMIC_TYPE_DEFINITION` | Conflict between two @DynamicallyMappable keys           |
 
 ---
@@ -220,14 +220,23 @@ Returned when a `TransactionValue.FromStep` reference is invalid.
 
 Returned when a runtime lookup in the internal type registry fails. This indicates a mismatch between Kotlin classes and database objects.
 
+### Properties
+
+| Property           | Type                           | Description                                                 |
+|--------------------|--------------------------------|-------------------------------------------------------------|
+| `messageEnum`      | `TypeRegistryExceptionMessage` | Specific error type                                         |
+| `typeName`         | `String?`                      | Name of the PostgreSQL type or Dynamic DTO key              |
+| `oid`              | `Int?`                         | PostgreSQL OID (if applicable)                              |
+| `expectedCategory` | `String?`                      | Expected category (`COMPOSITE`, `ENUM`, `ARRAY`, 'DYNAMIC') |
+
 ### Error Types (`TypeRegistryExceptionMessage`)
 
-| Enum Value                        | Description                                      |
-|-----------------------------------|--------------------------------------------------|
-| `WRONG_FIELD_NUMBER_IN_COMPOSITE` | Composite type schema mismatch                   |
-| `PG_TYPE_NOT_FOUND`               | PostgreSQL type missing from the loaded registry |
-| `KOTLIN_CLASS_NOT_MAPPED`         | Kotlin class has no @PgType annotation           |
-| `DYNAMIC_TYPE_NOT_FOUND`          | Unknown key for `dynamic_dto` polymorphism       |
+| Enum Value                        | Description                                           |
+|-----------------------------------|-------------------------------------------------------|
+| `WRONG_FIELD_NUMBER_IN_COMPOSITE` | Composite type schema mismatch (database vs registry) |
+| `PG_TYPE_NOT_FOUND`               | PostgreSQL type missing from the loaded registry      |
+| `KOTLIN_CLASS_NOT_MAPPED`         | Class lacks `@PgEnum` or `@PgComposite` annotation    |
+| `DYNAMIC_TYPE_NOT_FOUND`          | Unknown key for `@DynamicallyMappable` polymorphism   |
 
 ---
 

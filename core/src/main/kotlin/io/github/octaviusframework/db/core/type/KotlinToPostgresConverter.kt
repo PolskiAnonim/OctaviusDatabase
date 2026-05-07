@@ -110,7 +110,8 @@ internal class KotlinToPostgresConverter(
                     unwrappedValue::class.isData -> pgObject("text", serializer.serializeComposite(unwrappedValue, updatedSkipDynamicDto, pgType))
                     unwrappedValue::class.isValue -> throw TypeRegistryException(
                         TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED,
-                        unwrappedValue::class.qualifiedName ?: unwrappedValue::class.simpleName ?: "unknown"
+                        unwrappedValue::class.qualifiedName ?: unwrappedValue::class.simpleName ?: "unknown",
+                        expectedCategory = "DYNAMIC"
                     )
                     else -> unwrappedValue
                 }

@@ -118,7 +118,7 @@ internal class PgTextSerializer(
                 val kClass = current::class
                 when {
                     kClass.isData -> serializeComposite(current, skipDynamicDto || wasPgTyped, explicitType)
-                    kClass.isValue -> throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, kClass.qualifiedName ?: kClass.simpleName ?: "unknown")
+                    kClass.isValue -> throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, kClass.qualifiedName ?: kClass.simpleName ?: "unknown", expectedCategory = "DYNAMIC")
                     else -> current.toString()
                 }
             }

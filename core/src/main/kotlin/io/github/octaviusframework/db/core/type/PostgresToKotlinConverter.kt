@@ -165,13 +165,6 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
         var index = 0
 
         parseNestedStructure(value) { elementValue, _ ->
-            if (index >= dbAttributes.size) {
-                throw TypeRegistryException(
-                    TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
-                    typeName = typeInfo.typeName
-                )
-            }
-
             val (dbAttributeName, dbAttributeOid) = dbAttributes[index]
             constructorArgsMap[dbAttributeName] = convert(elementValue, dbAttributeOid)
             index++
@@ -180,7 +173,9 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
         if (index != dbAttributes.size) {
             throw TypeRegistryException(
                 TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
-                typeName = typeInfo.typeName
+                typeName = typeInfo.typeName,
+                oid = typeInfo.oid,
+                expectedCategory = "COMPOSITE"
             )
         }
 
@@ -225,7 +220,8 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
 
         if (count != 2) throw TypeRegistryException(
             TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE,
-            typeName = "public.dynamic_dto"
+            typeName = "public.dynamic_dto",
+            expectedCategory = "DYNAMIC"
         )
         if (typeName == null || jsonDataString == null) throw ConversionException(
             ConversionExceptionMessage.INVALID_DYNAMIC_DTO_FORMAT,

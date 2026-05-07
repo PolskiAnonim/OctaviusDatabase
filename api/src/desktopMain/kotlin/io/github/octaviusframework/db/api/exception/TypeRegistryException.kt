@@ -10,6 +10,8 @@ enum class TypeRegistryExceptionMessage {
 class TypeRegistryException(
     val messageEnum: TypeRegistryExceptionMessage,
     val typeName: String,
+    val oid: Int? = null,
+    val expectedCategory: String? = null,
     cause: Throwable? = null,
     queryContext: QueryContext? = null
 ) : DatabaseException(
@@ -17,19 +19,25 @@ class TypeRegistryException(
     message = messageEnum.name,
     cause = cause
 ) {
+    override fun getDetailedMessage(): String = buildString {
+        appendLine("message: ${generateDeveloperMessage(messageEnum)}")
+        appendLine("Related Type: $typeName")
+        if (oid != null) appendLine("OID: $oid")
+        if (expectedCategory != null) appendLine("Expected Category: $expectedCategory")
+    }
+}
 
-    override fun getDetailedMessage(): String {
-        return """
-message: ${generateDeveloperMessage(this.messageEnum, typeName)}
-Related Type: $typeName
-"""
+private fun generateDeveloperMessage(messageEnum: TypeRegistryExceptionMessage): String =
+    when (messageEnum) {
+        TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE ->
+            "Schema mismatch. Composite type in the database has a different number of fields than defined in the registry."
+
+        TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND ->
+            "Runtime lookup failed. PostgreSQL type was not found in the loaded registry."
+
+        TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED ->
+            "Runtime lookup failed. Class is not mapped to any PostgreSQL type. Ensure it has @PgEnum/@PgComposite annotation and is scanned."
+
+        TypeRegistryExceptionMessage.DYNAMIC_TYPE_NOT_FOUND ->
+            "Runtime lookup failed. No registered @DynamicallyMappable class found for key ."
     }
-}
-private fun generateDeveloperMessage(messageEnum: TypeRegistryExceptionMessage, typeName: String?): String {
-    return when (messageEnum) {
-        TypeRegistryExceptionMessage.WRONG_FIELD_NUMBER_IN_COMPOSITE -> "Schema mismatch. Composite type '$typeName' in the database has a different number of fields than defined in the registry."
-        TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND -> "Runtime lookup failed. The PostgreSQL type '$typeName' was not found in the loaded registry."
-        TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED -> "Runtime lookup failed. Class '$typeName' is not mapped to any PostgreSQL type. Ensure it has @PgEnum/@PgComposite annotation and is scanned."
-        TypeRegistryExceptionMessage.DYNAMIC_TYPE_NOT_FOUND -> "Runtime lookup failed. No registered @DynamicallyMappable class found for key '$typeName'."
-    }
-}

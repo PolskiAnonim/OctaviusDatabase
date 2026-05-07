@@ -56,7 +56,8 @@ internal class TypeRegistry(
     fun getDynamicSerializer(dynamicTypeName: String): KSerializer<Any> =
         dynamicSerializers[dynamicTypeName] ?: throw TypeRegistryException(
             TypeRegistryExceptionMessage.DYNAMIC_TYPE_NOT_FOUND,
-            typeName = dynamicTypeName
+            typeName = dynamicTypeName,
+            expectedCategory = "DYNAMIC"
         )
 
     fun getHandlerByOid(oid: Int): TypeHandler<*>? = handlersByOid[oid]
@@ -90,13 +91,12 @@ internal class TypeRegistry(
     // --- HELPERS ---
 
     private fun throwNotFound(oid: Int, expected: String? = null): Nothing {
-        val typeName = oidToNameMap[oid]
-        val details = when {
-            typeName != null && expected != null -> "Type '$typeName' (OID: $oid, expected $expected)"
-            typeName != null -> "Type '$typeName' (OID: $oid)"
-            expected != null -> "OID: $oid (expected $expected)"
-            else -> "OID: $oid"
-        }
-        throw TypeRegistryException(TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND, typeName = details)
+        val typeName = oidToNameMap[oid] ?: "unknown"
+        throw TypeRegistryException(
+            messageEnum = TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
+            typeName = typeName,
+            oid = oid,
+            expectedCategory = expected
+        )
     }
 }
