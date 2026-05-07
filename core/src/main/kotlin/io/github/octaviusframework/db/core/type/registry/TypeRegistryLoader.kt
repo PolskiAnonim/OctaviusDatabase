@@ -7,6 +7,7 @@ import io.github.octaviusframework.db.api.type.PgStandardType
 import io.github.octaviusframework.db.api.type.QualifiedName
 import io.github.octaviusframework.db.api.util.CaseConverter
 import io.github.octaviusframework.db.core.jdbc.JdbcTemplate
+import io.github.octaviusframework.db.core.type.StandardTypeMappingRegistry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -78,6 +79,8 @@ internal class TypeRegistryLoader(
             enumsByOid = enumsByOid,
             compositesByOid = compositesByOid,
             arraysByOid = arraysByOid,
+            handlersByOid = StandardTypeMappingRegistry.getAllHandlersByOid(),
+            handlersByClass = StandardTypeMappingRegistry.getAllHandlersByClass(),
             classToPgNameMap = classToPgNameMap,
             dynamicSerializers = classpathData.dynamicSerializers,
             classToDynamicNameMap = classpathData.dynamicReverseMap,

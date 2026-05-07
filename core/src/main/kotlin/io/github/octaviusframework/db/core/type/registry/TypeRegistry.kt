@@ -3,8 +3,11 @@ package io.github.octaviusframework.db.core.type.registry
 import io.github.octaviusframework.db.api.exception.TypeRegistryException
 import io.github.octaviusframework.db.api.exception.TypeRegistryExceptionMessage
 import io.github.octaviusframework.db.api.type.QualifiedName
+import io.github.octaviusframework.db.api.type.TypeHandler
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.JsonElement
 import kotlin.reflect.KClass
+import kotlin.reflect.full.isSubclassOf
 
 /**
  * Central repository of PostgreSQL type metadata for bidirectional conversion.
@@ -23,6 +26,9 @@ internal class TypeRegistry(
     private val enumsByOid: Map<Int, PgEnumDefinition>,
     private val compositesByOid: Map<Int, PgCompositeDefinition>,
     private val arraysByOid: Map<Int, PgArrayDefinition>,
+    // Specialized handlers (mostly for standard types)
+    private val handlersByOid: Map<Int, TypeHandler<*>>,
+    private val handlersByClass: Map<KClass<*>, TypeHandler<*>>,
     // Mappings for writing (Kotlin Class -> PgType)
     private val classToPgNameMap: Map<KClass<*>, QualifiedName>,
     // Dynamic mappings (Dynamic Key -> Kotlin Class)
@@ -35,16 +41,16 @@ internal class TypeRegistry(
 ) {
     // --- READING (DB -> Kotlin) ---
 
-    fun getCategory(oid: Int): TypeCategory = 
+    fun getCategory(oid: Int): TypeCategory =
         oidCategoryMap[oid] ?: throwNotFound(oid)
 
-    fun getEnumDefinition(oid: Int): PgEnumDefinition = 
+    fun getEnumDefinition(oid: Int): PgEnumDefinition =
         enumsByOid[oid] ?: throwNotFound(oid, "ENUM")
 
-    fun getCompositeDefinition(oid: Int): PgCompositeDefinition = 
+    fun getCompositeDefinition(oid: Int): PgCompositeDefinition =
         compositesByOid[oid] ?: throwNotFound(oid, "COMPOSITE")
 
-    fun getArrayDefinition(oid: Int): PgArrayDefinition = 
+    fun getArrayDefinition(oid: Int): PgArrayDefinition =
         arraysByOid[oid] ?: throwNotFound(oid, "ARRAY")
 
     fun getDynamicSerializer(dynamicTypeName: String): KSerializer<Any> =
@@ -52,6 +58,14 @@ internal class TypeRegistry(
             TypeRegistryExceptionMessage.DYNAMIC_TYPE_NOT_FOUND,
             typeName = dynamicTypeName
         )
+
+    fun getHandlerByOid(oid: Int): TypeHandler<*>? = handlersByOid[oid]
+
+    fun getHandlerByClass(kClass: KClass<*>): TypeHandler<*>? {
+        handlersByClass[kClass]?.let { return it }
+        // Handle subclasses (especially for JsonElement)
+        return handlersByClass.entries.find { kClass.isSubclassOf(it.key) }?.value
+    }
 
     // --- WRITING (Kotlin -> DB) ---
 

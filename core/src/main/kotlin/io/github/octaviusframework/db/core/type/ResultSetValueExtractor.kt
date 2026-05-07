@@ -42,7 +42,7 @@ internal class ResultSetValueExtractor(
      * Fast path for standard types.
      */
     private fun extractStandardType(rs: ResultSet, columnIndex: Int, oid: Int): Any? {
-        val handler = StandardTypeMappingRegistry.getHandlerByOid(oid)
+        val handler = typeRegistry.getHandlerByOid(oid)
 
         // 1. Try to use dedicated "fast path" if it exists.
         handler?.fromResultSet?.let { fastPath ->

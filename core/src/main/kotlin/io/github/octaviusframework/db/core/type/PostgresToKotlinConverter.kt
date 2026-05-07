@@ -76,7 +76,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
     /**
      * Converts standard PostgreSQL types to appropriate Kotlin types.
      *
-     * Delegates to `StandardTypeMappingRegistry`, which is the single source of truth.
+     * Delegates to `TypeRegistry`, which is now the single source of truth.
      *
      * @param value Value from database as String.
      * @param oid OID of standard PostgreSQL type.
@@ -84,11 +84,11 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      * @throws ConversionException if conversion fails.
      */
     private fun convertStandardType(value: String, oid: Int): Any { // null handled in convert method
-        // 1. Find the appropriate handler in the central registry
-        val handler = StandardTypeMappingRegistry.getHandlerByOid(oid)
+        // 1. Find the appropriate handler in the registry
+        val handler = typeRegistry.getHandlerByOid(oid)
 
         if (handler == null) {
-            logger.warn { "No standard type handler found for PostgreSQL OID '$oid'. Returning raw string value." }
+            logger.warn { "No type handler found for PostgreSQL OID '$oid'. Returning raw string value." }
             return value // Default behavior: return string if type is unknown
         }
 

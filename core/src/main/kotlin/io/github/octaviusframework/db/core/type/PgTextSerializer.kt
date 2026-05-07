@@ -8,6 +8,7 @@ import io.github.octaviusframework.db.api.toDataMap
 import io.github.octaviusframework.db.api.type.DynamicDto
 import io.github.octaviusframework.db.api.type.PgTyped
 import io.github.octaviusframework.db.api.type.QualifiedName
+import io.github.octaviusframework.db.api.type.TypeHandler
 import io.github.octaviusframework.db.core.config.DynamicDtoSerializationStrategy
 import io.github.octaviusframework.db.core.type.registry.TypeRegistry
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -82,9 +83,9 @@ internal class PgTextSerializer(
         }
 
         // 1. Try standard handlers first
-        StandardTypeMappingRegistry.getHandlerByClass(current::class)?.let {
+        typeRegistry.getHandlerByClass(current::class)?.let {
             @Suppress("UNCHECKED_CAST")
-            return (it as StandardTypeHandler<Any>).toPgString(current)
+            return (it as TypeHandler<Any>).toPgString(current)
         }
 
         // 2. Try Dynamic DTO automatic conversion
@@ -128,7 +129,7 @@ internal class PgTextSerializer(
         var curr = item
         while (curr is PgTyped) curr = curr.value ?: return false
 
-        StandardTypeMappingRegistry.getHandlerByClass(curr::class)?.let { handler ->
+        typeRegistry.getHandlerByClass(curr::class)?.let { handler ->
             return handler.pgTypeName !in NUMERIC_BOOLEAN_TYPES
         }
         return true

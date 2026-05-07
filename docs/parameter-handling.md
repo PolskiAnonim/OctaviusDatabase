@@ -81,7 +81,7 @@ If a value is wrapped in `PgTyped`, it is first unwrapped to get the raw value a
 If the value is not a standard type and is marked with `@DynamicallyMappable` (and the `DynamicDtoSerializationStrategy` allows it), Octavius will attempt to serialize it as a `dynamic_dto` (a composite type containing the type name and JSONB payload).
 
 ### 3. Standard Type Mapping
-If the value matches a standard Kotlin type (e.g., `String`, `Int`, `Long`, `Boolean`, `UUID`, `Instant`, `LocalDate`), it is converted using the `StandardTypeMappingRegistry`. These types are mapped directly to their corresponding PostgreSQL types with appropriate casts (e.g., `?::int4`, `?::text`).
+If the value matches a standard Kotlin type (e.g., `String`, `Int`, `Long`, `Boolean`, `UUID`, `Instant`, `LocalDate`), it is converted using the `TypeRegistry`. These types are mapped directly to their corresponding PostgreSQL types with appropriate casts (e.g., `?::int4`, `?::text`).
 
 ### 4. Specialized Types
 If none of the above apply, Octavius handles specialized types:

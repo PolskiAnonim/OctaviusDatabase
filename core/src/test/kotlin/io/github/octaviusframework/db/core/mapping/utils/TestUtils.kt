@@ -5,6 +5,7 @@ import io.github.octaviusframework.db.api.type.PgStandardType
 import io.github.octaviusframework.db.api.type.QualifiedName
 import io.github.octaviusframework.db.api.util.CaseConvention
 import io.github.octaviusframework.db.api.util.CaseConverter
+import io.github.octaviusframework.db.core.type.StandardTypeMappingRegistry
 import io.github.octaviusframework.db.core.type.registry.*
 import io.github.octaviusframework.db.domain.test.pgtype.*
 import kotlin.reflect.KClass
@@ -181,6 +182,8 @@ internal fun createFakeTypeRegistry(): TypeRegistry {
         enumsByOid = enumsByOid,
         compositesByOid = compositesByOid,
         arraysByOid = arraysByOid,
+        handlersByOid = StandardTypeMappingRegistry.getAllHandlersByOid(),
+        handlersByClass = StandardTypeMappingRegistry.getAllHandlersByClass(),
         classToPgNameMap = classToPgNameMap,
         dynamicSerializers = emptyMap(),
         classToDynamicNameMap = emptyMap(),

@@ -357,6 +357,9 @@ internal object StandardTypeMappingRegistry {
         return null
     }
 
+    fun getAllHandlersByOid(): Map<Int, TypeHandler<*>> = oidToHandler
+    fun getAllHandlersByClass(): Map<KClass<*>, TypeHandler<*>> = kotlinClassToHandler
+
     private inline fun <reified T : Any> primitive(
         pgTypeName: String, kClass: KClass<T>, crossinline getter: ResultSet.(Int) -> T,
         noinline toPgString: ((T) -> String)? = null, noinline parser: (String) -> T
