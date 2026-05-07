@@ -48,13 +48,13 @@ internal class PgTextSerializer(
         val typeInfo = typeRegistry.getCompositeDefinition(oid)
 
         val valueMap = if (typeInfo.mapper != null) {
-            logger.trace { "Using manual mapper for serialization of ${typeInfo.typeName}" }
+            logger.trace { "Using manual mapper for serialization of $typeName" }
             try {
                 typeInfo.mapper.toDataMap(obj)
             } catch (e: Exception) {
                 throw ConversionException(
                     ConversionExceptionMessage.COMPOSITE_MAPPER_FAILED,
-                    targetType = typeInfo.typeName,
+                    targetType = typeName.toString(),
                     cause = e
                 )
             }

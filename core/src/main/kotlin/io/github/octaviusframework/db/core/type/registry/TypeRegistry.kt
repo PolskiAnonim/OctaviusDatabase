@@ -37,7 +37,7 @@ internal class TypeRegistry(
     // Reverse maps for name-based lookup
     private val pgNameToOidMap: Map<QualifiedName, Int>,
     // Human-readable names for OIDs (for error reporting)
-    private val oidToNameMap: Map<Int, String>
+    private val oidToNameMap: Map<Int, QualifiedName>
 ) {
     // --- READING (DB -> Kotlin) ---
 
@@ -91,7 +91,7 @@ internal class TypeRegistry(
     // --- HELPERS ---
 
     private fun throwNotFound(oid: Int, expected: String? = null): Nothing {
-        val typeName = oidToNameMap[oid] ?: "unknown"
+        val typeName = oidToNameMap[oid]?.toString() ?: "unknown"
         throw TypeRegistryException(
             messageEnum = TypeRegistryExceptionMessage.PG_TYPE_NOT_FOUND,
             typeName = typeName,

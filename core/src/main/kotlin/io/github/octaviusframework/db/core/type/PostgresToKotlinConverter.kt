@@ -122,7 +122,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
             ?: throw ConversionException(
                 messageEnum = ConversionExceptionMessage.ENUM_CONVERSION_FAILED,
                 value = value,
-                targetType = typeInfo.kClass.simpleName
+                targetType = typeInfo.typeName
             )
     }
 
@@ -139,7 +139,7 @@ internal class PostgresToKotlinConverter(private val typeRegistry: TypeRegistry)
      */
     private fun convertArray(value: String, typeInfo: PgArrayDefinition): List<Any?> {
 
-        logger.trace { "Parsing PostgreSQL array with element OID: ${typeInfo.oid}" }
+        logger.trace { "Parsing PostgreSQL array ${typeInfo.typeName} with element OID: ${typeInfo.elementOid}" }
 
         val results = mutableListOf<Any?>()
 

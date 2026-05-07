@@ -59,7 +59,7 @@ private fun generateDeveloperMessage(messageEnum: InitializationExceptionMessage
         InitializationExceptionMessage.DB_QUERY_FAILED -> "Failed to fetch metadata from database$suffix"
         InitializationExceptionMessage.MIGRATION_FAILED -> "Database migration failed. Check your SQL migration files$suffix"
         InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB ->
-            "Startup validation failed. A Kotlin class is annotated with @PgEnum/@PgComposite(name='$details'), but the type '$details' does not exist in the database schemas. Please check your SQL migrations."
+            "Startup validation failed: $details. Please check your SQL migrations and ensure the PostgreSQL type exists in one of the scanned schemas."
         InitializationExceptionMessage.DUPLICATE_PG_TYPE_DEFINITION ->
             "Configuration error. The PostgreSQL type name '$details' is defined more than once in the codebase (detected duplicate or collision between @PgEnum and @PgComposite). Postgres requires unique type names within a schema."
         InitializationExceptionMessage.DUPLICATE_DYNAMIC_TYPE_DEFINITION ->
