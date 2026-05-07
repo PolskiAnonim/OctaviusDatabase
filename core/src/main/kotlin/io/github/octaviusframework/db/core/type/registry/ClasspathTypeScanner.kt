@@ -10,6 +10,7 @@ import io.github.octaviusframework.db.api.annotation.PgCompositeMapper
 import io.github.octaviusframework.db.api.annotation.PgEnum
 import io.github.octaviusframework.db.api.exception.InitializationException
 import io.github.octaviusframework.db.api.exception.InitializationExceptionMessage
+import io.github.octaviusframework.db.api.type.TypeHandler
 import io.github.octaviusframework.db.api.util.CaseConvention
 import io.github.octaviusframework.db.api.util.toSnakeCase
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -37,6 +38,7 @@ internal class ClasspathTypeScanner(
         val compositeInfos = mutableListOf<KtCompositeInfo>()
         val dynamicSerializers = mutableMapOf<String, KSerializer<Any>>()
         val dynamicReverseMap = mutableMapOf<KClass<*>, String>()
+        val customHandlers = mutableListOf<TypeHandler<*>>()
 
         // Tracks uniqueness of PostgreSQL type names (Enums + Composites share namespace)
         val seenPgNames = mutableSetOf<Pair<String, String>>()
@@ -50,6 +52,7 @@ internal class ClasspathTypeScanner(
                     processEnums(result, enumInfos, seenPgNames)
                     processComposites(result, compositeInfos, seenPgNames)
                     processDynamicTypes(result, dynamicSerializers, dynamicReverseMap)
+                    processCustomHandlers(result, customHandlers)
                 }
         } catch (e: InitializationException) {
             throw e
@@ -57,7 +60,7 @@ internal class ClasspathTypeScanner(
             throw InitializationException(InitializationExceptionMessage.CLASSPATH_SCAN_FAILED, cause = e)
         }
 
-        return ClasspathScanResult(enumInfos, compositeInfos, dynamicSerializers, dynamicReverseMap)
+        return ClasspathScanResult(enumInfos, compositeInfos, dynamicSerializers, dynamicReverseMap, customHandlers)
     }
 
     private fun processEnums(
@@ -178,6 +181,32 @@ internal class ClasspathTypeScanner(
                         "Failed to obtain serializer for ${kClass.qualifiedName}. Ensure it is a valid @Serializable class/enum.",
                         e
                     )
+                )
+            }
+        }
+    }
+
+    private fun processCustomHandlers(
+        scanResult: ScanResult,
+        target: MutableList<TypeHandler<*>>
+    ) {
+        val typeHandlerClassName = TypeHandler::class.qualifiedName!!
+
+        scanResult.getClassesImplementing(typeHandlerClassName).forEach { classInfo ->
+            if (classInfo.isAbstract || classInfo.isInterface || classInfo.name.startsWith("io.github.octaviusframework.db.core.type.registry.StandardTypeHandler")) {
+                return@forEach
+            }
+
+            val kClass = classInfo.loadClass().kotlin
+            try {
+                val instance = (kClass.objectInstance ?: kClass.java.getDeclaredConstructor().newInstance()) as TypeHandler<*>
+                target.add(instance)
+                logger.debug { "Discovered custom TypeHandler for PostgreSQL type '${instance.pgTypeName}': ${kClass.simpleName}" }
+            } catch (e: Exception) {
+                throw InitializationException(
+                    InitializationExceptionMessage.INITIALIZATION_FAILED,
+                    details = classInfo.name,
+                    cause = IllegalStateException("Failed to instantiate custom TypeHandler ${kClass.qualifiedName}. Ensure it is an 'object' or has a public no-arg constructor.", e)
                 )
             }
         }

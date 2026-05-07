@@ -1,6 +1,7 @@
 package io.github.octaviusframework.db.core.type.registry
 
 import io.github.octaviusframework.db.api.annotation.PgCompositeMapper
+import io.github.octaviusframework.db.api.type.TypeHandler
 import io.github.octaviusframework.db.api.util.CaseConvention
 import kotlinx.serialization.KSerializer
 import kotlin.reflect.KClass
@@ -33,7 +34,8 @@ internal data class ClasspathScanResult(
     val enums: List<KtEnumInfo>,
     val composites: List<KtCompositeInfo>,
     val dynamicSerializers: Map<String, KSerializer<Any>>,
-    val dynamicReverseMap: Map<KClass<*>, String>
+    val dynamicReverseMap: Map<KClass<*>, String>,
+    val customHandlers: List<TypeHandler<*>>
 )
 
 /**
