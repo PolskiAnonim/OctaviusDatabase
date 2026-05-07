@@ -3,6 +3,7 @@ package io.github.octaviusframework.db.core.type.registry
 import io.github.octaviusframework.db.api.exception.InitializationException
 import io.github.octaviusframework.db.api.exception.InitializationExceptionMessage
 import io.github.octaviusframework.db.api.exception.QueryContext
+import io.github.octaviusframework.db.api.type.QualifiedName
 import io.github.octaviusframework.db.core.jdbc.JdbcTemplate
 import io.github.octaviusframework.db.core.type.PositionalQuery
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -22,62 +23,57 @@ internal class DatabaseTypeScanner(
      * Scans configured schemas and returns discovered type definitions.
      */
     fun scan(): DatabaseScanResult {
-        // schema -> name -> data
-        val enums = mutableMapOf<String, MutableMap<String, Triple<Int, Int, MutableList<String>>>>()
-        val composites = mutableMapOf<String, MutableMap<String, Triple<Int, Int, MutableMap<String, Int>>>>()
-        val allOidNames = mutableMapOf<Int, String>()
+        val enums = mutableMapOf<Int, MutableList<String>>()
+        val composites = mutableMapOf<Int, MutableMap<String, Int>>()
+        val allOidNames = mutableMapOf<Int, QualifiedName>()
+        val arrayOids = mutableMapOf<Int, Int>()
+
+        val schemas = (dbSchemas + "pg_catalog").distinct().toTypedArray()
 
         try {
-            val schemas = dbSchemas.toTypedArray()
-            val query = PositionalQuery(SQL_QUERY_ALL_TYPES, listOf(schemas, schemas))
-            jdbcTemplate.query(query) { rs, _ ->
+            val query1 = PositionalQuery(SQL_QUERY_DETAILS, listOf(schemas, schemas))
+            jdbcTemplate.query(query1) { rs, _ ->
                 val type = rs.getString("info_type")
-                val schema = rs.getString("schema_name")
-                val name = rs.getString("type_name")
                 val oid = rs.getInt("type_oid")
-                val arrayOid = rs.getInt("array_oid")
                 val col1 = rs.getString("col1")
 
-                // Cache names as we go
-                allOidNames[oid] = "$schema.$name"
-                if (arrayOid != 0) allOidNames[arrayOid] = "$schema.$name[]"
-
-                when (type) {
-                    "enum" -> {
-                        val schemaEnums = enums.getOrPut(schema) { mutableMapOf() }
-                        val triple = schemaEnums.getOrPut(name) { Triple(oid, arrayOid, mutableListOf()) }
-                        triple.third.add(col1)
-                    }
-                    "composite" -> {
-                        val col2 = rs.getInt("col2")
-                        val schemaComposites = composites.getOrPut(schema) { mutableMapOf() }
-                        val triple = schemaComposites.getOrPut(name) { Triple(oid, arrayOid, mutableMapOf()) }
-                        triple.third[col1] = col2
-                    }
+                if (type == "enum") {
+                    enums.getOrPut(oid) { mutableListOf() }.add(col1)
+                } else if (type == "composite") {
+                    val col2 = rs.getInt("col2")
+                    composites.getOrPut(oid) { mutableMapOf() }[col1] = col2
                 }
             }
-
-            // Also fetch names for ALL other types in pg_type (standard types etc.)
-            jdbcTemplate.query(PositionalQuery(SQL_QUERY_OID_NAMES, emptyList())) { rs, _ ->
-                val oid = rs.getInt("oid")
-                val name = rs.getString("typname")
-                // Only put if not already present (we prefer schema-qualified names from previous query)
-                allOidNames.putIfAbsent(oid, name)
-            }
         } catch (e: Exception) {
-            throw InitializationException(InitializationExceptionMessage.DB_QUERY_FAILED, cause = e,
-                queryContext = QueryContext("", mapOf(), SQL_QUERY_ALL_TYPES, listOf(dbSchemas, dbSchemas)))
+            throw InitializationException(
+                InitializationExceptionMessage.DB_QUERY_FAILED,
+                cause = e,
+                queryContext = QueryContext("", mapOf(), SQL_QUERY_DETAILS, listOf(schemas, schemas))
+            )
         }
 
-        return DatabaseScanResult(
-            enums.mapValues { schemaMap ->
-                schemaMap.value.mapValues { Triple(it.value.first, it.value.second, it.value.third.toList()) }
-            },
-            composites.mapValues { schemaMap ->
-                schemaMap.value.mapValues { Triple(it.value.first, it.value.second, it.value.third.toMap()) }
-            },
-            allOidNames
-        )
+        try {
+            val query2 = PositionalQuery(SQL_QUERY_OIDS_AND_ARRAYS, listOf(schemas))
+            jdbcTemplate.query(query2) { rs, _ ->
+                val oid = rs.getInt("type_oid")
+                val schema = rs.getString("schema_name")
+                val name = rs.getString("type_name")
+                val arrayOid = rs.getInt("array_oid")
+
+                allOidNames[oid] = QualifiedName(schema, name, isArray = false)
+                allOidNames[arrayOid] = QualifiedName(schema, name, isArray = true)
+                arrayOids[arrayOid] =  oid
+            }
+        } catch (e: Exception) {
+            throw InitializationException(
+                InitializationExceptionMessage.DB_QUERY_FAILED,
+                cause = e,
+                queryContext = QueryContext("", mapOf(), SQL_QUERY_OIDS_AND_ARRAYS, listOf(schemas))
+            )
+        }
+
+
+        return DatabaseScanResult(enums, composites, allOidNames, arrayOids)
     }
 
     fun fetchSearchPath(): List<String> {
@@ -94,56 +90,42 @@ internal class DatabaseTypeScanner(
     companion object {
         val logger = KotlinLogging.logger {}
 
-        private const val SQL_QUERY_ENUM_TYPES = """
+        private const val SQL_QUERY_DETAILS = """
             SELECT
                 'enum' AS info_type,
-                n.nspname AS schema_name,
-                t.typname AS type_name,
                 t.oid AS type_oid,
-                t.typarray AS array_oid,
                 e.enumlabel AS col1,
                 NULL::int AS col2,
                 e.enumsortorder::int AS sort_order
-            FROM
-                pg_type t
-                JOIN pg_enum e ON t.oid = e.enumtypid
-                JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
-            WHERE
-                n.nspname = ANY(?)
-        """
-
-        private const val SQL_QUERY_COMPOSITE_TYPES = """
+            FROM pg_type t
+            JOIN pg_enum e ON t.oid = e.enumtypid
+            JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+            WHERE n.nspname = ANY(?)
+            UNION ALL
             SELECT
                 'composite' AS info_type,
+                t.oid AS type_oid,
+                a.attname AS col1,
+                a.atttypid::int AS col2,
+                a.attnum AS sort_order
+            FROM pg_type t
+            JOIN pg_class c ON t.typrelid = c.oid
+            JOIN pg_attribute a ON a.attrelid = c.oid
+            JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+            WHERE t.typtype = 'c' AND a.attnum > 0 AND NOT a.attisdropped AND n.nspname = ANY(?)
+            ORDER BY type_oid, sort_order
+        """
+
+        private const val SQL_QUERY_OIDS_AND_ARRAYS = """
+            SELECT
+                t.oid AS type_oid, 
                 n.nspname AS schema_name,
                 t.typname AS type_name,
-                t.oid AS type_oid,
-                t.typarray AS array_oid,
-                a.attname AS col1,
-                a.atttypid::int AS col2, -- OID of attribute type
-                a.attnum AS sort_order
-            FROM
-                pg_type t
-                JOIN pg_class c ON t.typrelid = c.oid
-                JOIN pg_attribute a ON a.attrelid = c.oid
-                JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
-            WHERE
-                t.typtype = 'c'
-                AND a.attnum > 0
-                AND NOT a.attisdropped
-                AND n.nspname = ANY(?)
-        """
-
-        private const val SQL_QUERY_ALL_TYPES = """
-            $SQL_QUERY_ENUM_TYPES
-            UNION ALL
-            $SQL_QUERY_COMPOSITE_TYPES
-            ORDER BY
-                type_name, sort_order
-        """
-
-        private const val SQL_QUERY_OID_NAMES = """
-            SELECT oid, typname FROM pg_type
+                t.typarray AS array_oid
+            FROM pg_type t
+            JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+            WHERE n.nspname = ANY(?)
+            AND typarray != 0
         """
     }
 }
