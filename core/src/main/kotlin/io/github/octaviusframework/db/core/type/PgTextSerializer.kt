@@ -7,7 +7,6 @@ import io.github.octaviusframework.db.api.exception.TypeRegistryExceptionMessage
 import io.github.octaviusframework.db.api.toDataMap
 import io.github.octaviusframework.db.api.type.DynamicDto
 import io.github.octaviusframework.db.api.type.PgTyped
-import io.github.octaviusframework.db.api.type.QualifiedName
 import io.github.octaviusframework.db.api.type.TypeHandler
 import io.github.octaviusframework.db.core.config.DynamicDtoSerializationStrategy
 import io.github.octaviusframework.db.core.type.registry.TypeRegistry
@@ -30,11 +29,11 @@ internal class PgTextSerializer(
     /**
      * Serializes a list into a PostgreSQL array literal (e.g., `{val1,val2}`).
      */
-    fun serializeList(list: List<*>, skipDynamicDto: Boolean, explicitElementType: QualifiedName?): String {
+    fun serializeList(list: List<*>, skipDynamicDto: Boolean): String {
         if (list.isEmpty()) return "{}"
         return list.joinToString(prefix = "{", postfix = "}", separator = ",") { item ->
             if (item == null) "NULL" else {
-                val literal = serializeValue(item, skipDynamicDto, explicitElementType, useNullLiteral = true)
+                val literal = serializeValue(item, skipDynamicDto, useNullLiteral = true)
                 if (shouldQuote(item)) escapeAndQuote(literal) else literal
             }
         }
@@ -43,8 +42,8 @@ internal class PgTextSerializer(
     /**
      * Serializes a data class into a PostgreSQL composite literal (e.g., `(val1,val2)`).
      */
-    fun serializeComposite(obj: Any, skipDynamicDto: Boolean, explicitType: QualifiedName?): String {
-        val typeName = explicitType ?: typeRegistry.getPgTypeNameForClass(obj::class)
+    fun serializeComposite(obj: Any, skipDynamicDto: Boolean): String {
+        val typeName = typeRegistry.getPgTypeNameForClass(obj::class)
         val oid = typeRegistry.getOidForName(typeName)
         val typeInfo = typeRegistry.getCompositeDefinition(oid)
 
@@ -66,13 +65,13 @@ internal class PgTextSerializer(
         return typeInfo.attributes.keys.joinToString(prefix = "(", postfix = ")", separator = ",") { key ->
             val value = valueMap[key]
             if (value == null) "" else {
-                val literal = serializeValue(value, skipDynamicDto, null, useNullLiteral = false)
+                val literal = serializeValue(value, skipDynamicDto, useNullLiteral = false)
                 if (shouldQuote(value)) escapeAndQuote(literal) else literal
             }
         }
     }
 
-    private fun serializeValue(value: Any, skipDynamicDto: Boolean, explicitType: QualifiedName?, useNullLiteral: Boolean): String {
+    private fun serializeValue(value: Any, skipDynamicDto: Boolean, useNullLiteral: Boolean): String {
         var current = value
         var wasPgTyped = false
 
@@ -101,23 +100,17 @@ internal class PgTextSerializer(
         // 3. Handle recursive/complex types
         return when (current) {
             is Enum<*> -> {
-                val typeName = explicitType ?: typeRegistry.getPgTypeNameForClass(current::class)
+                val typeName = typeRegistry.getPgTypeNameForClass(current::class)
                 val oid = typeRegistry.getOidForName(typeName)
                 typeRegistry.getEnumDefinition(oid).enumToValueMap[current] ?: current.name
             }
             is List<*> -> {
-                val baseType = explicitType?.let { 
-                    // If it's an array type name, get the element type name
-                    if (it.isArray) it.copy(isArray = false) 
-                    else if (it.name.startsWith("_")) it.copy(name = it.name.substring(1))
-                    else it
-                }
-                serializeList(current, skipDynamicDto || wasPgTyped, baseType)
+                serializeList(current, skipDynamicDto || wasPgTyped)
             }
             else -> {
                 val kClass = current::class
                 when {
-                    kClass.isData -> serializeComposite(current, skipDynamicDto || wasPgTyped, explicitType)
+                    kClass.isData -> serializeComposite(current, skipDynamicDto || wasPgTyped)
                     kClass.isValue -> throw TypeRegistryException(TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED, kClass.qualifiedName ?: kClass.simpleName ?: "unknown", expectedCategory = "DYNAMIC")
                     else -> current.toString()
                 }

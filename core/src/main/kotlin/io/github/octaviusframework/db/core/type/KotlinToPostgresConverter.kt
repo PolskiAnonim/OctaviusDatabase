@@ -103,11 +103,11 @@ internal class KotlinToPostgresConverter(
         val resolvedType: QualifiedName = pgType ?: if (appendTypeCast) resolveSqlType(unwrappedValue) else QualifiedName("", "text")
         val jdbcValue = when (unwrappedValue) {
             is Array<*> -> return handleArray(unwrappedValue)
-            is List<*> -> handleList(unwrappedValue, pgType, updatedSkipDynamicDto)
-            is Enum<*> -> handleEnum(unwrappedValue, pgType)
+            is List<*> -> handleList(unwrappedValue, updatedSkipDynamicDto)
+            is Enum<*> -> handleEnum(unwrappedValue)
             else -> {
                 when {
-                    unwrappedValue::class.isData -> pgObject("text", serializer.serializeComposite(unwrappedValue, updatedSkipDynamicDto, pgType))
+                    unwrappedValue::class.isData -> pgObject("text", serializer.serializeComposite(unwrappedValue, updatedSkipDynamicDto))
                     unwrappedValue::class.isValue -> throw TypeRegistryException(
                         TypeRegistryExceptionMessage.KOTLIN_CLASS_NOT_MAPPED,
                         unwrappedValue::class.qualifiedName ?: unwrappedValue::class.simpleName ?: "unknown",
@@ -154,17 +154,12 @@ internal class KotlinToPostgresConverter(
         return ParameterConversion("?", array)
     }
 
-    private fun handleList(list: List<*>, pgType: QualifiedName?, skipDynamicDto: Boolean): PGobject {
-        val elementPgType = pgType?.let { 
-            if (it.isArray) it.copy(isArray = false) 
-            else if (it.name.startsWith("_")) it.copy(name = it.name.substring(1))
-            else it
-        }
-        return pgObject("text", serializer.serializeList(list, skipDynamicDto, elementPgType))
+    private fun handleList(list: List<*>, skipDynamicDto: Boolean): PGobject {
+        return pgObject("text", serializer.serializeList(list, skipDynamicDto))
     }
 
-    private fun handleEnum(enum: Enum<*>, pgType: QualifiedName?): PGobject {
-        val typeName = pgType ?: typeRegistry.getPgTypeNameForClass(enum::class)
+    private fun handleEnum(enum: Enum<*>): PGobject {
+        val typeName = typeRegistry.getPgTypeNameForClass(enum::class)
         val oid = typeRegistry.getOidForName(typeName)
         val typeInfo = typeRegistry.getEnumDefinition(oid)
         // Set type to "text" because we append explicit cast in SQL
