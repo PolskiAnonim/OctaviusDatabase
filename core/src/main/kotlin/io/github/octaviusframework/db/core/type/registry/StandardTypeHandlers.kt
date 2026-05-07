@@ -1,4 +1,4 @@
-package io.github.octaviusframework.db.core.type
+package io.github.octaviusframework.db.core.type.registry
 
 import io.github.octaviusframework.db.api.type.DISTANT_FUTURE
 import io.github.octaviusframework.db.api.type.DISTANT_PAST
@@ -18,7 +18,6 @@ import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
 import java.util.*
 import kotlin.reflect.KClass
-import kotlin.reflect.full.isSubclassOf
 import kotlin.time.*
 import kotlin.time.Instant
 import java.time.LocalDate as JLocalDate
@@ -38,13 +37,10 @@ internal data class StandardTypeHandler<T : Any>(
 }
 
 /**
- * Central registry and single source of truth for mappings of standard PostgreSQL types to Kotlin types.
- *
- * Provides bidirectional conversion logic for:
- * - **Reading**: Result Set -> Kotlin, String (Literal) -> Kotlin
- * - **Writing**: Kotlin -> JDBC Parameter, Kotlin -> String (Text Protocol/Literal)
+ * Factory for standard PostgreSQL type mappings.
+ * Does not hold state; simply provides definitions that TypeRegistryLoader consumes.
  */
-internal object StandardTypeMappingRegistry {
+internal object StandardTypeHandlers {
 
     private const val PG_INFINITY = "infinity"
     private const val PG_PLUS_INFINITY = "+infinity"
@@ -64,24 +60,8 @@ internal object StandardTypeMappingRegistry {
         .appendPattern("[XXX][XX][X]")
         .toFormatter()
 
-    private val mappings: Map<String, StandardTypeHandler<*>> = buildMappings()
-    private val oidToHandler: Map<Int, StandardTypeHandler<*>> = buildOidMappings()
-    private val kotlinClassToHandler: Map<KClass<*>, StandardTypeHandler<*>> = mappings.values
-        .associateBy { it.kotlinClass }
-
-    private fun buildOidMappings(): Map<Int, StandardTypeHandler<*>> {
-        val map = mutableMapOf<Int, StandardTypeHandler<*>>()
-        PgStandardType.entries.forEach { pgType ->
-            val handler = mappings[pgType.typeName]
-            if (handler != null) {
-                map[pgType.oid] = handler
-            }
-        }
-        return map
-    }
-
-    private fun buildMappings(): Map<String, StandardTypeHandler<*>> {
-        val map = mutableMapOf<String, StandardTypeHandler<*>>()
+    fun createAll(): List<StandardTypeHandler<*>> {
+        val handlers = mutableListOf<StandardTypeHandler<*>>()
 
         PgStandardType.entries.forEach { pgType ->
             if (pgType.isArray) return@forEach
@@ -306,9 +286,9 @@ internal object StandardTypeMappingRegistry {
 
                 else -> null
             }
-            if (handler != null) map[pgType.typeName] = handler
+            if (handler != null) handlers.add(handler)
         }
-        return map.toMap()
+        return handlers
     }
 
     private fun pgObject(type: String, value: String) = PGobject().apply {
@@ -346,19 +326,6 @@ internal object StandardTypeMappingRegistry {
         }
         return result.toString()
     }
-
-    fun getHandlerByOid(oid: Int): StandardTypeHandler<*>? = oidToHandler[oid]
-    fun getHandlerByClass(kClass: KClass<*>): StandardTypeHandler<*>? {
-        kotlinClassToHandler[kClass]?.let { return it }
-        // Json Element - it is superclass
-        if (kClass.isSubclassOf(JsonElement::class)) {
-            return kotlinClassToHandler[JsonElement::class]
-        }
-        return null
-    }
-
-    fun getAllHandlersByOid(): Map<Int, TypeHandler<*>> = oidToHandler
-    fun getAllHandlersByClass(): Map<KClass<*>, TypeHandler<*>> = kotlinClassToHandler
 
     private inline fun <reified T : Any> primitive(
         pgTypeName: String, kClass: KClass<T>, crossinline getter: ResultSet.(Int) -> T,

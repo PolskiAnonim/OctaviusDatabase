@@ -6,8 +6,12 @@ import kotlin.reflect.KClass
 /**
  * Interface for handling conversion between Kotlin types and PostgreSQL types.
  *
- * Provides methods for both reading (from JDBC ResultSet or String)
- * and writing (to JDBC parameter or PostgreSQL-compatible String).
+ * Registered converters are automatically used for:
+ * - Single values in queries
+ * - Elements in PostgreSQL arrays
+ * - Fields within composite types
+ *
+ * @param T The Kotlin type this converter handles.
  */
 interface TypeHandler<T : Any> {
     val pgTypeName: String

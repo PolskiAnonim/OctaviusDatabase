@@ -5,7 +5,6 @@ import io.github.octaviusframework.db.api.type.PgStandardType
 import io.github.octaviusframework.db.api.type.QualifiedName
 import io.github.octaviusframework.db.api.util.CaseConvention
 import io.github.octaviusframework.db.api.util.CaseConverter
-import io.github.octaviusframework.db.core.type.StandardTypeMappingRegistry
 import io.github.octaviusframework.db.core.type.registry.*
 import io.github.octaviusframework.db.domain.test.pgtype.*
 import kotlin.reflect.KClass
@@ -176,14 +175,22 @@ internal fun createFakeTypeRegistry(): TypeRegistry {
         "data" to oid("jsonb")
     ))
 
+    val standardHandlers = StandardTypeHandlers.createAll()
+
+    val handlersByOid = standardHandlers.mapNotNull { handler ->
+        val oid = PgStandardType.entries.find { !it.isArray && it.typeName == handler.pgTypeName }?.oid
+        if (oid != null) oid to handler else null
+    }.toMap()
+    val handlersByClass = standardHandlers.associateBy { it.kotlinClass }
+
     // Zwracamy gotowy obiekt
     return TypeRegistry(
         oidCategoryMap = oidCategoryMap,
         enumsByOid = enumsByOid,
         compositesByOid = compositesByOid,
         arraysByOid = arraysByOid,
-        handlersByOid = StandardTypeMappingRegistry.getAllHandlersByOid(),
-        handlersByClass = StandardTypeMappingRegistry.getAllHandlersByClass(),
+        handlersByOid = handlersByOid,
+        handlersByClass = handlersByClass,
         classToPgNameMap = classToPgNameMap,
         dynamicSerializers = emptyMap(),
         classToDynamicNameMap = emptyMap(),

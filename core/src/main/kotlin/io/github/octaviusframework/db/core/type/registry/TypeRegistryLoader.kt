@@ -7,7 +7,6 @@ import io.github.octaviusframework.db.api.type.PgStandardType
 import io.github.octaviusframework.db.api.type.QualifiedName
 import io.github.octaviusframework.db.api.util.CaseConverter
 import io.github.octaviusframework.db.core.jdbc.JdbcTemplate
-import io.github.octaviusframework.db.core.type.StandardTypeMappingRegistry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -45,12 +44,25 @@ internal class TypeRegistryLoader(
 
         // Merge with validation
         val (finalEnums, enumClassMap) = mergeEnums(classpathData.enums, databaseData.enums, searchPath)
-        val (finalComposites, compositeClassMap) = mergeComposites(classpathData.composites, databaseData.composites, searchPath)
+        val (finalComposites, compositeClassMap) = mergeComposites(
+            classpathData.composites,
+            databaseData.composites,
+            searchPath
+        )
 
         // Standard types OIDs (map to empty schema for clean SQL casting)
-        val standardOids = PgStandardType.entries.filter { !it.isArray }.associate { 
-            QualifiedName("", it.typeName) to it.oid 
+        val standardOids = PgStandardType.entries.filter { !it.isArray }.associate {
+            QualifiedName("", it.typeName) to it.oid
         }
+
+        val standardHandlers = StandardTypeHandlers.createAll()
+
+        val handlersByOid = standardHandlers.mapNotNull { handler ->
+            val oid = PgStandardType.entries.find { !it.isArray && it.typeName == handler.pgTypeName }?.oid
+            if (oid != null) oid to handler else null
+        }.toMap()
+
+        val handlersByClass = standardHandlers.associateBy { it.kotlinClass }
 
         // Build array definitions and OID maps
         val (finalArrays, pgNameToOidMap) = buildArrayAndOidMaps(
@@ -65,7 +77,7 @@ internal class TypeRegistryLoader(
         // Category routing map (now by OID)
         val standardNonArrayOids = PgStandardType.entries.filter { !it.isArray }.map { it.oid }.toSet()
         val oidCategoryMap = buildOidCategoryMap(
-            enumsByOid.keys, compositesByOid.keys, arraysByOid.keys, 
+            enumsByOid.keys, compositesByOid.keys, arraysByOid.keys,
             standardNonArrayOids, finalComposites
         )
 
@@ -79,8 +91,8 @@ internal class TypeRegistryLoader(
             enumsByOid = enumsByOid,
             compositesByOid = compositesByOid,
             arraysByOid = arraysByOid,
-            handlersByOid = StandardTypeMappingRegistry.getAllHandlersByOid(),
-            handlersByClass = StandardTypeMappingRegistry.getAllHandlersByClass(),
+            handlersByOid = handlersByOid,
+            handlersByClass = handlersByClass,
             classToPgNameMap = classToPgNameMap,
             dynamicSerializers = classpathData.dynamicSerializers,
             classToDynamicNameMap = classpathData.dynamicReverseMap,
@@ -98,9 +110,15 @@ internal class TypeRegistryLoader(
         // 1. If schema is explicitly requested
         if (requestedSchema.isNotBlank()) {
             val schemaData = dbData[requestedSchema]
-                ?: throw InitializationException(InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB, details = "Schema '$requestedSchema' not found during scan")
+                ?: throw InitializationException(
+                    InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
+                    details = "Schema '$requestedSchema' not found during scan"
+                )
             val data = schemaData[typeName]
-                ?: throw InitializationException(InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB, details = "Type '$typeName' not found in schema '$requestedSchema'")
+                ?: throw InitializationException(
+                    InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
+                    details = "Type '$typeName' not found in schema '$requestedSchema'"
+                )
             return requestedSchema to data
         }
 
@@ -113,12 +131,20 @@ internal class TypeRegistryLoader(
         // 3. If not in search_path, check all scanned schemas for unambiguous match
         val matches = dbData.filter { it.value.containsKey(typeName) }
         return when (matches.size) {
-            0 -> throw InitializationException(InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB, details = "Type '$typeName' not found in any scanned schemas")
+            0 -> throw InitializationException(
+                InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
+                details = "Type '$typeName' not found in any scanned schemas"
+            )
+
             1 -> {
                 val entry = matches.entries.first()
                 entry.key to entry.value[typeName]!!
             }
-            else -> throw InitializationException(InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB, details = "Type '$typeName' is ambiguous. Found in schemas: ${matches.keys.joinToString()}. Please specify schema in annotation.")
+
+            else -> throw InitializationException(
+                InitializationExceptionMessage.TYPE_DEFINITION_MISSING_IN_DB,
+                details = "Type '$typeName' is ambiguous. Found in schemas: ${matches.keys.joinToString()}. Please specify schema in annotation."
+            )
         }
     }
 
@@ -137,7 +163,7 @@ internal class TypeRegistryLoader(
 
         ktEnums.forEach { kt ->
             val (resolvedSchema, dbInfo) = resolveType(kt.pgName, kt.schema, searchPath, dbEnums)
-            
+
             val qualifiedName = QualifiedName(resolvedSchema, kt.pgName)
 
             val enumConstants = kt.kClass.java.enumConstants!!
@@ -179,18 +205,22 @@ internal class TypeRegistryLoader(
 
         ktComposites.forEach { kt ->
             val (resolvedSchema, dbInfo) = resolveType(kt.pgName, kt.schema, searchPath, dbComposites)
-            
+
             val qualifiedName = QualifiedName(resolvedSchema, kt.pgName)
 
             val mapperInstance = kt.mapperClass?.let { mapperKClass ->
                 try {
                     // Try to get object instance first (for Kotlin objects)
-                    (mapperKClass.objectInstance ?: mapperKClass.java.getDeclaredConstructor().newInstance()) as PgCompositeMapper<Any>
+                    (mapperKClass.objectInstance ?: mapperKClass.java.getDeclaredConstructor()
+                        .newInstance()) as PgCompositeMapper<Any>
                 } catch (e: Exception) {
                     throw InitializationException(
                         InitializationExceptionMessage.INITIALIZATION_FAILED,
                         details = qualifiedName.toString(),
-                        cause = IllegalStateException("Failed to instantiate mapper ${mapperKClass.qualifiedName}. Ensure it is an 'object' or has a public no-arg constructor.", e)
+                        cause = IllegalStateException(
+                            "Failed to instantiate mapper ${mapperKClass.qualifiedName}. Ensure it is an 'object' or has a public no-arg constructor.",
+                            e
+                        )
                     )
                 }
             }
@@ -228,11 +258,12 @@ internal class TypeRegistryLoader(
         // Handle Enums
         enums.forEach { (qualifiedName, def) ->
             pgNameToOidMap[qualifiedName] = def.oid
-            
+
             val arrayOid = dbEnums[qualifiedName.schema]?.get(qualifiedName.name)?.second ?: 0
             if (arrayOid != 0) {
                 val arrayQualifiedName = qualifiedName.asArray()
-                arrayDefinitions[arrayQualifiedName] = PgArrayDefinition(arrayOid, arrayQualifiedName.toString(), def.oid)
+                arrayDefinitions[arrayQualifiedName] =
+                    PgArrayDefinition(arrayOid, arrayQualifiedName.toString(), def.oid)
                 pgNameToOidMap[arrayQualifiedName] = arrayOid
             }
         }
@@ -240,11 +271,12 @@ internal class TypeRegistryLoader(
         // Handle Composites
         composites.forEach { (qualifiedName, def) ->
             pgNameToOidMap[qualifiedName] = def.oid
-            
+
             val arrayOid = dbComposites[qualifiedName.schema]?.get(qualifiedName.name)?.second ?: 0
             if (arrayOid != 0) {
                 val arrayQualifiedName = qualifiedName.asArray()
-                arrayDefinitions[arrayQualifiedName] = PgArrayDefinition(arrayOid, arrayQualifiedName.toString(), def.oid)
+                arrayDefinitions[arrayQualifiedName] =
+                    PgArrayDefinition(arrayOid, arrayQualifiedName.toString(), def.oid)
                 pgNameToOidMap[arrayQualifiedName] = arrayOid
             }
         }
